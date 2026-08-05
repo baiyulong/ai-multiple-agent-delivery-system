@@ -14,6 +14,7 @@ import { resolveDeliveryRoot } from './core/paths.js';
 import { getQuestions, getStages, getTask, listTaskIds, readContext } from './core/store/task-store.js';
 import { getArtifact, listArtifacts } from './core/store/artifact-store.js';
 import { readGateStageFile } from './core/store/gate-store.js';
+import { isTeamConfigured, readTeamConfig, TEAM_ROLE_LABELS } from './core/store/team-store.js';
 
 const PORT = Number(process.env.DELIVERY_DASHBOARD_PORT ?? process.env.PORT ?? 8787);
 const root = resolveDeliveryRoot();
@@ -131,6 +132,16 @@ const server = createServer(async (req, res) => {
     // JSON API
     if (path === '/api/tasks') {
       return sendJson(res, 200, await buildTaskList());
+    }
+    if (path === '/api/team') {
+      const configured = await isTeamConfigured(root);
+      const config = await readTeamConfig(root);
+      return sendJson(res, 200, {
+        configured,
+        members: config?.members ?? [],
+        role_labels: TEAM_ROLE_LABELS,
+        updated_at: config?.updated_at ?? null,
+      });
     }
     const detailMatch = path.match(/^\/api\/tasks\/([^/]+)$/);
     if (detailMatch) {

@@ -51,6 +51,9 @@ npm run dashboard # 启动浏览器任务看板 http://localhost:8787
 | `gate.check` | 执行门禁检查并记录结果 |
 | `context.get_shared` / `context.update` | 读写共享上下文 |
 | `question.create` / `question.resolve` | 创建/解决阻塞问题 |
+| `team.get` / `team.set` | 查看/配置项目团队（姓名/邮箱/角色，一人可多角色） |
+
+> 首次使用：`task.create` 前必须先 `team.set` 配置至少一名成员，否则返回 `team_not_configured`。
 
 ## 在 OpenCode 中注册
 

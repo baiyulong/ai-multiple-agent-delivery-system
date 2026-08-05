@@ -9,6 +9,7 @@ import { registerArtifactTools } from './tools/artifact.js';
 import { registerGateTools } from './tools/gate.js';
 import { registerContextTools } from './tools/context.js';
 import { registerQuestionTools } from './tools/question.js';
+import { registerTeamTools } from './tools/team.js';
 
 const root = resolveDeliveryRoot();
 
@@ -28,6 +29,7 @@ async function main(): Promise<void> {
   registerGateTools(server, ctx);
   registerContextTools(server, ctx);
   registerQuestionTools(server, ctx);
+  registerTeamTools(server, ctx);
 
   const transport = new StdioServerTransport();
   await server.connect(transport);

@@ -12,6 +12,7 @@ import { ok, fail, type ToolContext } from './common.js';
 import { resolveDeliveryRoot } from '../core/paths.js';
 import { MVP_TASK_TYPES, type TaskType } from '../core/types.js';
 import { FLOW_FILE_NAMES } from '../core/flow-engine.js';
+import { isTeamConfigured } from '../core/store/team-store.js';
 
 /**
  * 任务工具组（PRD 9.1-9.4 / 9.15）：
@@ -36,6 +37,13 @@ export function registerTaskTools(server: McpServer, ctx: () => ToolContext) {
     async (args) => {
       try {
         const root = resolveDeliveryRoot(ctx().root);
+        // 首次使用强制校验：未配置团队必须先 team.set（PRD 协作上下文）
+        if (!(await isTeamConfigured(root))) {
+          return fail(
+            'team_not_configured',
+            '项目未配置团队信息。请先调用 team.set 配置至少一名成员（姓名/邮箱/角色），再创建任务。',
+          );
+        }
         let taskType = args.task_type as TaskType | undefined;
         if (!taskType) {
           taskType = detectTaskType(args.description).task_type;

@@ -14,6 +14,7 @@
 - [在新项目中使用](#在新项目中使用)
 - [MCP 工具一览](#mcp-工具一览)
 - [工作流示例](#工作流示例)
+- [团队配置](#团队配置)
 - [浏览器任务看板](#浏览器任务看板)
 - [存储结构](#存储结构)
 - [自定义流程与门禁](#自定义流程与门禁)
@@ -134,6 +135,42 @@ cd delivery-mcp-server && npm install && npm run build
 - 让总控调用 `task.get <task_id>` 查看阶段状态、交付物与待确认问题。
 - 或直接打开 `.delivery/tasks/TASK-xxx/` 下的文件。
 - 或启动**浏览器任务看板**（见下节），可视化浏览全部任务。
+
+---
+
+## 团队配置
+
+系统要求项目先配置**参与人及其角色**（一人可担任多个角色），首次使用（创建任务）前必须配置。
+
+### 通过 MCP 配置
+
+```jsonc
+// team.set：新增或更新成员（按邮箱匹配，roles 覆盖）
+{
+  "name": "Yulong",
+  "email": "xiaoum@live.com",
+  "roles": ["product-manager", "engineer"]   // 一人可多角色
+}
+```
+
+- `team.get`：查看当前团队配置（含角色中文映射）。
+- 未配置时 `task.create` 会返回 `team_not_configured`，提示先配置。
+- 配置保存在 `.delivery/config/team.json`（项目级，gitignore 排除）。
+
+### 角色列表
+
+| 角色 key | 中文名 |
+|---|---|
+| delivery-orchestrator | 交付编排总控 |
+| domain-expert | 业务专家 |
+| product-manager | 产品经理 |
+| ux-designer | UI/UX 设计 |
+| domain-architect | 领域架构师 |
+| engineer | 工程实现 |
+| qa | 质量测试 |
+| devops | 平台与 DevOps |
+
+看板顶部会显示当前团队成员（姓名/邮箱/角色），未配置时显示提示条。
 
 ---
 

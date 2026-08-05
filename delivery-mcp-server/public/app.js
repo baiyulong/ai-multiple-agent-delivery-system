@@ -9,7 +9,6 @@
   // ==================== 常量 ====================
 
   const API_BASE = '/api';
-  const REFRESH_INTERVAL = 8000; // 8 秒自动刷新
 
   const TASK_TYPE_MAP = {
     crud: 'CRUD',
@@ -281,8 +280,8 @@
     currentTaskId: null,
     taskList: [],
     taskDetail: null,
-    refreshTimer: null,
     artifactCache: {}, // artifactId → markdown content
+    teamData: null, // { configured, members, role_labels, updated_at }
   };
 
   // ==================== DOM 引用 ====================
@@ -294,7 +293,10 @@
     viewList: $('#view-list'),
     viewDetail: $('#view-detail'),
     headerBrand: $('#header-brand'),
+    headerTeam: $('#header-team'),
     headerStatus: $('#header-status'),
+    teamBanner: $('#team-banner'),
+    teamBannerMsg: $('#team-banner-msg'),
     taskCount: $('#task-count'),
     listLoading: $('#list-loading'),
     listError: $('#list-error'),
@@ -344,6 +346,65 @@
     dom.listLoading.classList.add('hidden');
     dom.listError.classList.add('hidden');
     dom.listEmpty.classList.remove('hidden');
+  }
+
+  // ==================== 团队配置 ====================
+
+  async function loadTeam() {
+    try {
+      const data = await apiFetch('/team');
+      state.teamData = data;
+      renderTeam(data);
+    } catch {
+      // 团队 API 不可用时静默处理，不影响主流程
+    }
+  }
+
+  function renderTeam(data) {
+    // 渲染 header 团队成员
+    renderTeamHeader(data);
+
+    // 渲染未配置提示条
+    renderTeamBanner(data);
+  }
+
+  function renderTeamHeader(data) {
+    const container = dom.headerTeam;
+    if (!container) return;
+
+    if (!data.configured || !data.members || data.members.length === 0) {
+      container.innerHTML = '';
+      return;
+    }
+
+    const roleLabels = data.role_labels || {};
+    let html = '';
+
+    data.members.forEach((m) => {
+      const roles = (m.roles || [])
+        .map((r) => roleLabels[r] || r)
+        .map((r) => '<span class="team-role-tag">' + esc(r) + '</span>')
+        .join('');
+
+      html += '<span class="team-member">'
+        + '<span class="team-member-name">' + esc(m.name) + '</span>'
+        + (m.email ? '<span class="team-member-email">&lt;' + esc(m.email) + '&gt;</span>' : '')
+        + (roles ? '<span class="team-member-roles">' + roles + '</span>' : '')
+        + '</span>';
+    });
+
+    container.innerHTML = html;
+  }
+
+  function renderTeamBanner(data) {
+    const banner = dom.teamBanner;
+    if (!banner) return;
+
+    if (data.configured) {
+      banner.classList.add('hidden');
+    } else {
+      banner.classList.remove('hidden');
+    }
   }
 
   // ==================== 任务列表 ====================
@@ -745,31 +806,11 @@
       state.currentTaskId = route.taskId;
       showView('detail');
       loadTaskDetail();
-      startAutoRefresh();
     } else {
       state.currentTaskId = null;
       state.taskDetail = null;
       showView('list');
       loadTaskList();
-      stopAutoRefresh();
-    }
-  }
-
-  // ==================== 自动刷新 ====================
-
-  function startAutoRefresh() {
-    stopAutoRefresh();
-    state.refreshTimer = setInterval(() => {
-      if (state.currentView === 'detail' && state.currentTaskId) {
-        loadTaskDetail();
-      }
-    }, REFRESH_INTERVAL);
-  }
-
-  function stopAutoRefresh() {
-    if (state.refreshTimer) {
-      clearInterval(state.refreshTimer);
-      state.refreshTimer = null;
     }
   }
 
@@ -781,6 +822,9 @@
 
     // 监听 hash 变化
     window.addEventListener('hashchange', handleRoute);
+
+    // 加载团队配置（全局，只拉取一次）
+    loadTeam();
 
     // 初始路由
     handleRoute();
@@ -794,9 +838,24 @@
   window.App = {
     loadTaskList,
     loadTaskDetail,
+    loadTeam,
     navigateToList,
     toggleContext,
     loadDeliveryPackage,
+    refreshDetail() {
+      if (!state.currentTaskId) return;
+      const btn = document.getElementById('btn-refresh-detail');
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = '刷新中...';
+      }
+      loadTaskDetail().finally(() => {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg> 刷新';
+        }
+      });
+    },
     toggleArtifact(headerEl) {
       const item = headerEl.closest('.artifact-item');
       const wasExpanded = item.classList.contains('expanded');
