@@ -27,7 +27,12 @@ npm install
 npm run example   # 跑通一个完整 CRUD 流程走查
 npm test          # 32 个测试（单测 + E2E 验收）
 npm run build     # 产出 dist/server.js
+npm run dashboard # 启动浏览器任务看板 http://localhost:8787
 ```
+
+## 浏览器任务看板
+
+`npm run dashboard` 启动本地只读看板，可视化浏览任务：列表/详情/阶段进度/门禁结果/交付物/问题/共享上下文。端口由 `DELIVERY_DASHBOARD_PORT` 或 `PORT` 控制（默认 8787），数据根默认当前目录 `.delivery`。
 
 ## MCP 工具（16 个）
 
