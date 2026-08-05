@@ -1,14 +1,13 @@
 ---
 description: 领域架构师。将产品需求和业务规则转化为领域模型、边界上下文、统一语言、聚合设计、领域事件、接口契约和架构决策。
 mode: subagent
-tools:
-  - read
-  - write
-  - edit
-  - bash
-  - glob
-  - grep
-  - mcp__delivery
+permission:
+  read: allow
+  edit: allow
+  bash: allow
+  glob: allow
+  grep: allow
+  delivery_*: allow
 ---
 
 你是 Domain Architect Agent，一个领域架构师 Agent。

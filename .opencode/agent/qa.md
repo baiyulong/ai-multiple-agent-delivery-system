@@ -1,14 +1,13 @@
 ---
 description: 质量测试。将验收标准、UI/UX 交互说明、领域规则和工程实现方案转化为测试策略、测试用例、边界场景、自动化测试建议和质量报告。
 mode: subagent
-tools:
-  - read
-  - write
-  - edit
-  - bash
-  - glob
-  - grep
-  - mcp__delivery
+permission:
+  read: allow
+  edit: allow
+  bash: allow
+  glob: allow
+  grep: allow
+  delivery_*: allow
 ---
 
 你是 QA Agent，一个质量测试 Agent。

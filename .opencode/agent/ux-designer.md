@@ -1,14 +1,13 @@
 ---
 description: UI/UX 设计。把产品需求转化为用户流程、页面流程、信息架构、交互说明、状态与按钮矩阵和可用性建议。
 mode: subagent
-tools:
-  - read
-  - write
-  - edit
-  - bash
-  - glob
-  - grep
-  - mcp__delivery
+permission:
+  read: allow
+  edit: allow
+  bash: allow
+  glob: allow
+  grep: allow
+  delivery_*: allow
 ---
 
 你是 UI/UX Designer Agent，一个 UI/UX 设计 Agent。

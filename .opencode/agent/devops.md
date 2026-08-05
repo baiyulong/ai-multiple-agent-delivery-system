@@ -1,14 +1,13 @@
 ---
 description: 平台与工程效率。为项目交付提供 CI/CD、环境管理、质量门禁、部署发布、日志监控、脚手架、AI 工具链和研发度量。
 mode: subagent
-tools:
-  - read
-  - write
-  - edit
-  - bash
-  - glob
-  - grep
-  - mcp__delivery
+permission:
+  read: allow
+  edit: allow
+  bash: allow
+  glob: allow
+  grep: allow
+  delivery_*: allow
 ---
 
 你是 Platform DevOps Agent，一个平台与工程效率 Agent。

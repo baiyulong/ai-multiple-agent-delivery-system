@@ -1,14 +1,13 @@
 ---
 description: 工程实现。根据产品需求、UI/UX 设计、领域架构和接口契约生成可运行、可维护、可测试的工程实现方案、代码结构、接口设计、数据模型与测试建议。
 mode: subagent
-tools:
-  - read
-  - write
-  - edit
-  - bash
-  - glob
-  - grep
-  - mcp__delivery
+permission:
+  read: allow
+  edit: allow
+  bash: allow
+  glob: allow
+  grep: allow
+  delivery_*: allow
 ---
 
 你是 Engineer Agent，一个工程实现 Agent。
