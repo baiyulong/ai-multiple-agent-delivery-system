@@ -277,4 +277,74 @@ describe('PRD 7.9 / 8.8：问题阻塞与解除', () => {
 
     await h.cleanup();
   });
+
+  it('跨阶段：问题阻塞未来阶段时，任何角色都不能标记其他阶段完成', async () => {
+    const h = await createHarness();
+    const created = await h.call('task.create', {
+      title: 't',
+      description: '维护供应商分类',
+      created_by: 'u',
+    });
+    const taskId = created.task_id as string;
+
+    // 依次完成 product_requirement → ux_design → domain_review
+    const done = [
+      { stage: 'product_requirement', type: 'crud_spec_card', content: validCrudSpecCard() },
+      { stage: 'ux_design', type: 'ux_interaction_card', content: validUxInteractionCard() },
+      { stage: 'domain_review', type: 'ddd_applicability_review', content: validDddReview() },
+    ];
+    for (const s of done) {
+      const submit = await h.call('artifact.submit', {
+        task_id: taskId,
+        stage: s.stage,
+        role: 'agent',
+        artifact_type: s.type,
+        content: s.content,
+      });
+      const gate = await h.call('gate.check', { task_id: taskId, stage: s.stage, artifact_id: submit.artifact_id });
+      expect(gate.result).toBe('passed');
+      const complete = await h.call('stage.complete', { task_id: taskId, stage: s.stage, confirmed_by: 'Yulong' });
+      expect(complete.status).toBe('completed');
+    }
+
+    // 当前处于 engineering_design；问题阻塞未来阶段 qa_validation
+    const q = await h.call('question.create', {
+      task_id: taskId,
+      raised_by: 'qa',
+      assigned_to_role: 'engineer',
+      question: '测试环境数据是否需要在验收前重置？',
+      blocks_stage: 'qa_validation',
+    });
+    expect(q.status).toBe('open');
+
+    // engineering_design 交付物齐全且门禁通过，但任务内有 open 阻塞问题 → 不得完成
+    const submit = await h.call('artifact.submit', {
+      task_id: taskId,
+      stage: 'engineering_design',
+      role: 'engineer',
+      artifact_type: 'engineering_plan',
+      content: validEngineeringPlan(),
+    });
+    const gate = await h.call('gate.check', { task_id: taskId, stage: 'engineering_design', artifact_id: submit.artifact_id });
+    expect(gate.result).toBe('passed');
+
+    const complete = await h.call('stage.complete', { task_id: taskId, stage: 'engineering_design', confirmed_by: 'Yulong' });
+    expect(complete.ok).toBe(false);
+    expect(complete.code).toBe('blocked_by_question');
+    expect(complete.details.blocked_stages).toContain('qa_validation');
+
+    // 解决后即可完成
+    const resolved = await h.call('question.resolve', {
+      task_id: taskId,
+      question_id: q.question_id,
+      answer: '验收前重置测试环境数据。',
+      resolved_by: 'engineer',
+    });
+    expect(resolved.status).toBe('resolved');
+
+    const complete2 = await h.call('stage.complete', { task_id: taskId, stage: 'engineering_design', confirmed_by: 'Yulong' });
+    expect(complete2.status).toBe('completed');
+
+    await h.cleanup();
+  });
 });

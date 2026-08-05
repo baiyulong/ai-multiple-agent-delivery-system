@@ -75,7 +75,7 @@ export function registerStageTools(server: McpServer, ctx: () => ToolContext) {
     'stage.complete',
     {
       description:
-        '标记阶段完成（PRD 7.7 / 8.4 / 9.6）。前置条件：①必需交付物存在 ②交付物状态 validated ③gate.check 通过 ④无阻塞 open question。完成阶段必须由用户确认（confirmed_by）。完成后推进 current_stage。',
+        '标记阶段完成（PRD 7.7 / 8.4 / 9.6）。前置条件：①必需交付物存在 ②交付物状态 validated ③gate.check 通过 ④任务内不存在任何 open 阻塞问题（不论阻塞的是哪个阶段）。完成阶段必须由用户确认（confirmed_by）。完成后推进 current_stage。',
       inputSchema: {
         task_id: z.string().describe('任务 ID'),
         stage: z.string().describe('阶段名'),
@@ -126,14 +126,15 @@ export function registerStageTools(server: McpServer, ctx: () => ToolContext) {
           }
         }
 
-        // ④ 无阻塞 open question
+        // ④ 任务内不存在任何 open 阻塞问题（任何阶段只要有 open 阻塞问题，任何角色都不能标记完成）
         const questions = await (await import('../core/store/task-store.js')).getQuestions(root, args.task_id);
-        const blockers = questions.filter((q) => q.blocks_stage === args.stage && q.status === 'open');
+        const blockers = questions.filter((q) => q.blocks_stage && q.status === 'open');
         if (blockers.length > 0) {
+          const blockedStages = [...new Set(blockers.map((q) => q.blocks_stage as string))].join('、');
           return fail(
             'blocked_by_question',
-            `存在阻塞本阶段的未解决问题: ${blockers.map((q) => `${q.question_id}: ${q.question}`).join('；')}`,
-            { blockers: blockers.map((q) => q.question_id) },
+            `任务存在未解决的阻塞问题（影响阶段：${blockedStages}）: ${blockers.map((q) => `${q.question_id}: ${q.question}`).join('；')}`,
+            { blockers: blockers.map((q) => q.question_id), blocked_stages: blockedStages },
           );
         }
 
