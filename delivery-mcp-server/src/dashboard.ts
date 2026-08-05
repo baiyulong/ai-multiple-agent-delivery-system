@@ -15,6 +15,7 @@ import { getQuestions, getStages, getTask, listTaskIds, readContext } from './co
 import { getArtifact, listArtifacts } from './core/store/artifact-store.js';
 import { readGateStageFile } from './core/store/gate-store.js';
 import { isTeamConfigured, readTeamConfig, TEAM_ROLE_LABELS } from './core/store/team-store.js';
+import { readCurrentUser } from './core/store/user-store.js';
 
 const PORT = Number(process.env.DELIVERY_DASHBOARD_PORT ?? process.env.PORT ?? 8787);
 const root = resolveDeliveryRoot();
@@ -141,6 +142,22 @@ const server = createServer(async (req, res) => {
         members: config?.members ?? [],
         role_labels: TEAM_ROLE_LABELS,
         updated_at: config?.updated_at ?? null,
+      });
+    }
+    if (path === '/api/user') {
+      const [user, teamConfig] = await Promise.all([readCurrentUser(), readTeamConfig(root)]);
+      const member = user
+        ? (teamConfig?.members ?? []).find(
+            (m) => m.email.toLowerCase() === user.email.toLowerCase(),
+          ) ?? null
+        : null;
+      return sendJson(res, 200, {
+        configured: !!user,
+        user: user ? { name: user.name, email: user.email } : null,
+        roles: member?.roles ?? [],
+        role_labels: TEAM_ROLE_LABELS,
+        in_team: !!member,
+        updated_at: user?.updated_at ?? null,
       });
     }
     const detailMatch = path.match(/^\/api\/tasks\/([^/]+)$/);

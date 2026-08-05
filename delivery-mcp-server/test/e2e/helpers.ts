@@ -12,7 +12,10 @@ import { registerGateTools } from '../../src/tools/gate.js';
 import { registerContextTools } from '../../src/tools/context.js';
 import { registerQuestionTools } from '../../src/tools/question.js';
 import { registerTeamTools } from '../../src/tools/team.js';
+import { registerUserTools } from '../../src/tools/user.js';
+import { registerEmailTools } from '../../src/tools/email.js';
 import { upsertMember } from '../../src/core/store/team-store.js';
+import { writeCurrentUser } from '../../src/core/store/user-store.js';
 
 export interface TestHarness {
   root: string;
@@ -35,12 +38,15 @@ export async function createHarness(): Promise<TestHarness> {
   registerContextTools(server, ctx);
   registerQuestionTools(server, ctx);
   registerTeamTools(server, ctx);
+  registerUserTools(server, ctx);
+  registerEmailTools(server, ctx);
 
   const client = new Client({ name: 'test-client', version: '0.0.0' });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);
 
-  // 首次使用强制校验：先配置一名团队成员，否则 task.create 会被拦截
+  // 首次使用强制校验：先配置当前人 + 一名团队成员，否则 task.create 会被拦截
+  await writeCurrentUser({ name: 'Test User', email: 'test@example.com' });
   await upsertMember(root, { name: 'Test User', email: 'test@example.com', roles: ['product-manager', 'engineer'] });
 
   return {

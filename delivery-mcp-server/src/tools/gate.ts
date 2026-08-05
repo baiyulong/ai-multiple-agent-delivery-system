@@ -7,6 +7,7 @@ import { appendGateRecord } from '../core/store/gate-store.js';
 import { setStageStatus } from '../core/store/stage-store.js';
 import { generateGateId } from '../core/ids.js';
 import { resolveDeliveryRoot } from '../core/paths.js';
+import { notifyRole } from '../core/notify.js';
 import { fail, ok, type ToolContext } from './common.js';
 
 /**
@@ -56,11 +57,26 @@ export function registerGateTools(server: McpServer, ctx: () => ToolContext) {
             issues: [`未找到门禁规则: ${got.metadata.artifact_type}`],
             checked_at: new Date().toISOString(),
           });
+          // 通知阶段角色（best-effort，不影响主逻辑）
+          const email = await notifyRole(
+            root,
+            stage.role,
+            `【门禁未通过，请返工】${task.title}`,
+            [
+              `任务：${task.title}`,
+              `任务ID：${args.task_id}`,
+              `交付物类型：${got.metadata.artifact_type}`,
+              `结果：manual_review_required`,
+              `分数：0`,
+              `问题：未找到门禁规则: ${got.metadata.artifact_type}`,
+            ].join('\n'),
+          );
           return ok({
             result: 'manual_review_required',
             score: 0,
             missing_sections: [],
             issues: [`未找到门禁规则: ${got.metadata.artifact_type}`],
+            email,
           });
         }
 
@@ -88,6 +104,24 @@ export function registerGateTools(server: McpServer, ctx: () => ToolContext) {
           await setStageStatus(root, args.task_id, args.stage, 'needs_revision', stages);
         }
 
+        // 通知阶段角色（best-effort，不影响主逻辑）
+        let email: { sent: boolean; to: string[]; reason?: string } | undefined;
+        if (outcome.result !== 'passed') {
+          email = await notifyRole(
+            root,
+            stage.role,
+            `【门禁未通过，请返工】${task.title}`,
+            [
+              `任务：${task.title}`,
+              `任务ID：${args.task_id}`,
+              `交付物类型：${got.metadata.artifact_type}`,
+              `结果：${outcome.result}`,
+              `分数：${outcome.score}`,
+              `问题：${outcome.issues.join('；') || '无'}`,
+            ].join('\n'),
+          );
+        }
+
         return ok({
           gate_id: gateId,
           result: outcome.result,
@@ -96,6 +130,7 @@ export function registerGateTools(server: McpServer, ctx: () => ToolContext) {
           issues: outcome.issues,
           artifact_status: outcome.result === 'passed' ? 'validated' : 'needs_revision',
           stage_status: outcome.result === 'passed' ? 'validated' : 'needs_revision',
+          email,
         });
       } catch (e) {
         return fail('gate_check_failed', (e as Error).message);

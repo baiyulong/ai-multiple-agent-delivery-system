@@ -282,6 +282,7 @@
     taskDetail: null,
     artifactCache: {}, // artifactId → markdown content
     teamData: null, // { configured, members, role_labels, updated_at }
+    userData: null, // { configured, user, roles, role_labels, in_team, team_configured }
   };
 
   // ==================== DOM 引用 ====================
@@ -348,42 +349,82 @@
     dom.listEmpty.classList.remove('hidden');
   }
 
-  // ==================== 团队配置 ====================
+  // ==================== 团队 & 用户配置 ====================
 
-  async function loadTeam() {
-    try {
-      const data = await apiFetch('/team');
-      state.teamData = data;
-      renderTeam(data);
-    } catch {
-      // 团队 API 不可用时静默处理，不影响主流程
+  async function loadTeamAndUser() {
+    // 并行拉取团队与用户配置，任一失败不影响另一个
+    const [teamResult, userResult] = await Promise.allSettled([
+      apiFetch('/team'),
+      apiFetch('/user'),
+    ]);
+
+    if (teamResult.status === 'fulfilled') {
+      state.teamData = teamResult.value;
     }
+    if (userResult.status === 'fulfilled') {
+      state.userData = userResult.value;
+    }
+
+    renderTeamHeader();
+    renderTeamBanner();
   }
 
-  function renderTeam(data) {
-    // 渲染 header 团队成员
-    renderTeamHeader(data);
-
-    // 渲染未配置提示条
-    renderTeamBanner(data);
-  }
-
-  function renderTeamHeader(data) {
+  function renderTeamHeader() {
     const container = dom.headerTeam;
     if (!container) return;
 
-    if (!data.configured || !data.members || data.members.length === 0) {
+    const team = state.teamData;
+    const user = state.userData;
+    const roleLabels = (team && team.role_labels) || (user && user.role_labels) || {};
+
+    // 无团队数据且无用户数据 → 清空
+    if ((!team || !team.configured || !team.members || team.members.length === 0)
+        && (!user || !user.configured)) {
       container.innerHTML = '';
       return;
     }
 
-    const roleLabels = data.role_labels || {};
+    const members = (team && team.configured) ? (team.members || []) : [];
+    const currentUserEmail = (user && user.configured && user.user) ? user.user.email : null;
+    const currentUserRoles = (user && user.configured) ? (user.roles || []) : [];
+
+    // 找到当前用户在团队名册中的记录
+    let currentMember = null;
+    let otherMembers = members;
+    if (currentUserEmail) {
+      const idx = members.findIndex((m) => m.email === currentUserEmail);
+      if (idx >= 0) {
+        currentMember = members[idx];
+        otherMembers = members.filter((_, i) => i !== idx);
+      }
+    }
+
     let html = '';
 
-    data.members.forEach((m) => {
+    // 1. 当前操作人（最前，显著）
+    if (user && user.configured && user.user) {
+      const name = user.user.name || currentUserEmail || '未知';
+      const email = user.user.email || '';
+      // 优先用 user API 返回的角色，若无则用团队名册中匹配到的
+      const roles = currentUserRoles.length > 0
+        ? currentUserRoles
+        : (currentMember ? (currentMember.roles || []) : []);
+      const rolesHtml = roles
+        .map((r) => '<span class="team-role-tag">' + esc(roleLabels[r] || r) + '</span>')
+        .join('');
+
+      html += '<span class="team-member team-member-current">'
+        + '<span class="team-current-badge">当前</span>'
+        + '<span class="team-member-name">' + esc(name) + '</span>'
+        + (email ? '<span class="team-member-email">&lt;' + esc(email) + '&gt;</span>' : '')
+        + (rolesHtml ? '<span class="team-member-roles">' + rolesHtml + '</span>' : '')
+        + '</span>';
+    }
+
+    // 2. 其他团队成员
+    otherMembers.forEach((m) => {
       const roles = (m.roles || [])
-        .map((r) => roleLabels[r] || r)
-        .map((r) => '<span class="team-role-tag">' + esc(r) + '</span>')
+        .map((r) => '<span class="team-role-tag">' + esc(roleLabels[r] || r) + '</span>')
         .join('');
 
       html += '<span class="team-member">'
@@ -393,18 +434,37 @@
         + '</span>';
     });
 
+    // 3. 未配置当前人的弱化提示
+    if (user && !user.configured) {
+      html += '<span class="team-user-hint">尚未设置当前人（user.set）</span>';
+    }
+
     container.innerHTML = html;
   }
 
-  function renderTeamBanner(data) {
+  function renderTeamBanner() {
     const banner = dom.teamBanner;
-    if (!banner) return;
+    const msgEl = dom.teamBannerMsg;
+    if (!banner || !msgEl) return;
 
-    if (data.configured) {
+    const user = state.userData;
+    const team = state.teamData;
+
+    const userOk = user && user.configured;
+    const teamOk = team && team.configured;
+
+    if (userOk && teamOk) {
       banner.classList.add('hidden');
-    } else {
-      banner.classList.remove('hidden');
+      return;
     }
+
+    // 构建提示文案
+    const parts = [];
+    if (!userOk) parts.push('user.set（当前人姓名/邮箱）');
+    if (!teamOk) parts.push('team.set（团队名册）');
+
+    msgEl.textContent = '请通过 MCP 调用 ' + parts.join(' 与 ') + ' 后再创建任务。';
+    banner.classList.remove('hidden');
   }
 
   // ==================== 任务列表 ====================
@@ -823,8 +883,8 @@
     // 监听 hash 变化
     window.addEventListener('hashchange', handleRoute);
 
-    // 加载团队配置（全局，只拉取一次）
-    loadTeam();
+    // 加载团队与用户配置（全局，只拉取一次）
+    loadTeamAndUser();
 
     // 初始路由
     handleRoute();
@@ -838,7 +898,7 @@
   window.App = {
     loadTaskList,
     loadTaskDetail,
-    loadTeam,
+    loadTeamAndUser,
     navigateToList,
     toggleContext,
     loadDeliveryPackage,

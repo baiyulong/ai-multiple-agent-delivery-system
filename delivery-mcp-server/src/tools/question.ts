@@ -5,6 +5,7 @@ import { getQuestions, getStages, getTask, saveQuestions } from '../core/store/t
 import { setStageStatus } from '../core/store/stage-store.js';
 import { resolveDeliveryRoot } from '../core/paths.js';
 import { nowIso } from '../core/time.js';
+import { notifyRole } from '../core/notify.js';
 import { fail, ok, type ToolContext } from './common.js';
 
 /**
@@ -58,10 +59,25 @@ export function registerQuestionTools(server: McpServer, ctx: () => ToolContext)
           await setStageStatus(root, args.task_id, args.blocks_stage, 'blocked', stages);
         }
 
+        // 通知负责确认的角色（best-effort，不影响主逻辑）
+        const email = await notifyRole(
+          root,
+          args.assigned_to_role,
+          `【任务待确认】${task.title}`,
+          [
+            `任务：${task.title}`,
+            `任务ID：${args.task_id}`,
+            `问题ID：${question.question_id}`,
+            `问题：${args.question}`,
+            `阻塞阶段：${args.blocks_stage ?? '无'}`,
+          ].join('\n'),
+        );
+
         return ok({
           question_id: question.question_id,
           status: question.status,
           blocked_stage: args.blocks_stage ?? null,
+          email,
         });
       } catch (e) {
         return fail('question_create_failed', (e as Error).message);
@@ -83,6 +99,8 @@ export function registerQuestionTools(server: McpServer, ctx: () => ToolContext)
     async (args) => {
       try {
         const root = resolveDeliveryRoot(ctx().root);
+        const task = await getTask(root, args.task_id);
+        if (!task) return fail('task_not_found', `任务不存在: ${args.task_id}`);
         const questions = await getQuestions(root, args.task_id);
         const q = questions.find((x) => x.question_id === args.question_id);
         if (!q) return fail('question_not_found', `问题不存在: ${args.question_id}`);
@@ -111,7 +129,15 @@ export function registerQuestionTools(server: McpServer, ctx: () => ToolContext)
           }
         }
 
-        return ok({ question_id: q.question_id, status: q.status });
+        // 通知提出方（best-effort，不影响主逻辑）
+        const email = await notifyRole(
+          root,
+          q.raised_by,
+          `【问题已解决】${task.title}`,
+          [`任务：${task.title}`, `任务ID：${args.task_id}`, `问题ID：${q.question_id}`, `答复：${args.answer}`].join('\n'),
+        );
+
+        return ok({ question_id: q.question_id, status: q.status, email });
       } catch (e) {
         return fail('question_resolve_failed', (e as Error).message);
       }

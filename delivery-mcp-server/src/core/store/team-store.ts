@@ -68,6 +68,13 @@ export async function isTeamConfigured(root: string): Promise<boolean> {
   return config !== null && Array.isArray(config.members) && config.members.length > 0;
 }
 
+/** 按角色查找成员（roles 数组包含该角色），未配置返回 [] */
+export async function findMembersByRole(root: string, role: string): Promise<TeamMember[]> {
+  const config = await readTeamConfig(root);
+  if (!config) return [];
+  return config.members.filter((m) => m.roles.includes(role as TeamRole));
+}
+
 /** 按邮箱查找成员 */
 export async function findMemberByEmail(root: string, email: string): Promise<TeamMember | null> {
   const config = await readTeamConfig(root);

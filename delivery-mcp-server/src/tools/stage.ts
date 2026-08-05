@@ -11,6 +11,7 @@ import { getStages, getTask } from '../core/store/task-store.js';
 import { setStageStatus } from '../core/store/stage-store.js';
 import { getLatestGateRecord } from '../core/store/gate-store.js';
 import { resolveDeliveryRoot } from '../core/paths.js';
+import { notifyRole } from '../core/notify.js';
 import { fail, ok, type ToolContext } from './common.js';
 import type { StageRecord } from '../core/types.js';
 
@@ -146,6 +147,23 @@ export function registerStageTools(server: McpServer, ctx: () => ToolContext) {
         if (!next) task.status = 'completed';
         await (await import('../core/store/task-store.js')).saveTask(root, task);
 
+        // 通知下一阶段角色（best-effort，不影响主逻辑）
+        let email: { sent: boolean; to: string[]; reason?: string } | undefined;
+        if (nextDef?.role) {
+          email = await notifyRole(
+            root,
+            nextDef.role,
+            `【阶段完成，请继续】${task.title}`,
+            [
+              `任务：${task.title}`,
+              `任务ID：${args.task_id}`,
+              `已完成阶段：${args.stage}`,
+              `下一阶段：${next?.stage ?? '（无）'}`,
+              `下一阶段角色：${nextDef.role}`,
+            ].join('\n'),
+          );
+        }
+
         return ok({
           stage: args.stage,
           status: 'completed',
@@ -153,6 +171,7 @@ export function registerStageTools(server: McpServer, ctx: () => ToolContext) {
           next_role: nextDef?.role ?? null,
           task_status: task.status,
           completed_by: args.completed_by ?? null,
+          email,
         });
       } catch (e) {
         return fail('stage_complete_failed', (e as Error).message);

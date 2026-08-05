@@ -34,7 +34,7 @@ npm run dashboard # 启动浏览器任务看板 http://localhost:8787
 
 `npm run dashboard` 启动本地只读看板，可视化浏览任务：列表/详情/阶段进度/门禁结果/交付物/问题/共享上下文。端口由 `DELIVERY_DASHBOARD_PORT` 或 `PORT` 控制（默认 8787），数据根默认当前目录 `.delivery`。
 
-## MCP 工具（16 个）
+## MCP 工具（20 个）
 
 | 工具 | 说明 |
 |---|---|
@@ -51,9 +51,24 @@ npm run dashboard # 启动浏览器任务看板 http://localhost:8787
 | `gate.check` | 执行门禁检查并记录结果 |
 | `context.get_shared` / `context.update` | 读写共享上下文 |
 | `question.create` / `question.resolve` | 创建/解决阻塞问题 |
-| `team.get` / `team.set` | 查看/配置项目团队（姓名/邮箱/角色，一人可多角色） |
+| `team.get` / `team.set` | 查看/配置项目团队名册（姓名/邮箱/角色，一人可多角色） |
+| `user.get` / `user.set` | 查看/配置当前操作人（个人配置，姓名/邮箱，跨项目沿用） |
+| `email.get` / `email.set` | 查看/配置 SMTP 邮件通知（密码仅用于发送，不返回） |
 
-> 首次使用：`task.create` 前必须先 `team.set` 配置至少一名成员，否则返回 `team_not_configured`。
+> 邮件通知（best-effort，未配置或发送失败不影响主流程）：
+> - `question.create` → 通知 `assigned_to_role`（任务待确认）
+> - `question.resolve` → 通知 `raised_by`（问题已解决）
+> - `stage.complete` 成功 → 通知下一阶段角色（阶段完成，请继续）
+> - `gate.check` 未通过 → 通知该阶段角色（门禁未通过，请返工）
+>
+> 收件人 = 该角色在团队名册（team.set）中匹配到的全部成员邮箱。
+
+> 首次使用：`task.create` 前必须先完成两项配置，否则返回 `config_required`：
+> 1. `user.set` — 当前操作人（个人配置，存储于用户主目录 `~/.config/ai-delivery/user.json`，跨项目沿用）
+> 2. `team.set` — 项目团队名册（存储于 `.delivery/config/team.json`，至少一名成员）
+>
+> 配置分层：`team` 是项目级团队分工（所有人），`user` 是机器级"当前我是谁"（仅本人）。
+> 当前操作人的角色 = `user.set` 的邮箱在团队名册中匹配到的 roles；看板会高亮显示当前人。
 
 ## 在 OpenCode 中注册
 

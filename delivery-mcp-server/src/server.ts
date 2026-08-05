@@ -10,6 +10,8 @@ import { registerGateTools } from './tools/gate.js';
 import { registerContextTools } from './tools/context.js';
 import { registerQuestionTools } from './tools/question.js';
 import { registerTeamTools } from './tools/team.js';
+import { registerUserTools } from './tools/user.js';
+import { registerEmailTools } from './tools/email.js';
 
 const root = resolveDeliveryRoot();
 
@@ -30,6 +32,8 @@ async function main(): Promise<void> {
   registerContextTools(server, ctx);
   registerQuestionTools(server, ctx);
   registerTeamTools(server, ctx);
+  registerUserTools(server, ctx);
+  registerEmailTools(server, ctx);
 
   const transport = new StdioServerTransport();
   await server.connect(transport);

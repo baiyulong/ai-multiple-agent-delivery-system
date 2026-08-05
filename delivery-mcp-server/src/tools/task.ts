@@ -13,6 +13,7 @@ import { resolveDeliveryRoot } from '../core/paths.js';
 import { MVP_TASK_TYPES, type TaskType } from '../core/types.js';
 import { FLOW_FILE_NAMES } from '../core/flow-engine.js';
 import { isTeamConfigured } from '../core/store/team-store.js';
+import { isUserConfigured } from '../core/store/user-store.js';
 
 /**
  * 任务工具组（PRD 9.1-9.4 / 9.15）：
@@ -37,11 +38,18 @@ export function registerTaskTools(server: McpServer, ctx: () => ToolContext) {
     async (args) => {
       try {
         const root = resolveDeliveryRoot(ctx().root);
-        // 首次使用强制校验：未配置团队必须先 team.set（PRD 协作上下文）
-        if (!(await isTeamConfigured(root))) {
+        // 首次使用强制校验：需先配置当前人（user.set）与团队名册（team.set）
+        const [userConfigured, teamConfigured] = await Promise.all([
+          isUserConfigured(),
+          isTeamConfigured(root),
+        ]);
+        if (!userConfigured || !teamConfigured) {
+          const missing: string[] = [];
+          if (!userConfigured) missing.push('user.set（当前操作人姓名/邮箱）');
+          if (!teamConfigured) missing.push('team.set（团队名册，至少一名成员）');
           return fail(
-            'team_not_configured',
-            '项目未配置团队信息。请先调用 team.set 配置至少一名成员（姓名/邮箱/角色），再创建任务。',
+            'config_required',
+            `首次使用需先完成配置：${missing.join('、')}。请先调用对应工具配置后再创建任务。`,
           );
         }
         let taskType = args.task_type as TaskType | undefined;
