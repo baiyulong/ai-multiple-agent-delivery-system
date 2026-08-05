@@ -17,6 +17,8 @@ export interface EmailConfig {
   user: string;
   pass: string;
   from: string;
+  /** 命中的内置服务商 key（可选，如 qq/163/gmail；手动配置时无） */
+  provider?: string;
 }
 
 export interface EmailConfigFile extends EmailConfig {

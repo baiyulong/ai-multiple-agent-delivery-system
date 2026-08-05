@@ -29,6 +29,10 @@ export async function createHarness(): Promise<TestHarness> {
   const root = await mkdtemp(join(tmpdir(), 'delivery-e2e-'));
   await initDeliveryRoot(root);
 
+  // 将当前人配置指向本 harness 独立文件，避免并行测试竞争写机器级 user.json（Windows rename 锁）
+  const prevUserEnv = process.env.DELIVERY_USER_CONFIG;
+  process.env.DELIVERY_USER_CONFIG = join(root, 'user.json');
+
   const server = new McpServer({ name: 'test-delivery', version: '0.0.0' });
   const ctx = () => ({ root });
   registerTaskTools(server, ctx);
@@ -58,6 +62,8 @@ export async function createHarness(): Promise<TestHarness> {
     },
     cleanup: async () => {
       await client.close();
+      if (prevUserEnv !== undefined) process.env.DELIVERY_USER_CONFIG = prevUserEnv;
+      else delete process.env.DELIVERY_USER_CONFIG;
       await rm(root, { recursive: true, force: true });
     },
   };

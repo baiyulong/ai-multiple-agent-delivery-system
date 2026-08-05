@@ -102,6 +102,17 @@ npm run dashboard
 
 > dashboard 会自动读取**项目根目录**的 `.delivery`（即 delivery-mcp-server 的父目录），无需额外配置。若想指定其他数据目录，设置环境变量 `DELIVERY_ROOT`。
 
+### 8. 将 delivery-mcp-server 加入 .gitignore
+
+`delivery-mcp-server` 是从本仓库拷贝的**工具本体**（含 node_modules/dist），不属于目标项目的源码，应忽略，避免被提交进目标项目仓库。在**目标项目根目录**执行：
+
+```bash
+# .gitignore 不存在则创建；已存在则仅当无该条目时幂等追加
+grep -qxF 'delivery-mcp-server' .gitignore 2>/dev/null || echo 'delivery-mcp-server' >> .gitignore
+```
+
+> 注意：`.delivery/`（任务数据）**不要**加入忽略——它是目标项目的交付记录，建议纳入版本管理（install.md 第七节 FAQ）。
+
 ---
 
 ## 四、首次使用配置（AI 执行）
@@ -147,7 +158,26 @@ npm run dashboard
 
 ### 3. 配置邮件通知（可选）
 
-需要邮件通知时调用 `email.set`：
+需要邮件通知时调用 `email.set`。**只需提供邮箱 + 授权码**，`host/port/secure` 会按邮箱域名自动填充（内置支持 QQ/163/126/yeah/Foxmail/Gmail/Outlook/iCloud）：
+
+```json
+{
+  "user": "你的邮箱@qq.com",
+  "pass": "SMTP 授权码"
+}
+```
+
+也可显式指定服务商（`email.providers` 可列出全部内置服务商及注意事项）：
+
+```json
+{
+  "provider": "qq",
+  "user": "你的邮箱@qq.com",
+  "pass": "SMTP 授权码"
+}
+```
+
+若使用自定义 SMTP 服务器，显式提供 `host` + `port`：
 
 ```json
 {
@@ -160,7 +190,7 @@ npm run dashboard
 }
 ```
 
-> 未配置邮件不影响主流程（best-effort，发送失败静默跳过）。
+> **授权码说明**：`pass` 是**服务商授权的 SMTP 授权码**，不是登录密码。需先在邮箱网页端开启「SMTP/IMAP 服务」并生成授权码（各服务商入口：QQ「设置→账户→开启服务」、163「设置→POP3/SMTP」、Gmail「Google 账户→两步验证→应用专用密码」）。未配置邮件不影响主流程（best-effort，发送失败静默跳过）。
 
 ---
 
@@ -235,3 +265,4 @@ A：设置环境变量 `DELIVERY_ROOT` 指向目标目录。
 2. 删除目标项目下的 `delivery-mcp-server/` 目录。
 3. 删除目标项目下的 `.opencode/agent/`（若拷贝过）。
 4. 可选：删除 `.delivery/` 目录（任务数据）。
+5. 可选：从目标项目 `.gitignore` 移除 `delivery-mcp-server` 条目。
