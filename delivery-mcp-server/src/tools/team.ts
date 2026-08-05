@@ -44,7 +44,7 @@ export function registerTeamTools(server: McpServer, ctx: () => ToolContext) {
     'team.set',
     {
       description:
-        '新增或更新团队成员（按邮箱匹配，roles 覆盖）。首次使用系统前必须配置至少一名成员。一人可担任多个角色。',
+        '新增或更新团队成员（按邮箱匹配，roles 覆盖）。首次使用系统前必须配置至少一名成员。一人可担任多个角色。注意：写入前校验所有成员 roles 的并集必须覆盖全部 8 个角色，否则拒绝写入并提示缺失角色。',
       inputSchema: {
         name: z.string().describe('成员姓名'),
         email: z.string().email().describe('成员邮箱（唯一标识，用于更新时匹配）'),
@@ -57,11 +57,30 @@ export function registerTeamTools(server: McpServer, ctx: () => ToolContext) {
     async (args) => {
       try {
         const root = resolveDeliveryRoot(ctx().root);
-        const { config, created } = await upsertMember(root, {
+        const member = {
           name: args.name,
           email: args.email,
           roles: args.roles as (typeof TEAM_ROLES)[number][],
-        });
+        };
+
+        // 校验：合并当前配置 + 本次成员后，roles 并集必须覆盖全部 8 角色，否则拒绝写入
+        const existing = (await readTeamConfig(root))?.members ?? [];
+        const merged = [...existing];
+        const idx = merged.findIndex((m) => m.email.toLowerCase() === args.email.toLowerCase());
+        if (idx >= 0) merged[idx] = member;
+        else merged.push(member);
+        const union = new Set<string>();
+        for (const m of merged) for (const r of m.roles) union.add(r);
+        const missing = TEAM_ROLES.filter((r) => !union.has(r));
+        if (missing.length > 0) {
+          return fail(
+            'roles_incomplete',
+            `团队角色不完整，需覆盖全部 8 个角色：${missing.join('、')}`,
+            { missing_roles: missing },
+          );
+        }
+
+        const { config, created } = await upsertMember(root, member);
         return ok({
           created,
           configured: config.members.length > 0,

@@ -47,7 +47,7 @@ describe('PRD 16.1+16.4：CRUD 全流程闭环与阶段完成推进', () => {
     expect(gate.score).toBe(100);
 
     // 16.4: 阶段完成推进
-    const complete = await h.call('stage.complete', { task_id: taskId, stage: 'product_requirement', completed_by: 'orchestrator' });
+    const complete = await h.call('stage.complete', { task_id: taskId, stage: 'product_requirement', confirmed_by: 'Yulong', completed_by: 'orchestrator' });
     expect(complete.status).toBe('completed');
     expect(complete.next_stage).toBe('ux_design');
     expect(complete.next_role).toBe('ux-designer');
@@ -126,7 +126,7 @@ describe('PRD 16.3：门禁失败返回 missing_sections', () => {
     expect(gate.missing_sections).toContain('验收标准');
 
     // 阶段不得完成
-    const complete = await h.call('stage.complete', { task_id: taskId, stage: 'product_requirement' });
+    const complete = await h.call('stage.complete', { task_id: taskId, stage: 'product_requirement', confirmed_by: 'Yulong' });
     expect(complete.ok).toBe(false);
     expect(complete.code).toBe('artifact_not_validated');
 
@@ -162,7 +162,7 @@ describe('PRD 16.5：交付包导出', () => {
       });
       const gate = await h.call('gate.check', { task_id: taskId, stage: s.stage, artifact_id: submit.artifact_id });
       expect(gate.result).toBe('passed');
-      const complete = await h.call('stage.complete', { task_id: taskId, stage: s.stage });
+      const complete = await h.call('stage.complete', { task_id: taskId, stage: s.stage, confirmed_by: 'Yulong' });
       expect(complete.status).toBe('completed');
     }
 
@@ -219,7 +219,7 @@ describe('PRD 12.3：返工流程', () => {
     const gate2 = await h.call('gate.check', { task_id: taskId, stage: 'product_requirement', artifact_id: artifactId });
     expect(gate2.result).toBe('passed');
 
-    const complete = await h.call('stage.complete', { task_id: taskId, stage: 'product_requirement' });
+    const complete = await h.call('stage.complete', { task_id: taskId, stage: 'product_requirement', confirmed_by: 'Yulong' });
     expect(complete.status).toBe('completed');
 
     await h.cleanup();
@@ -259,7 +259,7 @@ describe('PRD 7.9 / 8.8：问题阻塞与解除', () => {
     });
     const gate = await h.call('gate.check', { task_id: taskId, stage: 'product_requirement', artifact_id: submit.artifact_id });
     expect(gate.result).toBe('passed');
-    const complete = await h.call('stage.complete', { task_id: taskId, stage: 'product_requirement' });
+    const complete = await h.call('stage.complete', { task_id: taskId, stage: 'product_requirement', confirmed_by: 'Yulong' });
     expect(complete.ok).toBe(false);
     expect(complete.code).toBe('blocked_by_question');
 
@@ -272,7 +272,7 @@ describe('PRD 7.9 / 8.8：问题阻塞与解除', () => {
     });
     expect(resolved.status).toBe('resolved');
 
-    const complete2 = await h.call('stage.complete', { task_id: taskId, stage: 'product_requirement' });
+    const complete2 = await h.call('stage.complete', { task_id: taskId, stage: 'product_requirement', confirmed_by: 'Yulong' });
     expect(complete2.status).toBe('completed');
 
     await h.cleanup();

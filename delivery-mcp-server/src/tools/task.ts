@@ -10,6 +10,7 @@ import { readContext } from '../core/store/task-store.js';
 import { createTask } from '../core/store/task-store.js';
 import { ok, fail, type ToolContext } from './common.js';
 import { resolveDeliveryRoot } from '../core/paths.js';
+import { dashboardUrl } from '../core/dashboard-url.js';
 import { MVP_TASK_TYPES, type TaskType } from '../core/types.js';
 import { FLOW_FILE_NAMES } from '../core/flow-engine.js';
 import { isTeamConfigured } from '../core/store/team-store.js';
@@ -74,6 +75,8 @@ export function registerTaskTools(server: McpServer, ctx: () => ToolContext) {
           current_stage: task.current_stage,
           task_path: `tasks/${task.task_id}`,
           task_type: task.task_type,
+          dashboard_url: dashboardUrl(),
+          view_hint: `新任务已创建，可在浏览器查看: ${dashboardUrl()}`,
         });
       } catch (e) {
         return fail('create_failed', (e as Error).message);

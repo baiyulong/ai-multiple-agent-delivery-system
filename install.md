@@ -86,6 +86,22 @@ npm run build        # 产出 dist/server.js（OpenCode 引用的就是它）
 rm -rf /tmp/ai-delivery-system
 ```
 
+### 7. 启动浏览器任务看板并提示用户
+
+安装完成后，**立即启动 dashboard**，并告知用户可以用浏览器打开查看：
+
+```bash
+cd delivery-mcp-server
+npm run dashboard
+# 输出: AI 交付任务看板已启动: http://localhost:8787
+```
+
+**必须向用户提示**：
+- 看板地址：`http://localhost:8787`（端口被占用时查看启动日志的实际端口）
+- 说明：所有任务的新建与状态变化都可以在这个页面看到；`task.create` / `stage.complete` 等工具返回中也附带 `dashboard_url` 和 `view_hint`，可直接用浏览器打开查看对应任务。
+
+> dashboard 会自动读取**项目根目录**的 `.delivery`（即 delivery-mcp-server 的父目录），无需额外配置。若想指定其他数据目录，设置环境变量 `DELIVERY_ROOT`。
+
 ---
 
 ## 四、首次使用配置（AI 执行）
@@ -115,7 +131,8 @@ rm -rf /tmp/ai-delivery-system
 }
 ```
 
-> 角色 key 见下表。当前操作人的角色 = `user.set` 的邮箱在团队名册中匹配到的 roles。
+> **重要约束**：团队名册的**全部成员 roles 并集必须覆盖全部 8 个角色**（见下表）。若缺角色，`team.set` 会返回 `roles_incomplete` 并列出缺失角色，需继续添加成员或为现有成员补角色，直到 8 个角色全部覆盖。
+> 当前操作人的角色 = `user.set` 的邮箱在团队名册中匹配到的 roles。
 
 | 角色 key | 中文名 |
 |---|---|
@@ -185,6 +202,9 @@ npm run dashboard
 4. `artifact.submit` 提交 → `gate.check` 门禁 → `stage.complete` 推进
 5. 全部完成后 `task.export_delivery_package` 导出交付包
 
+> **用户确认**：每个角色完成阶段时，`stage.complete` 必须由**用户确认**（必填 `confirmed_by`，填用户姓名/邮箱）。AI 在完成阶段前应先向用户确认，得到确认后再调用 `stage.complete`。
+> **看板提示**：`task.create` / `stage.complete` 返回中附带 `dashboard_url` 与 `view_hint`，AI 应据此提示用户"新任务已创建 / 阶段已推进，可在浏览器查看：<dashboard_url>"。
+
 ---
 
 ## 七、常见问题
@@ -194,6 +214,9 @@ A：确认已 `npm run build` 生成 `dist/server.js`，且 `opencode.json` 的 
 
 **Q：`task.create` 被拦截返回 `config_required`？**
 A：未配置当前人或团队名册。按第四节执行 `user.set` 和 `team.set`。
+
+**Q：`team.set` 返回 `roles_incomplete`？**
+A：团队名册的成员 roles 并集未覆盖全部 8 个角色。按返回的 `missing_roles` 继续添加成员或为现有成员补角色，直到 8 个角色全部覆盖。
 
 **Q：任务数据存在哪里？**
 A：目标项目根目录下的 `.delivery/tasks/`，纯文本文件，可追踪、可版本管理。

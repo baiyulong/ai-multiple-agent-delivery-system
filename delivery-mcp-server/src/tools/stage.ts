@@ -11,6 +11,7 @@ import { getStages, getTask } from '../core/store/task-store.js';
 import { setStageStatus } from '../core/store/stage-store.js';
 import { getLatestGateRecord } from '../core/store/gate-store.js';
 import { resolveDeliveryRoot } from '../core/paths.js';
+import { dashboardUrl } from '../core/dashboard-url.js';
 import { notifyRole } from '../core/notify.js';
 import { fail, ok, type ToolContext } from './common.js';
 import type { StageRecord } from '../core/types.js';
@@ -74,10 +75,11 @@ export function registerStageTools(server: McpServer, ctx: () => ToolContext) {
     'stage.complete',
     {
       description:
-        '标记阶段完成（PRD 7.7 / 8.4 / 9.6）。前置条件：①必需交付物存在 ②交付物状态 validated ③gate.check 通过 ④无阻塞 open question。完成后推进 current_stage。',
+        '标记阶段完成（PRD 7.7 / 8.4 / 9.6）。前置条件：①必需交付物存在 ②交付物状态 validated ③gate.check 通过 ④无阻塞 open question。完成阶段必须由用户确认（confirmed_by）。完成后推进 current_stage。',
       inputSchema: {
         task_id: z.string().describe('任务 ID'),
         stage: z.string().describe('阶段名'),
+        confirmed_by: z.string().min(1).describe('用户确认人（姓名/邮箱），完成阶段前必须由用户确认'),
         completed_by: z.string().optional().describe('完成人/Agent'),
       },
     },
@@ -171,6 +173,9 @@ export function registerStageTools(server: McpServer, ctx: () => ToolContext) {
           next_role: nextDef?.role ?? null,
           task_status: task.status,
           completed_by: args.completed_by ?? null,
+          confirmed_by: args.confirmed_by,
+          dashboard_url: dashboardUrl(args.task_id),
+          view_hint: `阶段已推进，可在浏览器查看任务: ${dashboardUrl(args.task_id)}`,
           email,
         });
       } catch (e) {
