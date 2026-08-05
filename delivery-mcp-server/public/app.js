@@ -144,6 +144,46 @@
     return ROLE_NAME_MAP[role] || role;
   }
 
+  /** 该阶段的负责人（团队名册中认领该角色的成员），未配置/无人认领返回空数组 */
+  function stageAssignees(role) {
+    const team = state.teamData;
+    if (!team || !team.configured || !team.members || team.members.length === 0) return [];
+    return team.members.filter((m) => (m.roles || []).includes(role));
+  }
+
+  /** 当前操作人是否负责该角色 */
+  function currentUserOwnsRole(role) {
+    const user = state.userData;
+    return !!(user && user.configured && (user.roles || []).includes(role));
+  }
+
+  /** 该阶段负责人 HTML：有认领显示成员名（当前人加"当前"徽章），否则弱化"未指派" */
+  function stageAssigneeHtml(role) {
+    const assignees = stageAssignees(role);
+    if (assignees.length === 0) {
+      // 团队未配置但当前人已认领该角色：提示当前人负责
+      if (currentUserOwnsRole(role) && state.userData && state.userData.user) {
+        const me = state.userData.user;
+        return '<span class="stage-assignee stage-assignee-me">'
+          + '<span class="stage-assignee-badge">当前</span>'
+          + esc(me.name || me.email)
+          + '</span>';
+      }
+      return '<span class="stage-assignee stage-assignee-empty">未指派</span>';
+    }
+    const currentUserEmail = (state.userData && state.userData.configured && state.userData.user)
+      ? state.userData.user.email
+      : null;
+    return assignees.map((m) => {
+      const isMe = currentUserEmail && m.email
+        && m.email.toLowerCase() === String(currentUserEmail).toLowerCase();
+      return '<span class="stage-assignee' + (isMe ? ' stage-assignee-me' : '') + '">'
+        + (isMe ? '<span class="stage-assignee-badge">当前</span>' : '')
+        + esc(m.name || m.email)
+        + '</span>';
+    }).join('');
+  }
+
   /** 交付物类型翻译 */
   function artifactTypeName(type) {
     return ARTIFACT_TYPE_MAP[type] || type;
@@ -367,6 +407,11 @@
 
     renderTeamHeader();
     renderTeamBanner();
+
+    // 团队/用户数据到达后，若详情已渲染则重绘阶段进度（补上负责人信息）
+    if (state.currentTaskId && state.taskDetail) {
+      renderStageProgress(state.taskDetail.stages, state.taskDetail.task.current_stage);
+    }
   }
 
   function renderTeamHeader() {
@@ -631,6 +676,7 @@
           <div class="stage-info">
             <div class="stage-name">${esc(stageDisplayName(s.stage))}</div>
             <div class="stage-role">${esc(roleName(s.role))}</div>
+            <div class="stage-assignee-row">${stageAssigneeHtml(s.role)}</div>
             <div class="stage-status-label">${statusLabel}</div>
           </div>
         </div>
