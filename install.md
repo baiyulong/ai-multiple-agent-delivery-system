@@ -26,14 +26,29 @@
 
 ## 三、安装步骤（AI 执行）
 
-### 1. 克隆仓库
+> 目标：把 `delivery-mcp-server` 和 `.opencode/agent/` **安装到目标项目根目录**，这样 MCP 用相对路径引用、dashboard 从项目内启动即可读取项目自己的 `.delivery`。
+
+### 1. 克隆仓库（临时）
 
 ```bash
-git clone https://github.com/baiyulong/ai-multiple-agent-delivery-system.git
-cd ai-multiple-agent-delivery-system
+git clone https://github.com/baiyulong/ai-multiple-agent-delivery-system.git /tmp/ai-delivery-system
 ```
 
-### 2. 安装依赖并构建
+### 2. 拷贝组件到目标项目根目录
+
+在**目标项目根目录**执行，把 server 与角色 Agent 配置拷进来：
+
+```bash
+# 拷贝 MCP server（含源码/配置/模板/前端）
+cp -r /tmp/ai-delivery-system/delivery-mcp-server ./delivery-mcp-server
+
+# 拷贝多角色 Agent 配置（8 个角色）
+cp -r /tmp/ai-delivery-system/.opencode/agent ./.opencode/agent
+```
+
+> 若目标项目已有 `.opencode/agent/`，请合并而非覆盖（只新增 delivery 相关角色文件）。
+
+### 3. 安装依赖并构建
 
 ```bash
 cd delivery-mcp-server
@@ -41,13 +56,13 @@ npm install
 npm run build        # 产出 dist/server.js（OpenCode 引用的就是它）
 ```
 
-### 3. 验证构建产物存在
+### 4. 验证构建产物存在
 
 ```bash
 # 应存在：delivery-mcp-server/dist/server.js
 ```
 
-### 4. 注册 MCP 到目标项目
+### 5. 注册 MCP 到目标项目
 
 在**目标项目根目录**的 `opencode.json` 中添加（若文件不存在则创建）：
 
@@ -56,23 +71,19 @@ npm run build        # 产出 dist/server.js（OpenCode 引用的就是它）
   "mcp": {
     "delivery": {
       "type": "local",
-      "command": ["node", "<绝对路径>/delivery-mcp-server/dist/server.js"],
+      "command": ["node", "delivery-mcp-server/dist/server.js"],
       "enabled": true
     }
   }
 }
 ```
 
-> 建议用 `command` 指向克隆仓库的**绝对路径**，这样任意项目都能引用同一份 server。
-> 若目标项目就是克隆下来的仓库本身，可省略 `<绝对路径>/` 前缀，直接用相对路径 `delivery-mcp-server/dist/server.js`。
+> 因为 server 已装在项目内，`command` 用**相对路径** `delivery-mcp-server/dist/server.js` 即可，OpenCode 会以项目根目录为 cwd 启动它。
 
-### 5. 拷贝多角色 Agent 配置（可选但推荐）
-
-把克隆仓库里的 `.opencode/agent/` 目录（8 个角色 Agent）拷贝到目标项目根目录的 `.opencode/agent/` 下：
+### 6. 清理临时克隆
 
 ```bash
-# 在目标项目根目录执行
-cp -r <克隆仓库路径>/.opencode/agent .opencode/agent
+rm -rf /tmp/ai-delivery-system
 ```
 
 ---
@@ -157,6 +168,8 @@ npm run dashboard
 # 打开 http://localhost:8787
 ```
 
+> dashboard 会自动读取**项目根目录**的 `.delivery`（即 delivery-mcp-server 的父目录），无需额外配置。若想指定其他数据目录，设置环境变量 `DELIVERY_ROOT`。
+
 ---
 
 ## 六、开始使用
@@ -183,7 +196,10 @@ A：确认已 `npm run build` 生成 `dist/server.js`，且 `opencode.json` 的 
 A：未配置当前人或团队名册。按第四节执行 `user.set` 和 `team.set`。
 
 **Q：任务数据存在哪里？**
-A：目标项目下的 `.delivery/tasks/`，纯文本文件，可追踪、可版本管理。
+A：目标项目根目录下的 `.delivery/tasks/`，纯文本文件，可追踪、可版本管理。
+
+**Q：dashboard 读不到任务数据？**
+A：确认 `delivery-mcp-server` 装在**项目根目录**下（install.md 第三步），dashboard 会自动读取项目根 `.delivery`。若 server 在别处，设置环境变量 `DELIVERY_ROOT` 指向项目根目录。
 
 **Q：想换存储位置？**
 A：设置环境变量 `DELIVERY_ROOT` 指向目标目录。
@@ -193,6 +209,6 @@ A：设置环境变量 `DELIVERY_ROOT` 指向目标目录。
 ## 八、卸载
 
 1. 从 `opencode.json` 移除 `delivery` MCP 配置。
-2. 删除目标项目下的 `.opencode/agent/`（若拷贝过）。
-3. 删除克隆的仓库目录。
+2. 删除目标项目下的 `delivery-mcp-server/` 目录。
+3. 删除目标项目下的 `.opencode/agent/`（若拷贝过）。
 4. 可选：删除 `.delivery/` 目录（任务数据）。

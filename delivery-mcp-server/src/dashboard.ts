@@ -9,7 +9,7 @@
  */
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
-import { extname, join, normalize } from 'node:path';
+import { dirname, extname, join, normalize } from 'node:path';
 import { resolveDeliveryRoot } from './core/paths.js';
 import { getQuestions, getStages, getTask, listTaskIds, readContext } from './core/store/task-store.js';
 import { getArtifact, listArtifacts } from './core/store/artifact-store.js';
@@ -18,7 +18,24 @@ import { isTeamConfigured, readTeamConfig, TEAM_ROLE_LABELS } from './core/store
 import { readCurrentUser } from './core/store/user-store.js';
 
 const PORT = Number(process.env.DELIVERY_DASHBOARD_PORT ?? process.env.PORT ?? 8787);
-const root = resolveDeliveryRoot();
+
+/**
+ * 解析看板数据根目录（项目级 .delivery）：
+ * 1. DELIVERY_ROOT 环境变量（显式指定，最高优先）
+ * 2. 项目根目录：delivery-mcp-server 的父目录（install.md 约定 server 装在项目根下）
+ * 3. 回退 cwd/.delivery
+ *
+ * 这样从 delivery-mcp-server 目录启动 dashboard 也能读到项目根目录的 .delivery。
+ */
+function resolveDashboardRoot(): string {
+  if (process.env.DELIVERY_ROOT) return resolveDeliveryRoot();
+  // dashboard.ts 位于 <项目根>/delivery-mcp-server/src/dashboard.ts
+  const serverDir = dirname(import.meta.dirname); // <项目根>/delivery-mcp-server
+  const projectRoot = dirname(serverDir); // <项目根>
+  return join(projectRoot, '.delivery');
+}
+
+const root = resolveDashboardRoot();
 
 const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
