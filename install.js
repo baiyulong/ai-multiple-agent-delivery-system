@@ -14,7 +14,7 @@
  *   - 拒绝把本仓库自身当作安装目标
  *   - agent 文件只新增 delivery-*.md，绝不覆盖目标项目已有文件
  *   - opencode.json 只合并新增 mcp.delivery，保留目标项目全部字段
- *   - .gitignore 幂等追加，且自动排除含 SMTP 授权码的 email.json
+  *   - .gitignore 幂等追加（忽略工具本体 delivery-mcp-server；email.json 是团队共享发件配置，随仓库提交）
  */
 import { cp, mkdir, readFile, realpath, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
@@ -188,7 +188,7 @@ if (hasDeliveryMcp) {
 // ---------- 5. .gitignore ----------
 log(`\n[4/6] 追加 .gitignore（忽略工具本体 + 邮件授权码）`);
 const gitignoreFile = join(targetReal, '.gitignore');
-await gitIgnoreAdd(gitignoreFile, ['delivery-mcp-server', '.delivery/config/email.json']);
+await gitIgnoreAdd(gitignoreFile, ['delivery-mcp-server']);
 ok('.gitignore 已处理（若此前无条目）');
 
 // ---------- 6. npm install + build ----------

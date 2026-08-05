@@ -45,7 +45,7 @@ node /path/to/ai-delivery-system/install.js --repo /tmp/ai-delivery-system
 2. 拷贝 `delivery-mcp-server/` 到目标项目（已存在则跳过并提示）
 3. 拷贝 `.opencode/agent/` 角色配置到目标项目（**只新增 `delivery-*.md`，绝不覆盖目标项目已有 agent 文件**）
 4. 合并 `opencode.json`：**保留目标项目已有的全部字段**（mcp/plugin/permission/agent 等），只新增 `mcp.delivery`，若已存在同名 mcp 则跳过
-5. 追加 `.gitignore`：`delivery-mcp-server` 与 `.delivery/config/email.json`（幂等）
+5. 追加 `.gitignore`：`delivery-mcp-server`（幂等）。注意 **`email.json` 不要排除**——它是团队共享的公共发件服务器配置，应随仓库提交，让所有成员复用同一个发件账号，无需各自配置授权码。
 6. 在 `delivery-mcp-server` 内执行 `npm install` + `npm run build`
 7. 可选 `--dashboard` 启动浏览器看板
 8. 打印后续配置指引（user.set / team.set / email.set）
@@ -141,15 +141,15 @@ npm run dashboard
 
 #### 8. 将 delivery 相关文件加入 .gitignore
 
-`delivery-mcp-server` 是从本仓库拷贝的**工具本体**（含 node_modules/dist），不属于目标项目的源码，应忽略；`.delivery/config/email.json` 存有 SMTP 授权码，**必须忽略，防止泄密**。在**目标项目根目录**执行：
+`delivery-mcp-server` 是从本仓库拷贝的**工具本体**（含 node_modules/dist），不属于目标项目的源码，应忽略。在**目标项目根目录**执行：
 
 ```bash
 # .gitignore 不存在则创建；已存在则仅当无该条目时幂等追加
 grep -qxF 'delivery-mcp-server' .gitignore 2>/dev/null || echo 'delivery-mcp-server' >> .gitignore
-grep -qxF '.delivery/config/email.json' .gitignore 2>/dev/null || echo '.delivery/config/email.json' >> .gitignore
 ```
 
-> 注意：`.delivery/`（任务数据）**不要**整目录忽略——它是目标项目的交付记录，建议纳入版本管理；**只排除含敏感信息的 `config/email.json`**（install.md 第七节 FAQ）。
+> 注意：`.delivery/`（任务数据）**不要**整目录忽略——它是目标项目的交付记录，建议纳入版本管理。
+> **`email.json`（SMTP 发件配置）不要排除**——它是团队共享的**公共发件服务器**配置，应随仓库提交，让所有成员复用同一个发件账号，无需各自配置授权码。
 
 ---
 
@@ -305,4 +305,4 @@ A：设置环境变量 `DELIVERY_ROOT` 指向目标目录。
 2. 删除目标项目下的 `delivery-mcp-server/` 目录。
 3. 删除目标项目下的 `.opencode/agent/delivery-*.md`（**只删 delivery 前缀文件，不要删整个 agent 目录**，避免误删目标项目已有 agent）。
 4. 可选：删除 `.delivery/` 目录（任务数据）。
-5. 可选：从目标项目 `.gitignore` 移除 `delivery-mcp-server` 与 `.delivery/config/email.json` 条目。
+5. 可选：从目标项目 `.gitignore` 移除 `delivery-mcp-server` 条目。
