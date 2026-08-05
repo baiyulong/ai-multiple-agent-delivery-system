@@ -47,6 +47,28 @@ export const TEAM_ROLE_LABELS: Record<string, string> = {
   devops: '平台与 DevOps',
 };
 
+/**
+ * 角色 key → OpenCode Agent 文件名（不带 .md）。
+ * Agent 文件统一加 delivery- 前缀，避免与目标项目自带的同名 agent（engineer/qa 等）冲突。
+ */
+export const ROLE_AGENT_MAP: Record<string, string> = {
+  'delivery-orchestrator': 'delivery-orchestrator',
+  'domain-expert': 'delivery-domain-expert',
+  'product-manager': 'delivery-product-manager',
+  'ux-designer': 'delivery-ux-designer',
+  'domain-architect': 'delivery-domain-architect',
+  engineer: 'delivery-engineer',
+  qa: 'delivery-qa',
+  devops: 'delivery-devops',
+  // flow 模板中 devops 阶段使用的角色 key
+  'platform-devops': 'delivery-devops',
+};
+
+/** 角色 → OpenCode Agent 名（未映射时回退角色 key 本身） */
+export function agentNameForRole(role: string): string {
+  return ROLE_AGENT_MAP[role] ?? role;
+}
+
 function teamConfigFile(root: string): string {
   return assertInside(root, join(root, 'config', 'team.json'));
 }

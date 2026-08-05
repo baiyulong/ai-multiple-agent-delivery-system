@@ -2,6 +2,7 @@ import { join } from 'node:path';
 import { readJson } from './fsx.js';
 import { builtinFlowsDir } from './locate.js';
 import { assertInside, taskDir } from './paths.js';
+import { agentNameForRole } from './store/team-store.js';
 import type { FlowStageDef, FlowTemplate, MissingUpstream, StageRecord, TaskType } from './types.js';
 
 /**
@@ -95,7 +96,7 @@ export async function checkMissingUpstream(
         stage: def.stage,
         role: def.role,
         missing_artifact_types: requiredTypes(def),
-        assigned_agent: def.role,
+        assigned_agent: agentNameForRole(def.role),
       });
     }
   }

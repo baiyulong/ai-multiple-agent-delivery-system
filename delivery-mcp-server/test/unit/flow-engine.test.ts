@@ -71,7 +71,7 @@ describe('flow-engine', () => {
     expect(missing[0]).toMatchObject({
       stage: 'product_requirement',
       role: 'product-manager',
-      assigned_agent: 'product-manager',
+      assigned_agent: 'delivery-product-manager',
     });
     expect(missing[0]?.missing_artifact_types).toContain('crud_spec_card');
 

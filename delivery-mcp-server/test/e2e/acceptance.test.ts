@@ -77,7 +77,7 @@ describe('PRD 16.2：缺失交付物阻塞与回退补齐', () => {
     expect(stage.status).toBe('not_started');
     expect(stage.missing_upstream.length).toBeGreaterThan(0);
     expect(stage.missing_upstream.some((m: { stage: string }) => m.stage === 'ux_design')).toBe(true);
-    expect(stage.assigned_agent).toBe('ux-designer');
+    expect(stage.assigned_agent).toBe('delivery-ux-designer');
 
     // 试图直接提交下游交付物也被拦截（PRD 12.2 双保险）
     const submit = await h.call('artifact.submit', {

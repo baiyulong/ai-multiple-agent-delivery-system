@@ -27,14 +27,47 @@
 ## 三、安装步骤（AI 执行）
 
 > 目标：把 `delivery-mcp-server` 和 `.opencode/agent/` **安装到目标项目根目录**，这样 MCP 用相对路径引用、dashboard 从项目内启动即可读取项目自己的 `.delivery`。
+>
+> **推荐方式一：运行安装脚本 `install.js`（Windows/Linux 通用，自动完成全部步骤与安全合并），见下方【方式一】；也可按【方式二】手动逐步执行。**
 
-### 1. 克隆仓库（临时）
+### 方式一：一键安装脚本（推荐）
+
+在**目标项目根目录**执行（需要 Node.js ≥ 22）：
+
+```bash
+node /path/to/ai-delivery-system/install.js
+# 或指定仓库路径（脚本未与仓库同目录时）：
+node /path/to/ai-delivery-system/install.js --repo /tmp/ai-delivery-system
+```
+
+脚本会自动：
+1. 校验目标目录（拒绝安装进本仓库自身、拒绝非 git 项目可加 `--force`）
+2. 拷贝 `delivery-mcp-server/` 到目标项目（已存在则跳过并提示）
+3. 拷贝 `.opencode/agent/` 角色配置到目标项目（**只新增 `delivery-*.md`，绝不覆盖目标项目已有 agent 文件**）
+4. 合并 `opencode.json`：**保留目标项目已有的全部字段**（mcp/plugin/permission/agent 等），只新增 `mcp.delivery`，若已存在同名 mcp 则跳过
+5. 追加 `.gitignore`：`delivery-mcp-server` 与 `.delivery/config/email.json`（幂等）
+6. 在 `delivery-mcp-server` 内执行 `npm install` + `npm run build`
+7. 可选 `--dashboard` 启动浏览器看板
+8. 打印后续配置指引（user.set / team.set / email.set）
+
+```bash
+# 常用参数
+node install.js                 # 安装到当前目录
+node install.js /path/to/proj   # 安装到指定项目
+node install.js --repo ../clone # 指定克隆的仓库路径
+node install.js --dashboard     # 安装后启动看板
+node install.js --dry-run       # 只打印将要执行的操作，不改动文件
+```
+
+### 方式二：手动安装
+
+#### 1. 克隆仓库（临时）
 
 ```bash
 git clone https://github.com/baiyulong/ai-multiple-agent-delivery-system.git /tmp/ai-delivery-system
 ```
 
-### 2. 拷贝组件到目标项目根目录
+#### 2. 拷贝组件到目标项目根目录
 
 在**目标项目根目录**执行，把 server 与角色 Agent 配置拷进来：
 
@@ -42,13 +75,14 @@ git clone https://github.com/baiyulong/ai-multiple-agent-delivery-system.git /tm
 # 拷贝 MCP server（含源码/配置/模板/前端）
 cp -r /tmp/ai-delivery-system/delivery-mcp-server ./delivery-mcp-server
 
-# 拷贝多角色 Agent 配置（8 个角色）
-cp -r /tmp/ai-delivery-system/.opencode/agent ./.opencode/agent
+# 拷贝多角色 Agent 配置（8 个 delivery-*.md 角色文件）
+mkdir -p .opencode/agent
+cp -n /tmp/ai-delivery-system/.opencode/agent/delivery-*.md ./.opencode/agent/
 ```
 
-> 若目标项目已有 `.opencode/agent/`，请合并而非覆盖（只新增 delivery 相关角色文件）。
+> **重要**：所有角色 Agent 文件都以 `delivery-` 前缀命名（`delivery-engineer.md`、`delivery-qa.md` 等），**只新增、不覆盖**目标项目已有的同名 agent（如 `engineer.md`）。`cp -n` 保证已存在的同名文件不被覆盖。
 
-### 3. 安装依赖并构建
+#### 3. 安装依赖并构建
 
 ```bash
 cd delivery-mcp-server
@@ -56,19 +90,21 @@ npm install
 npm run build        # 产出 dist/server.js（OpenCode 引用的就是它）
 ```
 
-### 4. 验证构建产物存在
+#### 4. 验证构建产物存在
 
 ```bash
 # 应存在：delivery-mcp-server/dist/server.js
 ```
 
-### 5. 注册 MCP 到目标项目
+#### 5. 注册 MCP 到目标项目（必须合并，禁止覆盖）
 
-在**目标项目根目录**的 `opencode.json` 中添加（若文件不存在则创建）：
+在**目标项目根目录**的 `opencode.json` 中**合并**添加（若文件不存在则创建）。**务必保留目标项目已有的全部字段**（如已有 `mcp`、`plugin`、`permission`、`agent` 等）：
 
 ```json
 {
+  "$schema": "https://opencode.ai/config.json",
   "mcp": {
+    "...目标项目已有 mcp...": {},
     "delivery": {
       "type": "local",
       "command": ["node", "delivery-mcp-server/dist/server.js"],
@@ -78,15 +114,16 @@ npm run build        # 产出 dist/server.js（OpenCode 引用的就是它）
 }
 ```
 
+> **禁止整体覆盖**：目标项目若已有 `opencode.json`，只允许新增 `mcp.delivery` 字段，其余字段原样保留；若已存在 `mcp.delivery` 则跳过，不要重复添加。
 > 因为 server 已装在项目内，`command` 用**相对路径** `delivery-mcp-server/dist/server.js` 即可，OpenCode 会以项目根目录为 cwd 启动它。
 
-### 6. 清理临时克隆
+#### 6. 清理临时克隆
 
 ```bash
 rm -rf /tmp/ai-delivery-system
 ```
 
-### 7. 启动浏览器任务看板并提示用户
+#### 7. 启动浏览器任务看板并提示用户
 
 安装完成后，**立即启动 dashboard**，并告知用户可以用浏览器打开查看：
 
@@ -102,16 +139,17 @@ npm run dashboard
 
 > dashboard 会自动读取**项目根目录**的 `.delivery`（即 delivery-mcp-server 的父目录），无需额外配置。若想指定其他数据目录，设置环境变量 `DELIVERY_ROOT`。
 
-### 8. 将 delivery-mcp-server 加入 .gitignore
+#### 8. 将 delivery 相关文件加入 .gitignore
 
-`delivery-mcp-server` 是从本仓库拷贝的**工具本体**（含 node_modules/dist），不属于目标项目的源码，应忽略，避免被提交进目标项目仓库。在**目标项目根目录**执行：
+`delivery-mcp-server` 是从本仓库拷贝的**工具本体**（含 node_modules/dist），不属于目标项目的源码，应忽略；`.delivery/config/email.json` 存有 SMTP 授权码，**必须忽略，防止泄密**。在**目标项目根目录**执行：
 
 ```bash
 # .gitignore 不存在则创建；已存在则仅当无该条目时幂等追加
 grep -qxF 'delivery-mcp-server' .gitignore 2>/dev/null || echo 'delivery-mcp-server' >> .gitignore
+grep -qxF '.delivery/config/email.json' .gitignore 2>/dev/null || echo '.delivery/config/email.json' >> .gitignore
 ```
 
-> 注意：`.delivery/`（任务数据）**不要**加入忽略——它是目标项目的交付记录，建议纳入版本管理（install.md 第七节 FAQ）。
+> 注意：`.delivery/`（任务数据）**不要**整目录忽略——它是目标项目的交付记录，建议纳入版本管理；**只排除含敏感信息的 `config/email.json`**（install.md 第七节 FAQ）。
 
 ---
 
@@ -145,16 +183,18 @@ grep -qxF 'delivery-mcp-server' .gitignore 2>/dev/null || echo 'delivery-mcp-ser
 > **重要约束**：团队名册的**全部成员 roles 并集必须覆盖全部 8 个角色**（见下表）。若缺角色，`team.set` 会返回 `roles_incomplete` 并列出缺失角色，需继续添加成员或为现有成员补角色，直到 8 个角色全部覆盖。
 > 当前操作人的角色 = `user.set` 的邮箱在团队名册中匹配到的 roles。
 
-| 角色 key | 中文名 |
-|---|---|
-| delivery-orchestrator | 交付编排总控 |
-| domain-expert | 业务专家 |
-| product-manager | 产品经理 |
-| ux-designer | UI/UX 设计 |
-| domain-architect | 领域架构师 |
-| engineer | 工程实现 |
-| qa | 质量测试 |
-| devops | 平台与 DevOps |
+| 角色 key | 中文名 | Agent 文件名 |
+|---|---|---|
+| delivery-orchestrator | 交付编排总控 | delivery-orchestrator.md |
+| domain-expert | 业务专家 | delivery-domain-expert.md |
+| product-manager | 产品经理 | delivery-product-manager.md |
+| ux-designer | UI/UX 设计 | delivery-ux-designer.md |
+| domain-architect | 领域架构师 | delivery-domain-architect.md |
+| engineer | 工程实现 | delivery-engineer.md |
+| qa | 质量测试 | delivery-qa.md |
+| devops | 平台与 DevOps | delivery-devops.md |
+
+> 所有角色 Agent 均以 `delivery-` 前缀命名，避免与目标项目已有的同名 agent（如 `engineer.md`）冲突。**角色 key（team.json 中的 roles 值）与 Agent 文件名是两个概念**：角色 key 不变，Agent 文件名带前缀。
 
 ### 3. 配置邮件通知（可选）
 
@@ -261,8 +301,8 @@ A：设置环境变量 `DELIVERY_ROOT` 指向目标目录。
 
 ## 八、卸载
 
-1. 从 `opencode.json` 移除 `delivery` MCP 配置。
+1. 从 `opencode.json` 移除 `delivery` MCP 配置（只删 `mcp.delivery` 字段，保留其他配置）。
 2. 删除目标项目下的 `delivery-mcp-server/` 目录。
-3. 删除目标项目下的 `.opencode/agent/`（若拷贝过）。
+3. 删除目标项目下的 `.opencode/agent/delivery-*.md`（**只删 delivery 前缀文件，不要删整个 agent 目录**，避免误删目标项目已有 agent）。
 4. 可选：删除 `.delivery/` 目录（任务数据）。
-5. 可选：从目标项目 `.gitignore` 移除 `delivery-mcp-server` 条目。
+5. 可选：从目标项目 `.gitignore` 移除 `delivery-mcp-server` 与 `.delivery/config/email.json` 条目。

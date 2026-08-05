@@ -138,7 +138,7 @@ cd delivery-mcp-server && npm install && npm run build
 总控 Agent 会依次：
 1. `task.create` 创建任务（自动识别类型为 lightweight_ddd 或 full_ddd）
 2. 查看 `stage.get` 确定当前阶段与指派角色
-3. 调用对应角色 Agent（`product-manager` / `ux-designer` / `domain-architect` / `engineer` / `qa` / `devops`）生成交付物
+3. 调用对应角色 Agent（`delivery-product-manager` / `delivery-ux-designer` / `delivery-domain-architect` / `delivery-engineer` / `delivery-qa` / `delivery-devops`）生成交付物
 4. `artifact.submit` 提交 → `gate.check` 门禁 → `stage.complete` 推进
 5. 全部完成后 `task.export_delivery_package` 导出交付包
 
@@ -171,16 +171,18 @@ cd delivery-mcp-server && npm install && npm run build
 
 ### 角色列表
 
-| 角色 key | 中文名 |
-|---|---|
-| delivery-orchestrator | 交付编排总控 |
-| domain-expert | 业务专家 |
-| product-manager | 产品经理 |
-| ux-designer | UI/UX 设计 |
-| domain-architect | 领域架构师 |
-| engineer | 工程实现 |
-| qa | 质量测试 |
-| devops | 平台与 DevOps |
+所有角色 Agent 文件均以 `delivery-` 前缀命名，避免与目标项目已有同名 agent 冲突。角色 key（team.json 中 roles 值）与 Agent 文件名是两个概念。
+
+| 角色 key | 中文名 | Agent 文件名 |
+|---|---|---|
+| delivery-orchestrator | 交付编排总控 | delivery-orchestrator.md |
+| domain-expert | 业务专家 | delivery-domain-expert.md |
+| product-manager | 产品经理 | delivery-product-manager.md |
+| ux-designer | UI/UX 设计 | delivery-ux-designer.md |
+| domain-architect | 领域架构师 | delivery-domain-architect.md |
+| engineer | 工程实现 | delivery-engineer.md |
+| qa | 质量测试 | delivery-qa.md |
+| devops | 平台与 DevOps | delivery-devops.md |
 
 看板顶部会显示当前团队成员（姓名/邮箱/角色），未配置时显示提示条。
 
