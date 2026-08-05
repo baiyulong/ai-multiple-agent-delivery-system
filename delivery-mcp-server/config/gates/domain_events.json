@@ -1,0 +1,7 @@
+{
+  "artifact_type": "domain_events",
+  "required_sections": ["领域事件清单", "事件触发规则"],
+  "aliases": {},
+  "non_empty_sections": ["领域事件清单"],
+  "pass_threshold": 60
+}

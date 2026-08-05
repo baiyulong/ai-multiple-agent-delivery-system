@@ -1,0 +1,22 @@
+{
+  "artifact_type": "engineering_plan",
+  "required_sections": [
+    "技术背景与约束",
+    "推荐模块结构",
+    "前端实现设计",
+    "后端实现设计",
+    "API 设计",
+    "数据模型建议",
+    "核心业务逻辑实现建议",
+    "单元测试建议",
+    "集成测试建议",
+    "技术风险",
+    "给 QA 的测试输入",
+    "给平台/DevOps 的部署输入"
+  ],
+  "aliases": {
+    "给平台/DevOps 的部署输入": ["给平台DevOps的部署输入", "给平台/DevOps的部署输入"]
+  },
+  "non_empty_sections": ["推荐模块结构", "API 设计"],
+  "pass_threshold": 60
+}

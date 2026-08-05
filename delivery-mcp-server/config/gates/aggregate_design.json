@@ -1,0 +1,7 @@
+{
+  "artifact_type": "aggregate_design",
+  "required_sections": ["聚合根", "实体", "值对象", "行为", "不变量"],
+  "aliases": {},
+  "non_empty_sections": ["聚合根", "行为"],
+  "pass_threshold": 60
+}

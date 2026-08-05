@@ -1,0 +1,50 @@
+{
+  "task_type": "crud",
+  "flow": [
+    {
+      "stage": "product_requirement",
+      "role": "product-manager",
+      "required_artifact_type": "crud_spec_card",
+      "required_artifact_types": ["crud_spec_card"],
+      "required_previous_stages": [],
+      "gate_rules": ["crud_spec_card"],
+      "allow_skip": false
+    },
+    {
+      "stage": "ux_design",
+      "role": "ux-designer",
+      "required_artifact_type": "ux_interaction_card",
+      "required_artifact_types": ["ux_interaction_card"],
+      "required_previous_stages": ["product_requirement"],
+      "gate_rules": ["ux_interaction_card"],
+      "allow_skip": false
+    },
+    {
+      "stage": "domain_review",
+      "role": "domain-architect",
+      "required_artifact_type": "ddd_applicability_review",
+      "required_artifact_types": ["ddd_applicability_review"],
+      "required_previous_stages": ["ux_design"],
+      "gate_rules": ["ddd_applicability_review"],
+      "allow_skip": false
+    },
+    {
+      "stage": "engineering_design",
+      "role": "engineer",
+      "required_artifact_type": "engineering_plan",
+      "required_artifact_types": ["engineering_plan"],
+      "required_previous_stages": ["domain_review"],
+      "gate_rules": ["engineering_plan"],
+      "allow_skip": false
+    },
+    {
+      "stage": "qa_validation",
+      "role": "qa",
+      "required_artifact_type": "qa_test_plan",
+      "required_artifact_types": ["qa_test_plan"],
+      "required_previous_stages": ["engineering_design"],
+      "gate_rules": ["qa_test_plan"],
+      "allow_skip": false
+    }
+  ]
+}
