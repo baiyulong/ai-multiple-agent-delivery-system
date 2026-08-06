@@ -1,0 +1,44 @@
+{
+  "task_type": "crud",
+  "name": "CRUD 分层架构（预设）",
+  "description": "面向简单增删改查的轻量分层架构。适用于业务规则简单、无复杂状态流转、以数据维护为主的场景。",
+  "layers": [
+    {
+      "name": "表现层",
+      "responsibility": "接收请求、参数校验、返回响应；不承载业务逻辑",
+      "typical_files": ["Controller / Route / Page / Component"]
+    },
+    {
+      "name": "应用层",
+      "responsibility": "用例编排、事务边界、DTO 转换；调用领域/服务层",
+      "typical_files": ["Service / ApplicationService / UseCase"]
+    },
+    {
+      "name": "数据访问层",
+      "responsibility": "持久化、查询、仓储实现；屏蔽数据库细节",
+      "typical_files": ["Repository / Mapper / DAO / Entity"]
+    }
+  ],
+  "structure": {
+    "backend": [
+      "src/controller/",
+      "src/service/",
+      "src/repository/",
+      "src/entity/",
+      "src/dto/"
+    ],
+    "frontend": [
+      "src/pages/",
+      "src/components/",
+      "src/api/"
+    ]
+  },
+  "code_requirements": [
+    "每个维护对象对应一个 Controller + Service + Repository",
+    "DTO 与 Entity 分离，禁止 Entity 直接暴露给前端",
+    "查询条件、列表字段、新增/编辑/删除规则与 crud_spec_card 一一对应",
+    "权限校验在应用层统一处理",
+    "数据校验规则集中定义，前后端复用"
+  ],
+  "source": "preset"
+}

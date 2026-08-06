@@ -1,0 +1,49 @@
+{
+  "task_type": "lightweight_ddd",
+  "name": "轻量 DDD 推荐架构（预设）",
+  "description": "在分层基础上引入轻量领域模型。适用于有一定业务规则、状态流转，但不需要完整 DDD 复杂度的场景。",
+  "layers": [
+    {
+      "name": "表现层",
+      "responsibility": "请求/响应、参数校验、页面；不承载业务逻辑",
+      "typical_files": ["Controller / View / Component"]
+    },
+    {
+      "name": "应用层",
+      "responsibility": "用例编排、事务、DTO 映射、权限校验",
+      "typical_files": ["ApplicationService / UseCase / Command / Query"]
+    },
+    {
+      "name": "领域层",
+      "responsibility": "核心业务规则、实体、值对象、领域服务、仓储接口",
+      "typical_files": ["Entity / ValueObject / DomainService / Repository(interface)"]
+    },
+    {
+      "name": "基础设施层",
+      "responsibility": "仓储实现、数据库、外部服务适配",
+      "typical_files": ["RepositoryImpl / Mapper / Infrastructure"]
+    }
+  ],
+  "structure": {
+    "backend": [
+      "src/application/",
+      "src/domain/",
+      "src/infrastructure/",
+      "src/interfaces/",
+      "src/dto/"
+    ],
+    "frontend": [
+      "src/pages/",
+      "src/components/",
+      "src/api/"
+    ]
+  },
+  "code_requirements": [
+    "领域层不依赖基础设施层（依赖倒置，仓储接口在领域层定义）",
+    "核心业务规则必须落在领域层，禁止散落到 Controller/SQL/前端",
+    "应用层负责事务与用例编排，领域层负责规则",
+    "实体/值对象/领域服务与 lightweight_domain_model 对齐",
+    "接口契约与 api_contract 对齐"
+  ],
+  "source": "preset"
+}

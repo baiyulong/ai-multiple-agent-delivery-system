@@ -32,9 +32,9 @@
       "stage": "domain_design",
       "role": "domain-architect",
       "required_artifact_type": "bounded_context",
-      "required_artifact_types": ["bounded_context", "aggregate_design", "domain_events", "api_contract"],
+      "required_artifact_types": ["bounded_context", "aggregate_design", "domain_events", "api_contract", "ubiquitous_language_code_map", "technical_architecture"],
       "required_previous_stages": ["ux_design"],
-      "gate_rules": ["bounded_context", "aggregate_design", "domain_events", "api_contract"],
+      "gate_rules": ["bounded_context", "aggregate_design", "domain_events", "api_contract", "ubiquitous_language_code_map", "technical_architecture"],
       "allow_skip": false
     },
     {

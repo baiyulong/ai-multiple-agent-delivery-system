@@ -239,14 +239,14 @@ npm run dashboard
 ### 完整交付（核心业务）
 
 ```
-crud_spec_card → ux_interaction_card → ddd_applicability_review → engineering_plan → qa_test_plan
+crud_spec_card → ux_interaction_card → ddd_applicability_review + ubiquitous_language_code_map + technical_architecture → engineering_plan → qa_test_plan
 ```
 
 | 阶段 | 角色 Agent | 必需交付物 | 门禁规则 |
 |---|---|---|---|
 | product_requirement | product-manager | crud_spec_card / product_requirement_card | 14 章节必填、含删除规则、验收标准 ≥3 条 |
 | ux_design | ux-designer | ux_interaction_card | 17 章节、状态与按钮矩阵 |
-| domain_review | domain-architect | ddd_applicability_review | DDD 适用性判断 |
+| domain_review | domain-architect | ddd_applicability_review + ubiquitous_language_code_map + technical_architecture | DDD 适用性判断 + 术语-代码映射 + 技术架构章节 |
 | engineering_design | engineer | engineering_plan | 12 章节、API/数据模型/测试建议 |
 | qa_validation | qa | qa_test_plan | 测试策略、功能用例 ≥3 条 |
 
@@ -262,7 +262,8 @@ crud_spec_card → ux_interaction_card → ddd_applicability_review → engineer
 .delivery/
 ├── config/                    # 初始化时从内置模板复制（用户可改）
 │   ├── flows/                 # 流程模板
-│   └── gates/                 # 门禁规则
+│   ├── gates/                 # 门禁规则
+│   └── architectures/         # 预设架构模板（全新项目用）
 └── tasks/
     └── TASK-YYYYMMDD-NNN/
         ├── task.json          # 任务元数据

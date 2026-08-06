@@ -23,9 +23,9 @@
       "stage": "domain_design",
       "role": "domain-architect",
       "required_artifact_type": "lightweight_domain_model",
-      "required_artifact_types": ["lightweight_domain_model", "api_contract"],
+      "required_artifact_types": ["lightweight_domain_model", "api_contract", "ubiquitous_language_code_map", "technical_architecture"],
       "required_previous_stages": ["ux_design"],
-      "gate_rules": ["lightweight_domain_model", "api_contract"],
+      "gate_rules": ["lightweight_domain_model", "api_contract", "ubiquitous_language_code_map", "technical_architecture"],
       "allow_skip": false
     },
     {

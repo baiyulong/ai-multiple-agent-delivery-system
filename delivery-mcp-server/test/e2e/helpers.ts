@@ -229,6 +229,60 @@ export function validDddReview(): string {
   ].join('\n');
 }
 
+/** 业务统一语言·代码映射：满足门禁的完整内容 */
+export function validUbiquitousLanguageCodeMap(): string {
+  return [
+    '# 业务统一语言·代码映射',
+    '',
+    '## 1. 业务术语表',
+    '| 术语 | 精确定义 | 所属上下文 | 示例 | 不应混淆 |',
+    '|---|---|---|---|---|',
+    '| 供应商分类 | 供应商挂接的层级分类 | 采购 | 原材料/成品 | 供应商 |',
+    '| 停用 | 分类不可再挂接新供应商 | 采购 | 停用后不可用 | 删除 |',
+    '',
+    '## 2. 代码映射',
+    '| 术语 | 代码文件 | 代码方法/符号 | 说明 |',
+    '|---|---|---|---|',
+    '| 供应商分类 | src/domain/Category.java | class Category | 分类实体 |',
+    '| 停用 | src/service/CategoryService.java | disable() | 停用逻辑 |',
+    '',
+    '## 3. 未映射术语',
+    '| 术语 | 原因 | 建议 |',
+    '|---|---|---|',
+    '| 采购员 | 尚未实现 | 待实现后补充 |',
+    '',
+    '## 4. 术语冲突说明',
+    '| 冲突术语 | 冲突表现 | 处理建议 |',
+    '|---|---|---|',
+    '| 停用/删除 | 业务上停用而非删除 | 统一用停用 |',
+  ].join('\n');
+}
+
+/** 技术架构文档：满足门禁的完整内容 */
+export function buildTechnicalArchitecture(): string {
+  return [
+    '# 技术架构文档',
+    '',
+    '## 1. 架构风格',
+    '分层架构（Controller/Service/Repository），不引入领域模型。',
+    '',
+    '## 2. 模块结构',
+    'backend/src/main/java/.../supplier/category + frontend/src/views/supplier/category',
+    '',
+    '## 3. 代码结构要求',
+    '每个维护对象对应 Controller + Service + Repository；DTO 与 Entity 分离。',
+    '',
+    '## 4. 技术栈',
+    'Vue3 + Spring Boot + MySQL。',
+    '',
+    '## 5. ADR 架构决策记录',
+    'ADR-001：采用三层分层，避免过度设计。',
+    '',
+    '## 6. 数据来源说明',
+    'preset',
+  ].join('\n');
+}
+
 /** 工程实现方案（PRD 11.4） */
 export function validEngineeringPlan(): string {
   return [

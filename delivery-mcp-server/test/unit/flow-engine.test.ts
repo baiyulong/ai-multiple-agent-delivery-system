@@ -83,4 +83,21 @@ describe('flow-engine', () => {
 
     await rm(root, { recursive: true, force: true });
   });
+
+  it('三种流程的架构师阶段都要求 ubiquitous_language_code_map 与 technical_architecture', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'delivery-flow-'));
+    const cases: Array<{ type: 'crud' | 'lightweight_ddd' | 'full_ddd'; stage: string }> = [
+      { type: 'crud', stage: 'domain_review' },
+      { type: 'lightweight_ddd', stage: 'domain_design' },
+      { type: 'full_ddd', stage: 'domain_design' },
+    ];
+    for (const c of cases) {
+      const flow = await loadFlowTemplate(root, c.type);
+      const def = flow?.flow.find((s) => s.stage === c.stage);
+      expect(def, `${c.type} 应含 ${c.stage}`).toBeDefined();
+      expect(def!.required_artifact_types).toContain('ubiquitous_language_code_map');
+      expect(def!.required_artifact_types).toContain('technical_architecture');
+    }
+    await rm(root, { recursive: true, force: true });
+  });
 });

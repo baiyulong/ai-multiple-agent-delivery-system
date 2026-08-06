@@ -1,0 +1,11 @@
+{
+  "artifact_type": "ubiquitous_language_code_map",
+  "required_sections": ["业务术语表", "代码映射", "术语冲突说明"],
+  "aliases": {
+    "业务术语表": ["统一语言表", "术语表"],
+    "代码映射": ["术语-代码映射", "代码位置映射"],
+    "术语冲突说明": ["冲突说明", "术语冲突"]
+  },
+  "non_empty_sections": ["业务术语表", "代码映射"],
+  "pass_threshold": 60
+}

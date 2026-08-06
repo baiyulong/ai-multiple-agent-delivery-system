@@ -8,6 +8,8 @@ import {
   validEngineeringPlan,
   validQaTestPlan,
   validUxInteractionCard,
+  validUbiquitousLanguageCodeMap,
+  buildTechnicalArchitecture,
 } from './helpers.js';
 
 /**
@@ -144,24 +146,33 @@ describe('PRD 16.5：交付包导出', () => {
     });
     const taskId = created.task_id as string;
 
-    // 依次完成 CRUD 五个阶段
+    // 依次完成 CRUD 五个阶段（domain_review 需提交 3 个交付物）
     const stages = [
-      { stage: 'product_requirement', type: 'crud_spec_card', content: validCrudSpecCard() },
-      { stage: 'ux_design', type: 'ux_interaction_card', content: validUxInteractionCard() },
-      { stage: 'domain_review', type: 'ddd_applicability_review', content: validDddReview() },
-      { stage: 'engineering_design', type: 'engineering_plan', content: validEngineeringPlan() },
-      { stage: 'qa_validation', type: 'qa_test_plan', content: validQaTestPlan() },
+      { stage: 'product_requirement', types: [{ type: 'crud_spec_card', content: validCrudSpecCard() }] },
+      { stage: 'ux_design', types: [{ type: 'ux_interaction_card', content: validUxInteractionCard() }] },
+      {
+        stage: 'domain_review',
+        types: [
+          { type: 'ddd_applicability_review', content: validDddReview() },
+          { type: 'ubiquitous_language_code_map', content: validUbiquitousLanguageCodeMap() },
+          { type: 'technical_architecture', content: buildTechnicalArchitecture() },
+        ],
+      },
+      { stage: 'engineering_design', types: [{ type: 'engineering_plan', content: validEngineeringPlan() }] },
+      { stage: 'qa_validation', types: [{ type: 'qa_test_plan', content: validQaTestPlan() }] },
     ];
     for (const s of stages) {
-      const submit = await h.call('artifact.submit', {
-        task_id: taskId,
-        stage: s.stage,
-        role: 'agent',
-        artifact_type: s.type,
-        content: s.content,
-      });
-      const gate = await h.call('gate.check', { task_id: taskId, stage: s.stage, artifact_id: submit.artifact_id });
-      expect(gate.result).toBe('passed');
+      for (const a of s.types) {
+        const submit = await h.call('artifact.submit', {
+          task_id: taskId,
+          stage: s.stage,
+          role: 'agent',
+          artifact_type: a.type,
+          content: a.content,
+        });
+        const gate = await h.call('gate.check', { task_id: taskId, stage: s.stage, artifact_id: submit.artifact_id });
+        expect(gate.result).toBe('passed');
+      }
       const complete = await h.call('stage.complete', { task_id: taskId, stage: s.stage, confirmed_by: 'Yulong' });
       expect(complete.status).toBe('completed');
     }
@@ -221,6 +232,62 @@ describe('PRD 12.3：返工流程', () => {
 
     const complete = await h.call('stage.complete', { task_id: taskId, stage: 'product_requirement', confirmed_by: 'Yulong' });
     expect(complete.status).toBe('completed');
+
+    await h.cleanup();
+  });
+});
+
+describe('架构师新增交付物：业务统一语言·代码映射 + 技术架构文档', () => {
+  it('domain_review 阶段提交三个交付物 → 门禁通过 → 阶段完成', async () => {
+    const h = await createHarness();
+    const created = await h.call('task.create', {
+      title: '供应商分类维护',
+      description: '维护供应商分类，支持新增、编辑、停用和查询',
+      created_by: 'u',
+    });
+    const taskId = created.task_id as string;
+
+    // 完成上游 product_requirement → ux_design
+    const upstream = [
+      { stage: 'product_requirement', type: 'crud_spec_card', content: validCrudSpecCard() },
+      { stage: 'ux_design', type: 'ux_interaction_card', content: validUxInteractionCard() },
+    ];
+    for (const s of upstream) {
+      const submit = await h.call('artifact.submit', {
+        task_id: taskId,
+        stage: s.stage,
+        role: 'agent',
+        artifact_type: s.type,
+        content: s.content,
+      });
+      const gate = await h.call('gate.check', { task_id: taskId, stage: s.stage, artifact_id: submit.artifact_id });
+      expect(gate.result).toBe('passed');
+      const complete = await h.call('stage.complete', { task_id: taskId, stage: s.stage, confirmed_by: 'Yulong' });
+      expect(complete.status).toBe('completed');
+    }
+
+    // domain_review 阶段：三个交付物
+    const archArtifacts = [
+      { type: 'ddd_applicability_review', content: validDddReview() },
+      { type: 'ubiquitous_language_code_map', content: validUbiquitousLanguageCodeMap() },
+      { type: 'technical_architecture', content: buildTechnicalArchitecture() },
+    ];
+    for (const a of archArtifacts) {
+      const submit = await h.call('artifact.submit', {
+        task_id: taskId,
+        stage: 'domain_review',
+        role: 'domain-architect',
+        artifact_type: a.type,
+        content: a.content,
+      });
+      const gate = await h.call('gate.check', { task_id: taskId, stage: 'domain_review', artifact_id: submit.artifact_id });
+      expect(gate.result).toBe('passed');
+    }
+
+    // 阶段完成
+    const complete = await h.call('stage.complete', { task_id: taskId, stage: 'domain_review', confirmed_by: 'Yulong' });
+    expect(complete.status).toBe('completed');
+    expect(complete.next_stage).toBe('engineering_design');
 
     await h.cleanup();
   });
@@ -287,22 +354,31 @@ describe('PRD 7.9 / 8.8：问题阻塞与解除', () => {
     });
     const taskId = created.task_id as string;
 
-    // 依次完成 product_requirement → ux_design → domain_review
+    // 依次完成 product_requirement → ux_design → domain_review（domain_review 提交 3 个交付物）
     const done = [
-      { stage: 'product_requirement', type: 'crud_spec_card', content: validCrudSpecCard() },
-      { stage: 'ux_design', type: 'ux_interaction_card', content: validUxInteractionCard() },
-      { stage: 'domain_review', type: 'ddd_applicability_review', content: validDddReview() },
+      { stage: 'product_requirement', types: [{ type: 'crud_spec_card', content: validCrudSpecCard() }] },
+      { stage: 'ux_design', types: [{ type: 'ux_interaction_card', content: validUxInteractionCard() }] },
+      {
+        stage: 'domain_review',
+        types: [
+          { type: 'ddd_applicability_review', content: validDddReview() },
+          { type: 'ubiquitous_language_code_map', content: validUbiquitousLanguageCodeMap() },
+          { type: 'technical_architecture', content: buildTechnicalArchitecture() },
+        ],
+      },
     ];
     for (const s of done) {
-      const submit = await h.call('artifact.submit', {
-        task_id: taskId,
-        stage: s.stage,
-        role: 'agent',
-        artifact_type: s.type,
-        content: s.content,
-      });
-      const gate = await h.call('gate.check', { task_id: taskId, stage: s.stage, artifact_id: submit.artifact_id });
-      expect(gate.result).toBe('passed');
+      for (const a of s.types) {
+        const submit = await h.call('artifact.submit', {
+          task_id: taskId,
+          stage: s.stage,
+          role: 'agent',
+          artifact_type: a.type,
+          content: a.content,
+        });
+        const gate = await h.call('gate.check', { task_id: taskId, stage: s.stage, artifact_id: submit.artifact_id });
+        expect(gate.result).toBe('passed');
+      }
       const complete = await h.call('stage.complete', { task_id: taskId, stage: s.stage, confirmed_by: 'Yulong' });
       expect(complete.status).toBe('completed');
     }

@@ -23,9 +23,9 @@
       "stage": "domain_review",
       "role": "domain-architect",
       "required_artifact_type": "ddd_applicability_review",
-      "required_artifact_types": ["ddd_applicability_review"],
+      "required_artifact_types": ["ddd_applicability_review", "ubiquitous_language_code_map", "technical_architecture"],
       "required_previous_stages": ["ux_design"],
-      "gate_rules": ["ddd_applicability_review"],
+      "gate_rules": ["ddd_applicability_review", "ubiquitous_language_code_map", "technical_architecture"],
       "allow_skip": false
     },
     {

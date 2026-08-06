@@ -94,7 +94,8 @@ npm run dashboard # 启动浏览器任务看板 http://localhost:8787
 .delivery/
 ├── config/
 │   ├── flows/            # 流程模板（crud / lightweight-ddd / full-ddd）
-│   └── gates/            # 门禁规则（17 个交付物类型）
+│   ├── gates/            # 门禁规则（19 个交付物类型）
+│   └── architectures/    # 预设架构模板（crud / lightweight-ddd / full-ddd）
 └── tasks/
     └── TASK-YYYYMMDD-NNN/
         ├── task.json             # 任务元数据
@@ -126,7 +127,7 @@ src/
 │   ├── exporter.ts        # 交付包导出
 │   └── store/             # 文件存储
 ├── tools/                 # 16 个 MCP 工具
-config/                    # 流程模板 + 门禁规则
+config/                    # 流程模板 + 门禁规则 + 预设架构
 templates/                 # 上下文与交付物模板
 test/                      # 单测 + E2E 验收
 scripts/run-example.ts     # 示例走查

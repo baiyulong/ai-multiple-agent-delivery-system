@@ -34,5 +34,6 @@ export function packageRoot(): string {
 
 export const builtinFlowsDir = (): string => join(packageRoot(), 'config', 'flows');
 export const builtinGatesDir = (): string => join(packageRoot(), 'config', 'gates');
+export const builtinArchitecturesDir = (): string => join(packageRoot(), 'config', 'architectures');
 export const templatesDir = (): string => join(packageRoot(), 'templates');
 export const contextTemplateFile = (): string => join(templatesDir(), 'context.md');

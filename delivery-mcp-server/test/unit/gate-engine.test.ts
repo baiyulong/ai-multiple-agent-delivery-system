@@ -161,4 +161,65 @@ describe('gate-engine', () => {
 
     await rm(root, { recursive: true, force: true });
   });
+
+  it('ubiquitous_language_code_map 门禁：完整通过，缺代码映射失败', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'delivery-gate-'));
+    const rule = await loadGateRule(root, 'ubiquitous_language_code_map');
+    expect(rule).not.toBeNull();
+
+    const good = [
+      '# 业务统一语言·代码映射',
+      '## 1. 业务术语表',
+      '| 术语 | 精确定义 | 所属上下文 | 示例 | 不应混淆 |',
+      '| 供应商分类 | 供应商挂接的层级分类 | 采购 | 原材料 | 供应商 |',
+      '## 2. 代码映射',
+      '| 术语 | 代码文件 | 代码方法/符号 | 说明 |',
+      '| 供应商分类 | src/domain/Category.java | class Category | 分类实体 |',
+      '## 3. 未映射术语',
+      '| 术语 | 原因 | 建议 |',
+      '| 采购员 | 未实现 | 待补充 |',
+      '## 4. 术语冲突说明',
+      '| 冲突术语 | 冲突表现 | 处理建议 |',
+      '| 停用/删除 | 业务用停用 | 统一停用 |',
+    ].join('\n');
+    expect(runGate(good, rule!).result).toBe('passed');
+
+    // 缺代码映射章节
+    const bad = good.replace('## 2. 代码映射', '## 2. 其他');
+    const badOutcome = runGate(bad, rule!);
+    expect(badOutcome.result).toBe('failed');
+    expect(badOutcome.missing_sections).toContain('代码映射');
+
+    await rm(root, { recursive: true, force: true });
+  });
+
+  it('technical_architecture 门禁：缺技术栈失败', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'delivery-gate-'));
+    const rule = await loadGateRule(root, 'technical_architecture');
+    expect(rule).not.toBeNull();
+
+    const good = [
+      '# 技术架构文档',
+      '## 1. 架构风格',
+      '分层架构',
+      '## 2. 模块结构',
+      'backend + frontend',
+      '## 3. 代码结构要求',
+      'Controller + Service + Repository',
+      '## 4. 技术栈',
+      'Vue3 + Spring Boot',
+      '## 5. ADR 架构决策记录',
+      'ADR-001 分层',
+      '## 6. 数据来源说明',
+      'preset',
+    ].join('\n');
+    expect(runGate(good, rule!).result).toBe('passed');
+
+    const bad = good.replace('## 4. 技术栈', '## 4. 其他');
+    const badOutcome = runGate(bad, rule!);
+    expect(badOutcome.result).toBe('failed');
+    expect(badOutcome.missing_sections).toContain('技术栈');
+
+    await rm(root, { recursive: true, force: true });
+  });
 });

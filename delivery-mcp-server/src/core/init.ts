@@ -1,10 +1,10 @@
 import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { builtinFlowsDir, builtinGatesDir } from './locate.js';
+import { builtinFlowsDir, builtinGatesDir, builtinArchitecturesDir } from './locate.js';
 
 /**
  * 交付根目录初始化（PRD 10.1 / 14.1）：
- * 首次运行将内置 flows/gates 模板复制到 .delivery/config/，之后用户可自定义覆盖（新增类型不改核心代码）。
+ * 首次运行将内置 flows/gates/architectures 模板复制到 .delivery/config/，之后用户可自定义覆盖（新增类型不改核心代码）。
  */
 
 async function copyDirIfMissing(srcDir: string, destDir: string): Promise<{ copied: number }> {
@@ -33,7 +33,9 @@ export async function initDeliveryRoot(root: string): Promise<void> {
   await mkdir(join(root, 'tasks'), { recursive: true });
   await mkdir(join(root, 'config', 'flows'), { recursive: true });
   await mkdir(join(root, 'config', 'gates'), { recursive: true });
+  await mkdir(join(root, 'config', 'architectures'), { recursive: true });
 
   await copyDirIfMissing(builtinFlowsDir(), join(root, 'config', 'flows'));
   await copyDirIfMissing(builtinGatesDir(), join(root, 'config', 'gates'));
+  await copyDirIfMissing(builtinArchitecturesDir(), join(root, 'config', 'architectures'));
 }
