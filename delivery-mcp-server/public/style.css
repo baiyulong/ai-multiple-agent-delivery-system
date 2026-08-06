@@ -339,6 +339,13 @@ body {
   border-radius: 10px;
 }
 
+/* 预设架构文档徽章（区别于任务状态徽章） */
+.badge-preset {
+  background: #eef2ff;
+  color: #4f46e5;
+  border: 1px solid #c7d2fe;
+}
+
 .doc-card {
   border: 1px solid var(--color-border-light);
   border-radius: var(--radius-md);

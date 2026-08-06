@@ -10,8 +10,9 @@
  * 只读服务：任务列表 / 任务详情 / 交付物正文 / 共享上下文 / 交付包
  */
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
-import { readFile, stat, writeFile, rm } from 'node:fs/promises';
+import { readFile, readdir, stat, writeFile, rm } from 'node:fs/promises';
 import { dirname, extname, join, normalize } from 'node:path';
+import { builtinArchitecturesDir } from './core/locate.js';
 import { resolveDeliveryRoot } from './core/paths.js';
 import { getQuestions, getStages, getTask, listTaskIds, readContext } from './core/store/task-store.js';
 import { getArtifact, listArtifacts } from './core/store/artifact-store.js';
@@ -63,9 +64,128 @@ function sendText(res: ServerResponse, status: number, text: string, type: strin
 /** 聚合"公共文档"：跨任务收集架构师产出的业务统一语言·代码映射与技术架构文档 */
 const PUBLIC_DOC_TYPES = new Set(['ubiquitous_language_code_map', 'technical_architecture']);
 
+/** 公共文档条目（任务交付物与预设架构文档共用字段） */
+interface PublicDocEntry {
+  artifact_id: string | null;
+  task_id: string | null;
+  task_title: string | null;
+  artifact_type: string;
+  title: string | null;
+  stage: string | null;
+  role: string | null;
+  status: string | null;
+  version: number | null;
+  updated_at: string;
+  source?: string;
+  task_type?: string;
+  content?: string;
+}
+
+/** 预设架构文档 JSON 结构（config/architectures/*.json） */
+interface PresetArchitecture {
+  task_type?: string;
+  name?: string;
+  description?: string;
+  layers?: Array<{
+    name?: string;
+    responsibility?: string;
+    typical_files?: string[];
+  }>;
+  structure?: {
+    backend?: string[];
+    frontend?: string[];
+  };
+  code_requirements?: string[];
+  source?: string;
+}
+
+/** 把预设架构 JSON 渲染成可读 markdown（字段缺失则跳过对应小节） */
+function renderPresetMarkdown(preset: PresetArchitecture): string {
+  const out: string[] = [];
+  if (preset.name) out.push(`# ${preset.name}`, '');
+  if (preset.description) out.push(`> ${preset.description}`, '');
+
+  if (preset.layers && preset.layers.length > 0) {
+    out.push('## 分层架构', '');
+    for (const layer of preset.layers) {
+      if (!layer.name) continue;
+      out.push(`### ${layer.name}`);
+      if (layer.responsibility) out.push(`- 职责：${layer.responsibility}`);
+      if (layer.typical_files && layer.typical_files.length > 0) {
+        out.push(`- 典型文件：${layer.typical_files.join('、')}`);
+      }
+      out.push('');
+    }
+  }
+
+  if (preset.structure) {
+    out.push('## 目录结构', '');
+    if (preset.structure.backend && preset.structure.backend.length > 0) {
+      out.push('### 后端');
+      for (const item of preset.structure.backend) out.push(`- ${item}`);
+      out.push('');
+    }
+    if (preset.structure.frontend && preset.structure.frontend.length > 0) {
+      out.push('### 前端');
+      for (const item of preset.structure.frontend) out.push(`- ${item}`);
+      out.push('');
+    }
+  }
+
+  if (preset.code_requirements && preset.code_requirements.length > 0) {
+    out.push('## 代码要求', '');
+    for (const item of preset.code_requirements) out.push(`- ${item}`);
+    out.push('');
+  }
+
+  return out.join('\n').trim();
+}
+
+/**
+ * 加载预设架构文档：优先读项目数据根下的 <root>/config/architectures/*.json
+ * （用户可覆盖），若目录不存在或为空则回退到内置目录 builtinArchitecturesDir()。
+ */
+async function loadPresetArchitectures(): Promise<
+  Array<{ preset: PresetArchitecture; updatedAt: string }>
+> {
+  const userDir = join(root, 'config', 'architectures');
+  let dir = userDir;
+  let names: string[] = [];
+  try {
+    names = (await readdir(userDir)).filter((n) => n.endsWith('.json'));
+  } catch {
+    names = [];
+  }
+  if (names.length === 0) {
+    dir = builtinArchitecturesDir();
+    try {
+      names = (await readdir(dir)).filter((n) => n.endsWith('.json'));
+    } catch {
+      names = [];
+    }
+  }
+
+  const presets: Array<{ preset: PresetArchitecture; updatedAt: string }> = [];
+  for (const name of names) {
+    const file = join(dir, name);
+    try {
+      const [raw, info] = await Promise.all([readFile(file, 'utf-8'), stat(file)]);
+      const preset = JSON.parse(raw) as PresetArchitecture;
+      if (!preset.task_type) continue;
+      presets.push({
+        preset,
+        updatedAt: info.mtime.toISOString(),
+      });
+    } catch {
+      // 跳过无法读取或解析失败的预设文件
+    }
+  }
+  return presets;
+}
+
 async function buildPublicDocuments() {
   const ids = await listTaskIds(root);
-  const docs = [];
+  const docs: PublicDocEntry[] = [];
   for (const id of ids) {
     const task = await getTask(root, id);
     if (!task) continue;
@@ -85,6 +205,24 @@ async function buildPublicDocuments() {
         updated_at: a.updated_at,
       });
     }
+  }
+  // 追加预设架构文档条目
+  for (const { preset, updatedAt } of await loadPresetArchitectures()) {
+    docs.push({
+      artifact_id: `preset:${preset.task_type}`,
+      task_id: null,
+      task_title: null,
+      artifact_type: 'technical_architecture',
+      title: preset.name ?? null,
+      stage: null,
+      role: 'architect',
+      status: null,
+      version: null,
+      updated_at: updatedAt,
+      source: 'preset',
+      task_type: preset.task_type,
+      content: renderPresetMarkdown(preset),
+    });
   }
   docs.sort((a, b) => (a.updated_at < b.updated_at ? 1 : -1));
   return { documents: docs };

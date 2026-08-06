@@ -685,12 +685,31 @@
         + '</div>';
 
       items.forEach((d) => {
-        const statusBadge = d.status
-          ? '<span class="badge ' + statusBadgeClass(d.status) + '">' + esc(d.status) + '</span>'
-          : '';
+        const isPreset = d.source === 'preset';
+
+        // 预设条目自带 content：预存进缓存，展开时直接命中，无需请求接口
+        if (isPreset && d.content) {
+          state.artifactCache[d.artifact_id] = d.content;
+        }
+
+        // 徽章：预设条目显示「预设」，任务条目显示状态
+        const badgeHtml = isPreset
+          ? '<span class="badge badge-preset">预设</span>'
+          : (d.status
+              ? '<span class="badge ' + statusBadgeClass(d.status) + '">' + esc(d.status) + '</span>'
+              : '');
+
+        // meta 行：预设条目显示任务类型且不显示版本，任务条目显示所属任务与版本
+        const taskMetaHtml = isPreset
+          ? '<span class="doc-card-task">任务类型：' + esc(d.task_type || '-') + '</span>'
+          : '<span class="doc-card-task" title="' + esc(d.task_id) + '">所属任务：' + esc(d.task_title || d.task_id) + '</span>';
+
+        const versionHtml = (isPreset || !d.version)
+          ? ''
+          : '<span>版本：<span class="mono">v' + esc(d.version) + '</span></span>';
 
         html += `
-          <div class="doc-card" data-artifact-id="${esc(d.artifact_id)}" data-task-id="${esc(d.task_id)}">
+          <div class="doc-card" data-artifact-id="${esc(d.artifact_id)}" data-task-id="${esc(d.task_id)}" data-source="${isPreset ? 'preset' : ''}">
             <div class="doc-card-header" role="button" tabindex="0" onclick="App.togglePublicDocument(this)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();App.togglePublicDocument(this);}">
               <svg class="doc-expand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <polyline points="9 18 15 12 9 6"/>
@@ -698,11 +717,11 @@
               <div class="doc-card-main">
                 <div class="doc-card-title-row">
                   <span class="doc-card-title">${esc(d.title)}</span>
-                  ${statusBadge}
+                  ${badgeHtml}
                 </div>
                 <div class="doc-card-meta">
-                  <span class="doc-card-task" title="${esc(d.task_id)}">所属任务：${esc(d.task_title || d.task_id)}</span>
-                  <span>版本：<span class="mono">v${esc(d.version)}</span></span>
+                  ${taskMetaHtml}
+                  ${versionHtml}
                   <span>更新：${formatTime(d.updated_at)}</span>
                 </div>
               </div>
@@ -724,9 +743,15 @@
     const bodyEl = document.getElementById('doc-body-' + artifactId);
     if (!bodyEl) return;
 
-    // 检查缓存
+    // 检查缓存（预设条目的 content 在渲染时已预存，直接命中）
     if (state.artifactCache[artifactId]) {
       bodyEl.innerHTML = '<div class="markdown-body">' + renderMarkdown(state.artifactCache[artifactId]) + '</div>';
+      return;
+    }
+
+    // 预设条目无 task_id，不请求接口；此处仅在 content 缺失时兜底提示
+    if (!taskId) {
+      bodyEl.innerHTML = '<div class="doc-loading" style="color:var(--color-danger)">暂无内容</div>';
       return;
     }
 
@@ -1149,7 +1174,8 @@
         card.classList.add('expanded');
         const artifactId = card.getAttribute('data-artifact-id');
         const taskId = card.getAttribute('data-task-id');
-        if (taskId && artifactId) {
+        // 预设条目 task_id 为空但 content 已预存缓存，仍可命中；任务条目正常走接口
+        if (artifactId) {
           loadPublicDocumentContent(taskId, artifactId);
         }
       } else {
