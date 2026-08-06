@@ -3,12 +3,14 @@
  *
  * 运行：npm run dashboard
  * 端口：环境变量 DELIVERY_DASHBOARD_PORT 或 PORT，默认 8787
+ *       若该端口已被占用，自动改用随机空闲端口，并把实际端口写入
+ *       <数据根>/dashboard.port，供 dashboardUrl() 生成正确地址
  * 数据根：resolveDeliveryRoot()（DELIVERY_ROOT 环境变量 > 当前目录 .delivery）
  *
  * 只读服务：任务列表 / 任务详情 / 交付物正文 / 共享上下文 / 交付包
  */
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
-import { readFile, stat } from 'node:fs/promises';
+import { readFile, stat, writeFile, rm } from 'node:fs/promises';
 import { dirname, extname, join, normalize } from 'node:path';
 import { resolveDeliveryRoot } from './core/paths.js';
 import { getQuestions, getStages, getTask, listTaskIds, readContext } from './core/store/task-store.js';
@@ -17,7 +19,7 @@ import { readGateStageFile } from './core/store/gate-store.js';
 import { isTeamConfigured, readTeamConfig, TEAM_ROLE_LABELS } from './core/store/team-store.js';
 import { readCurrentUser } from './core/store/user-store.js';
 
-const PORT = Number(process.env.DELIVERY_DASHBOARD_PORT ?? process.env.PORT ?? 8787);
+const CONFIGURED_PORT = Number(process.env.DELIVERY_DASHBOARD_PORT ?? process.env.PORT ?? 8787);
 
 /**
  * 解析看板数据根目录（项目级 .delivery）：
@@ -214,7 +216,49 @@ const server = createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, () => {
-  console.log(`AI 交付任务看板已启动: http://localhost:${PORT}`);
-  console.log(`数据根目录: ${root}`);
-});
+/**
+ * 启动监听：优先用配置端口；若被占用（EADDRINUSE）则回退到随机空闲端口（port 0）。
+ * 返回实际绑定的端口号。
+ */
+function listenWithFallback(port: number): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const onError = (err: NodeJS.ErrnoException) => {
+      if (err.code === 'EADDRINUSE' && port !== 0) {
+        server.removeListener('error', onError);
+        resolve(listenWithFallback(0));
+      } else {
+        reject(err);
+      }
+    };
+    server.once('error', onError);
+    server.listen(port, () => {
+      server.removeListener('error', onError);
+      const addr = server.address();
+      resolve(typeof addr === 'object' && addr ? addr.port : port);
+    });
+  });
+}
+
+const PORT_FILE = join(root, 'dashboard.port');
+
+listenWithFallback(CONFIGURED_PORT)
+  .then(async (port) => {
+    // 持久化实际端口，供 dashboardUrl() 生成正确地址
+    await writeFile(PORT_FILE, String(port), 'utf-8');
+    console.log(`AI 交付任务看板已启动: http://localhost:${port}`);
+    console.log(`数据根目录: ${root}`);
+    if (port !== CONFIGURED_PORT) {
+      console.log(`端口 ${CONFIGURED_PORT} 已被占用，已自动改用随机端口 ${port}`);
+    }
+  })
+  .catch((err) => {
+    console.error(`看板启动失败: ${(err as Error).message}`);
+    process.exit(1);
+  });
+
+// 退出时清理端口文件，避免残留误导 dashboardUrl()
+for (const sig of ['SIGINT', 'SIGTERM'] as const) {
+  process.on(sig, () => {
+    rm(PORT_FILE, { force: true }).finally(() => process.exit(0));
+  });
+}
