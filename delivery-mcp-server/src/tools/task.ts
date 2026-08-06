@@ -15,6 +15,7 @@ import { MVP_TASK_TYPES, type TaskType } from '../core/types.js';
 import { FLOW_FILE_NAMES } from '../core/flow-engine.js';
 import { isTeamConfigured, validateAssignees } from '../core/store/team-store.js';
 import { isUserConfigured } from '../core/store/user-store.js';
+import { setStageStatus } from '../core/store/stage-store.js';
 
 /**
  * 任务工具组（PRD 9.1-9.4 / 9.15）：
@@ -38,6 +39,10 @@ export function registerTaskTools(server: McpServer, ctx: () => ToolContext) {
           .record(z.string(), z.string().email())
           .optional()
           .describe('任务级指派：role -> 成员邮箱，可选'),
+        skip_stages: z
+          .array(z.string())
+          .optional()
+          .describe('不需要执行的阶段名列表（可选），这些阶段将标记为 skipped 并跳过'),
       },
     },
     async (args) => {
@@ -80,6 +85,20 @@ export function registerTaskTools(server: McpServer, ctx: () => ToolContext) {
           stages: buildStagesFromFlow(flow),
           assignees: args.assignees,
         });
+
+        // skip_stages：校验每个阶段必须存在于流程模板，并将其标记为 skipped
+        const skippedStages: string[] = [];
+        if (args.skip_stages && args.skip_stages.length > 0) {
+          const unknown = args.skip_stages.filter((name) => !flow.flow.some((s) => s.stage === name));
+          if (unknown.length > 0) {
+            return fail('unknown_stage', `未知阶段: ${unknown.join('、')}`, { unknown_stages: unknown });
+          }
+          for (const name of args.skip_stages) {
+            await setStageStatus(root, task.task_id, name, 'skipped');
+            skippedStages.push(name);
+          }
+        }
+
         return ok({
           task_id: task.task_id,
           status: task.status,
@@ -87,6 +106,7 @@ export function registerTaskTools(server: McpServer, ctx: () => ToolContext) {
           task_path: `tasks/${task.task_id}`,
           task_type: task.task_type,
           assignees: task.assignees ?? null,
+          skipped_stages: skippedStages,
           dashboard_url: dashboardUrl(),
           view_hint: `新任务已创建，可在浏览器查看: ${dashboardUrl()}`,
         });

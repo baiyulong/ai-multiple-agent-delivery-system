@@ -90,8 +90,8 @@ export async function checkMissingUpstream(
   const missing: MissingUpstream[] = [];
   for (const def of upstreamDefs) {
     const record = stages?.find((s) => s.stage === def.stage);
-    const completed = record?.status === 'completed';
-    if (!completed) {
+    const satisfied = record?.status === 'completed' || record?.status === 'skipped';
+    if (!satisfied) {
       missing.push({
         stage: def.stage,
         role: def.role,
