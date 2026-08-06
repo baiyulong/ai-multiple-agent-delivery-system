@@ -60,6 +60,36 @@ function sendText(res: ServerResponse, status: number, text: string, type: strin
   res.end(text);
 }
 
+/** 聚合"公共文档"：跨任务收集架构师产出的业务统一语言·代码映射与技术架构文档 */
+const PUBLIC_DOC_TYPES = new Set(['ubiquitous_language_code_map', 'technical_architecture']);
+
+async function buildPublicDocuments() {
+  const ids = await listTaskIds(root);
+  const docs = [];
+  for (const id of ids) {
+    const task = await getTask(root, id);
+    if (!task) continue;
+    const artifacts = (await listArtifacts(root, id)) ?? [];
+    for (const a of artifacts) {
+      if (!PUBLIC_DOC_TYPES.has(a.artifact_type)) continue;
+      docs.push({
+        artifact_id: a.artifact_id,
+        task_id: a.task_id,
+        task_title: task.title,
+        artifact_type: a.artifact_type,
+        title: a.title ?? null,
+        stage: a.stage,
+        role: a.role,
+        status: a.status,
+        version: a.version,
+        updated_at: a.updated_at,
+      });
+    }
+  }
+  docs.sort((a, b) => (a.updated_at < b.updated_at ? 1 : -1));
+  return { documents: docs };
+}
+
 /** 组装任务列表：每个任务带阶段进度统计，按创建时间倒序 */
 async function buildTaskList() {
   const ids = await listTaskIds(root);
@@ -152,6 +182,9 @@ const server = createServer(async (req, res) => {
     // JSON API
     if (path === '/api/tasks') {
       return sendJson(res, 200, await buildTaskList());
+    }
+    if (path === '/api/documents') {
+      return sendJson(res, 200, await buildPublicDocuments());
     }
     if (path === '/api/team') {
       const configured = await isTeamConfigured(root);

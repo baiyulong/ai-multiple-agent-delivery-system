@@ -76,7 +76,11 @@
     aggregate_design: '聚合设计',
     domain_events: '领域事件',
     api_contract: '接口契约',
+    ubiquitous_language_code_map: '业务统一语言·代码映射',
+    technical_architecture: '技术架构文档',
   };
+
+  const PUBLIC_DOCUMENT_TYPES = ['ubiquitous_language_code_map', 'technical_architecture'];
 
   const GATE_RESULT_MAP = {
     passed: '通过',
@@ -316,10 +320,11 @@
   // ==================== 应用状态 ====================
 
   const state = {
-    currentView: 'list', // 'list' | 'detail'
+    currentView: 'list', // 'list' | 'detail' | 'documents'
     currentTaskId: null,
     taskList: [],
     taskDetail: null,
+    documents: [],
     artifactCache: {}, // artifactId → markdown content
     teamData: null, // { configured, members, role_labels, updated_at }
     userData: null, // { configured, user, roles, role_labels, in_team, team_configured }
@@ -333,6 +338,8 @@
   const dom = {
     viewList: $('#view-list'),
     viewDetail: $('#view-detail'),
+    viewDocuments: $('#view-documents'),
+    viewTabs: $('#view-tabs'),
     headerBrand: $('#header-brand'),
     headerTeam: $('#header-team'),
     headerStatus: $('#header-status'),
@@ -347,6 +354,12 @@
     detailError: $('#detail-error'),
     detailErrorMsg: $('#detail-error-msg'),
     detailContent: $('#detail-content'),
+    documentsCount: $('#documents-count'),
+    documentsLoading: $('#documents-loading'),
+    documentsError: $('#documents-error'),
+    documentsErrorMsg: $('#documents-error-msg'),
+    documentsEmpty: $('#documents-empty'),
+    documentsList: $('#documents-list'),
   };
 
   // ==================== 视图切换 ====================
@@ -355,6 +368,16 @@
     state.currentView = name;
     dom.viewList.classList.toggle('active', name === 'list');
     dom.viewDetail.classList.toggle('active', name === 'detail');
+    dom.viewDocuments.classList.toggle('active', name === 'documents');
+
+    // 标签栏在列表 / 公共文档视图显示
+    if (dom.viewTabs) {
+      dom.viewTabs.style.display = (name === 'list' || name === 'documents') ? 'flex' : 'none';
+    }
+    // 高亮当前标签
+    dom.viewTabs.querySelectorAll('.tab-btn').forEach((btn) => {
+      btn.classList.toggle('active', btn.getAttribute('data-view') === name);
+    });
   }
 
   function showLoading(view) {
@@ -362,6 +385,10 @@
       dom.listLoading.classList.remove('hidden');
       dom.listError.classList.add('hidden');
       dom.listEmpty.classList.add('hidden');
+    } else if (view === 'documents') {
+      dom.documentsLoading.classList.remove('hidden');
+      dom.documentsError.classList.add('hidden');
+      dom.documentsEmpty.classList.add('hidden');
     } else {
       dom.detailLoading.classList.remove('hidden');
       dom.detailError.classList.add('hidden');
@@ -375,6 +402,11 @@
       dom.listError.classList.remove('hidden');
       dom.listErrorMsg.textContent = msg;
       dom.listEmpty.classList.add('hidden');
+    } else if (view === 'documents') {
+      dom.documentsLoading.classList.add('hidden');
+      dom.documentsError.classList.remove('hidden');
+      dom.documentsErrorMsg.textContent = msg;
+      dom.documentsEmpty.classList.add('hidden');
     } else {
       dom.detailLoading.classList.add('hidden');
       dom.detailError.classList.remove('hidden');
@@ -595,6 +627,119 @@
 
       container.appendChild(card);
     });
+  }
+
+  // ==================== 公共文档 ====================
+
+  async function loadDocuments() {
+    showLoading('documents');
+    try {
+      const data = await apiFetch('/documents');
+      const docs = data.documents || [];
+      state.documents = docs;
+      dom.documentsCount.textContent = docs.length + ' 篇文档';
+      renderDocuments(docs);
+    } catch (err) {
+      showError('documents', '加载公共文档失败：' + err.message);
+    }
+  }
+
+  function renderDocuments(docs) {
+    const container = dom.documentsList;
+    // 清空现有卡片（保留 loading/error/empty 节点）
+    container.querySelectorAll('.doc-group').forEach((el) => el.remove());
+
+    if (docs.length === 0) {
+      dom.documentsLoading.classList.add('hidden');
+      dom.documentsError.classList.add('hidden');
+      dom.documentsEmpty.classList.remove('hidden');
+      return;
+    }
+
+    dom.documentsLoading.classList.add('hidden');
+    dom.documentsError.classList.add('hidden');
+    dom.documentsEmpty.classList.add('hidden');
+
+    // 按类型分组（公共文档类型优先，其余排后）
+    const groups = {};
+    docs.forEach((d) => {
+      const type = d.artifact_type || 'other';
+      (groups[type] = groups[type] || []).push(d);
+    });
+
+    const typeOrder = Object.keys(groups).sort((a, b) => {
+      const ia = PUBLIC_DOCUMENT_TYPES.indexOf(a);
+      const ib = PUBLIC_DOCUMENT_TYPES.indexOf(b);
+      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+    });
+
+    let html = '';
+    typeOrder.forEach((type) => {
+      const typeName = artifactTypeName(type);
+      const items = groups[type];
+
+      html += '<div class="doc-group">';
+      html += '<div class="doc-group-header">'
+        + '<h3 class="doc-group-title">' + esc(typeName) + '</h3>'
+        + '<span class="doc-group-count">' + items.length + ' 篇</span>'
+        + '</div>';
+
+      items.forEach((d) => {
+        const statusBadge = d.status
+          ? '<span class="badge ' + statusBadgeClass(d.status) + '">' + esc(d.status) + '</span>'
+          : '';
+
+        html += `
+          <div class="doc-card" data-artifact-id="${esc(d.artifact_id)}" data-task-id="${esc(d.task_id)}">
+            <div class="doc-card-header" role="button" tabindex="0" onclick="App.togglePublicDocument(this)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();App.togglePublicDocument(this);}">
+              <svg class="doc-expand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="9 18 15 12 9 6"/>
+              </svg>
+              <div class="doc-card-main">
+                <div class="doc-card-title-row">
+                  <span class="doc-card-title">${esc(d.title)}</span>
+                  ${statusBadge}
+                </div>
+                <div class="doc-card-meta">
+                  <span class="doc-card-task" title="${esc(d.task_id)}">所属任务：${esc(d.task_title || d.task_id)}</span>
+                  <span>版本：<span class="mono">v${esc(d.version)}</span></span>
+                  <span>更新：${formatTime(d.updated_at)}</span>
+                </div>
+              </div>
+            </div>
+            <div class="doc-body" id="doc-body-${esc(d.artifact_id)}">
+              <div class="doc-loading">点击展开查看正文</div>
+            </div>
+          </div>
+        `;
+      });
+
+      html += '</div>';
+    });
+
+    container.insertAdjacentHTML('beforeend', html);
+  }
+
+  async function loadPublicDocumentContent(taskId, artifactId) {
+    const bodyEl = document.getElementById('doc-body-' + artifactId);
+    if (!bodyEl) return;
+
+    // 检查缓存
+    if (state.artifactCache[artifactId]) {
+      bodyEl.innerHTML = '<div class="markdown-body">' + renderMarkdown(state.artifactCache[artifactId]) + '</div>';
+      return;
+    }
+
+    bodyEl.innerHTML = '<div class="doc-loading"><div class="spinner" style="width:20px;height:20px;border-width:2px"></div> 加载中...</div>';
+
+    try {
+      const data = await apiFetch('/tasks/' + encodeURIComponent(taskId) + '/artifacts/' + encodeURIComponent(artifactId));
+      const content = data.content || '';
+      state.artifactCache[artifactId] = content;
+      bodyEl.innerHTML = '<div class="markdown-body">' + renderMarkdown(content) + '</div>';
+    } catch (err) {
+      bodyEl.innerHTML = '<div class="doc-loading" style="color:var(--color-danger)">加载失败：' + esc(err.message) + '</div>';
+    }
   }
 
   // ==================== 任务详情 ====================
@@ -890,6 +1035,9 @@
 
   function parseHash() {
     const hash = location.hash || '#/';
+    if (hash === '#/documents') {
+      return { view: 'documents', taskId: null };
+    }
     const match = hash.match(/^#\/tasks\/(.+)$/);
     if (match) {
       return { view: 'detail', taskId: decodeURIComponent(match[1]) };
@@ -905,6 +1053,10 @@
     location.hash = '#/';
   }
 
+  function navigateToDocuments() {
+    location.hash = '#/documents';
+  }
+
   function handleRoute() {
     const route = parseHash();
 
@@ -912,6 +1064,11 @@
       state.currentTaskId = route.taskId;
       showView('detail');
       loadTaskDetail();
+    } else if (route.view === 'documents') {
+      state.currentTaskId = null;
+      state.taskDetail = null;
+      showView('documents');
+      loadDocuments();
     } else {
       state.currentTaskId = null;
       state.taskDetail = null;
@@ -944,8 +1101,10 @@
   window.App = {
     loadTaskList,
     loadTaskDetail,
+    loadDocuments,
     loadTeamAndUser,
     navigateToList,
+    navigateToDocuments,
     toggleContext,
     loadDeliveryPackage,
     refreshDetail() {
@@ -975,6 +1134,26 @@
         if (state.currentTaskId && artifactId) {
           loadArtifactContent(state.currentTaskId, artifactId);
         }
+      }
+    },
+    togglePublicDocument(headerEl) {
+      const card = headerEl.closest('.doc-card');
+      const wasExpanded = card.classList.contains('expanded');
+
+      // 同一分组内互斥展开
+      card.closest('.doc-group').querySelectorAll('.doc-card.expanded').forEach((el) => {
+        if (el !== card) el.classList.remove('expanded');
+      });
+
+      if (!wasExpanded) {
+        card.classList.add('expanded');
+        const artifactId = card.getAttribute('data-artifact-id');
+        const taskId = card.getAttribute('data-task-id');
+        if (taskId && artifactId) {
+          loadPublicDocumentContent(taskId, artifactId);
+        }
+      } else {
+        card.classList.remove('expanded');
       }
     },
   };
