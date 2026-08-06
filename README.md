@@ -190,7 +190,7 @@ cd delivery-mcp-server && npm install && npm run build
 
 ## 浏览器任务看板
 
-无需登录的本地只读看板，用浏览器浏览任务情况：任务列表、阶段进度、门禁结果、交付物正文、待确认问题、共享上下文。
+无需登录的本地只读看板，用浏览器浏览任务情况：任务列表、阶段进度、门禁结果、交付物正文、待确认问题、共享上下文、公共文档。
 
 ```bash
 cd delivery-mcp-server
@@ -202,12 +202,13 @@ npm run dashboard
 
 - **任务列表**：任务卡片（标题、类型、状态、阶段进度条），点击进入详情，8 秒自动刷新。
 - **任务详情**：阶段步骤条、门禁结果徽章（passed/failed/warning）、交付物列表（点击展开 markdown 正文）、待确认问题、共享上下文、交付包（任务完成后可查看）。
+- **公共文档**：首页标签导航"任务列表 / 公共文档"，跨任务聚合架构师的 `ubiquitous_language_code_map`（业务统一语言·代码映射）与 `technical_architecture`（技术架构文档），按类型分组、点击展开正文。
 
 配置：
 
 | 项 | 说明 |
 |---|---|
-| 端口 | 环境变量 `DELIVERY_DASHBOARD_PORT` 或 `PORT`，默认 `8787` |
+| 端口 | 环境变量 `DELIVERY_DASHBOARD_PORT` 或 `PORT`，默认 `8787`；被占用时自动回退随机端口，实际端口写入 `<数据根>/dashboard.port` |
 | 数据根 | 环境变量 `DELIVERY_ROOT`，默认当前目录 `.delivery` |
 
 > 看板是独立入口，与 MCP server（`npm run dev`）互不影响，可同时运行。

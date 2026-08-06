@@ -32,7 +32,7 @@ npm run dashboard # 启动浏览器任务看板 http://localhost:8787
 
 ## 浏览器任务看板
 
-`npm run dashboard` 启动本地只读看板，可视化浏览任务：列表/详情/阶段进度/门禁结果/交付物/问题/共享上下文。端口由 `DELIVERY_DASHBOARD_PORT` 或 `PORT` 控制（默认 8787），数据根默认当前目录 `.delivery`。
+`npm run dashboard` 启动本地只读看板，可视化浏览任务：列表/详情/阶段进度/门禁结果/交付物/问题/共享上下文/公共文档。首页标签导航"任务列表 / 公共文档"，公共文档跨任务聚合架构师的 `ubiquitous_language_code_map` 与 `technical_architecture` 交付物，按类型分组展开查看。端口由 `DELIVERY_DASHBOARD_PORT` 或 `PORT` 控制（默认 8787，被占用时自动回退随机端口并写入 `<数据根>/dashboard.port`），数据根默认当前目录 `.delivery`。
 
 ## MCP 工具（20 个）
 
