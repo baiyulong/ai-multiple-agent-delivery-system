@@ -217,6 +217,8 @@ npm run dashboard
 
 ## MCP 工具一览
 
+> 每次启动自动检测新版本，更新需主动触发（`update.check` 查看、`update.apply` 更新）。
+
 | 工具 | 说明 |
 |---|---|
 | `task.create` | 创建任务，自动识别类型并初始化流程；可指定 assignees（各角色负责人）、skip_stages（跳过不需要的阶段） |
@@ -233,6 +235,8 @@ npm run dashboard
 | `gate.check` | 执行门禁检查并记录结果 |
 | `context.get_shared` / `context.update` | 读写共享上下文 |
 | `question.create` / `question.resolve` | 创建/解决阻塞问题 |
+| `update.check` | 检查系统新版本，可选 force 强制重新检测 |
+| `update.apply` | 从 GitHub Releases 手动更新工具本体，需 confirm:true |
 
 ---
 

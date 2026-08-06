@@ -277,6 +277,15 @@ npm run dashboard
 
 ---
 
+## 六·附、自动更新
+
+- **每次启动自动检测**：OpenCode 启动拉起 MCP server 时，server 自动异步检测新版本（基于 GitHub Releases），检测到新版本会在启动日志打印提示；无网络时静默跳过，不影响启动。无需手动操作。
+- **手动更新**：用 `update.check` 查看版本状态（可选 `force` 强制重新检测）；用 `update.apply`（需 `confirm: true`）手动拉取并更新工具本体。
+- **更新范围**：替换 `delivery-mcp-server` 工具本体与 `delivery-*.md` 角色配置；**保留 `.delivery` 任务数据**与 `opencode.json` 中你的自定义配置。
+- 更新后需**重启 OpenCode** 生效。可用环境变量 `DELIVERY_UPDATE_CHECK=0` 关闭自动检测。
+
+---
+
 ## 七、常见问题
 
 **Q：OpenCode 里工具找不到？**

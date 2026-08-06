@@ -12,11 +12,14 @@ import { registerQuestionTools } from './tools/question.js';
 import { registerTeamTools } from './tools/team.js';
 import { registerUserTools } from './tools/user.js';
 import { registerEmailTools } from './tools/email.js';
+import { registerUpdateTools } from './tools/update.js';
+import { startBackgroundUpdateCheck } from './core/updater.js';
 
 const root = resolveDeliveryRoot();
 
 async function main(): Promise<void> {
   await initDeliveryRoot(root);
+  startBackgroundUpdateCheck(root);
 
   const server = new McpServer({
     name: 'delivery-mcp-server',
@@ -34,6 +37,7 @@ async function main(): Promise<void> {
   registerTeamTools(server, ctx);
   registerUserTools(server, ctx);
   registerEmailTools(server, ctx);
+  registerUpdateTools(server, ctx);
 
   const transport = new StdioServerTransport();
   await server.connect(transport);

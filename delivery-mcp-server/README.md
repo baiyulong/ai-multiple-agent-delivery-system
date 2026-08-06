@@ -34,7 +34,13 @@ npm run dashboard # 启动浏览器任务看板 http://localhost:8787
 
 `npm run dashboard` 启动本地只读看板，可视化浏览任务：列表/详情/阶段进度/门禁结果/交付物/问题/共享上下文/公共文档。首页标签导航"任务列表 / 公共文档"，公共文档跨任务聚合架构师的 `ubiquitous_language_code_map` 与 `technical_architecture` 交付物，按类型分组展开查看。端口由 `DELIVERY_DASHBOARD_PORT` 或 `PORT` 控制（默认 8787，被占用时自动回退随机端口并写入 `<数据根>/dashboard.port`），数据根默认当前目录 `.delivery`。
 
-## MCP 工具（23 个）
+## 自动更新
+
+- **检测自动跑**：每次 OpenCode 启动拉起 MCP server 时，server 启动会自动异步检测新版本（GitHub Releases 版本源），检测到新版本会在启动日志打印提示。无网络时静默跳过，不影响启动。
+- **更新手动触发**：用 `update.check` 查询版本状态（可选 `force` 强制重新检测）；用 `update.apply`（需 `confirm: true`）从 GitHub 拉取最新版替换工具本体并重新 build，**保留 `.delivery/` 任务数据**。
+- 更新后需**重启 OpenCode** 生效。可用环境变量 `DELIVERY_UPDATE_CHECK=0` 禁用自动检测。
+
+## MCP 工具（25 个）
 
 | 工具 | 说明 |
 |---|---|
@@ -55,6 +61,8 @@ npm run dashboard # 启动浏览器任务看板 http://localhost:8787
 | `team.get` / `team.set` | 查看/配置项目团队名册（姓名/邮箱/角色，一人可多角色） |
 | `user.get` / `user.set` | 查看/配置当前操作人（个人配置，姓名/邮箱，跨项目沿用） |
 | `email.get` / `email.set` | 查看/配置 SMTP 邮件通知（密码仅用于发送，不返回） |
+| `update.check` | 检查系统新版本，可选 `force` 强制重新检测 |
+| `update.apply` | 从 GitHub Releases 手动更新工具本体，需 `confirm: true` |
 
 > 邮件通知（best-effort，未配置或发送失败不影响主流程）：
 > - `question.create` → 通知 `assigned_to_role`（任务待确认）
