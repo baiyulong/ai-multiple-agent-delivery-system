@@ -69,6 +69,14 @@ export function agentNameForRole(role: string): string {
   return ROLE_AGENT_MAP[role] ?? role;
 }
 
+/**
+ * 角色 key 归一化：flow 模板中 devops 阶段使用 `platform-devops`，
+ * 而团队成员 roles 使用 `devops`。归一化后两者视为同一角色。
+ */
+export function normalizeRoleKey(role: string): string {
+  return role === 'platform-devops' ? 'devops' : role;
+}
+
 function teamConfigFile(root: string): string {
   return assertInside(root, join(root, 'config', 'team.json'));
 }
@@ -90,11 +98,12 @@ export async function isTeamConfigured(root: string): Promise<boolean> {
   return config !== null && Array.isArray(config.members) && config.members.length > 0;
 }
 
-/** 按角色查找成员（roles 数组包含该角色），未配置返回 [] */
+/** 按角色查找成员（roles 数组包含该角色，角色 key 先归一化），未配置返回 [] */
 export async function findMembersByRole(root: string, role: string): Promise<TeamMember[]> {
   const config = await readTeamConfig(root);
   if (!config) return [];
-  return config.members.filter((m) => m.roles.includes(role as TeamRole));
+  const norm = normalizeRoleKey(role);
+  return config.members.filter((m) => m.roles.includes(norm as TeamRole));
 }
 
 /** 按邮箱查找成员 */
@@ -119,4 +128,41 @@ export async function upsertMember(
   }
   await writeTeamConfig(root, existing);
   return { config: existing, created };
+}
+
+/** 校验 assignees：每个 role 必须是合法角色 key，且 email 是团队成员并担任该角色。返回非法项列表 */
+export async function validateAssignees(
+  root: string,
+  assignees: Record<string, string>,
+): Promise<Array<{ role: string; email: string; reason: string }>> {
+  const invalid: Array<{ role: string; email: string; reason: string }> = [];
+  for (const [role, email] of Object.entries(assignees)) {
+    const norm = normalizeRoleKey(role);
+    if (!TEAM_ROLES.includes(norm as TeamRole)) {
+      invalid.push({ role, email, reason: 'unknown_role' });
+      continue;
+    }
+    const member = await findMemberByEmail(root, email);
+    if (!member) {
+      invalid.push({ role, email, reason: 'not_member' });
+      continue;
+    }
+    if (!member.roles.includes(norm as TeamRole)) {
+      invalid.push({ role, email, reason: 'role_not_in_member_roles' });
+    }
+  }
+  return invalid;
+}
+
+/** 解析某角色在本任务的负责人成员（无指派返回 null） */
+export async function resolveAssignee(
+  root: string,
+  assignees: Record<string, string> | undefined,
+  role: string,
+): Promise<{ name: string; email: string } | null> {
+  const email = assignees?.[role] ?? assignees?.[normalizeRoleKey(role)];
+  if (!email) return null;
+  const member = await findMemberByEmail(root, email);
+  if (!member) return null;
+  return { name: member.name, email: member.email };
 }

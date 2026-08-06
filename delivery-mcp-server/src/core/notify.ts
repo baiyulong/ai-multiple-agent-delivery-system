@@ -1,5 +1,5 @@
 import { readEmailConfig } from './store/email-store.js';
-import { findMembersByRole } from './store/team-store.js';
+import { findMemberByEmail, findMembersByRole } from './store/team-store.js';
 import { sendEmail } from './mailer.js';
 
 /**
@@ -18,6 +18,7 @@ export async function notifyRole(
   role: string,
   subject: string,
   text: string,
+  opts?: { assignee?: string }, // 指派成员 email，提供时只通知该成员
 ): Promise<NotifyResult> {
   try {
     const config = await readEmailConfig(root);
@@ -25,8 +26,17 @@ export async function notifyRole(
       return { sent: false, to: [], reason: 'email_not_configured' };
     }
 
-    const members = await findMembersByRole(root, role);
-    const to = members.map((m) => m.email);
+    let to: string[];
+    if (opts?.assignee) {
+      const member = await findMemberByEmail(root, opts.assignee);
+      if (!member) {
+        return { sent: false, to: [], reason: 'assignee_not_found' };
+      }
+      to = [member.email];
+    } else {
+      const members = await findMembersByRole(root, role);
+      to = members.map((m) => m.email);
+    }
     if (to.length === 0) {
       return { sent: false, to: [], reason: 'no_recipients' };
     }

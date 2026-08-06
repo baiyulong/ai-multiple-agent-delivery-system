@@ -9,6 +9,7 @@ import {
 } from '../core/flow-engine.js';
 import { getStages, getTask } from '../core/store/task-store.js';
 import { setStageStatus } from '../core/store/stage-store.js';
+import { resolveAssignee } from '../core/store/team-store.js';
 import { getLatestGateRecord } from '../core/store/gate-store.js';
 import { resolveDeliveryRoot } from '../core/paths.js';
 import { dashboardUrl } from '../core/dashboard-url.js';
@@ -62,6 +63,7 @@ export function registerStageTools(server: McpServer, ctx: () => ToolContext) {
           can_start: canStart,
           missing_upstream: missingUpstream,
           assigned_agent: missingUpstream[0]?.assigned_agent ?? null,
+          assignee: resolveAssignee(root, task.assignees, stage.role),
           suggested_action: canStart ? 'generate_and_submit' : 'call_agent_to_complete_upstream',
           blocking_questions: await blockingQuestions,
         });
@@ -164,6 +166,7 @@ export function registerStageTools(server: McpServer, ctx: () => ToolContext) {
               `下一阶段：${next?.stage ?? '（无）'}`,
               `下一阶段角色：${nextDef.role}`,
             ].join('\n'),
+            { assignee: task.assignees?.[nextDef.role] },
           );
         }
 

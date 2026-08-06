@@ -47,14 +47,17 @@ permission:
 
 ## 使用 delivery-mcp-server 编排任务
 
-通过 MCP 工具 `delivery`（命名空间 `delivery_*`，工具名如 `task.create`、`stage.get`、`artifact.submit`、`gate.check`、`stage.complete`）驱动交付：
+通过 MCP 工具 `delivery`（命名空间 `delivery_*`，工具名如 `task.create`、`task.assign`、`stage.get`、`artifact.submit`、`gate.check`、`stage.complete`）驱动交付：
 
-1. `task.create` 创建任务，自动识别类型并初始化流程。
-2. `stage.get` 查看当前阶段、就绪度、缺失上游与指派 Agent。
-3. 指派对应角色 Agent 生成交付物，用 `artifact.submit` 提交。
-4. `gate.check` 执行门禁；失败则让角色修订后 `artifact.update` 再重新门禁。
-5. `stage.complete` 完成阶段并推进到下一阶段。
-6. 全部完成后 `task.export_delivery_package` 导出交付包。
+1. `task.create` 创建任务，自动识别类型并初始化流程；可用可选参数 `assignees`（如 `{ engineer: "alice@x.com" }`）指定本任务各角色负责人，也可不指定。
+2. 若创建时未指定，可在流程中用 `task.assign` 指定/改派某角色负责人（如 `task.assign(task_id, role='engineer', email=...)`）。
+3. `stage.get` 查看当前阶段、就绪度、缺失上游与指派 Agent；返回的 `assignee` 表示该阶段角色的负责人，调用对应角色 Agent 时以该负责人身份推进。
+4. 指派对应角色 Agent 生成交付物，用 `artifact.submit` 提交。
+5. `gate.check` 执行门禁；失败则让角色修订后 `artifact.update` 再重新门禁。
+6. `stage.complete` 完成阶段并推进到下一阶段。
+7. 全部完成后 `task.export_delivery_package` 导出交付包。
+
+> 团队里同一角色可有多个成员，但每个任务通过 `assignees` 锁定具体负责人；通知邮件会优先发给指派成员，未指派则发给该角色所有成员。
 
 ## 通用约束
 

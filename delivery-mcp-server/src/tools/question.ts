@@ -71,6 +71,7 @@ export function registerQuestionTools(server: McpServer, ctx: () => ToolContext)
             `问题：${args.question}`,
             `阻塞阶段：${args.blocks_stage ?? '无'}`,
           ].join('\n'),
+          { assignee: task.assignees?.[args.assigned_to_role] },
         );
 
         return ok({
@@ -135,6 +136,7 @@ export function registerQuestionTools(server: McpServer, ctx: () => ToolContext)
           q.raised_by,
           `【问题已解决】${task.title}`,
           [`任务：${task.title}`, `任务ID：${args.task_id}`, `问题ID：${q.question_id}`, `答复：${args.answer}`].join('\n'),
+          { assignee: task.assignees?.[q.raised_by] },
         );
 
         return ok({ question_id: q.question_id, status: q.status, email });

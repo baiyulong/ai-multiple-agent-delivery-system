@@ -13,6 +13,7 @@ export interface CreateTaskInput {
   createdBy: string;
   taskType: TaskType;
   stages: StageRecord[];
+  assignees?: Record<string, string>;
 }
 
 const CONTEXT_SKELETON = '# 项目共享上下文\n';
@@ -36,6 +37,7 @@ export async function createTask(root: string, input: CreateTaskInput): Promise<
     created_by: input.createdBy,
     created_at: now,
     updated_at: now,
+    assignees: input.assignees,
   };
 
   await writeJsonAtomic(join(dir, 'task.json'), task);
