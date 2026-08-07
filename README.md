@@ -73,7 +73,7 @@ task.export_delivery_package 导出交付包
 https://github.com/baiyulong/ai-multiple-agent-delivery-system/blob/main/install.md
 ```
 
-> 在 OpenCode 中直接说："请根据这个链接安装 AI 交付任务系统：<install.md 链接>"，AI 会读取 install.md 并自动执行安装。
+> 在 OpenCode 中直接说："请根据这个链接安装 AI 交付任务系统：https://github.com/baiyulong/ai-multiple-agent-delivery-system/blob/main/install.md"，AI 会读取 install.md 并自动执行安装。
 
 ### 方式二：手动安装
 
