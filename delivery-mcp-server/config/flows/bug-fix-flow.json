@@ -1,0 +1,23 @@
+{
+  "task_type": "bug_fix",
+  "flow": [
+    {
+      "stage": "bug_report",
+      "role": "engineer",
+      "required_artifact_type": "bug_report_card",
+      "required_artifact_types": ["bug_report_card"],
+      "required_previous_stages": [],
+      "gate_rules": ["bug_report_card"],
+      "allow_skip": false
+    },
+    {
+      "stage": "bug_fix",
+      "role": "engineer",
+      "required_artifact_type": "bug_fix_card",
+      "required_artifact_types": ["bug_fix_card"],
+      "required_previous_stages": ["bug_report"],
+      "gate_rules": ["bug_fix_card"],
+      "allow_skip": false
+    }
+  ]
+}

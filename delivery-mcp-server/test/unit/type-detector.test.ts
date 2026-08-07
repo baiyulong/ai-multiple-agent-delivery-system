@@ -47,4 +47,21 @@ describe('type-detector（PRD 8.2）', () => {
     const r = detectTaskType('调研现有评估机制，诊断性能瓶颈');
     expect(r.task_type).toBe('analysis');
   });
+
+  it('Bug 修复型描述判定为 bug_fix', () => {
+    const r = detectTaskType('修复登录报错问题，用户输入特殊字符时崩溃');
+    expect(r.task_type).toBe('bug_fix');
+    expect(r.recommended_flow).toContain('bug_report');
+    expect(r.recommended_flow).toContain('bug_fix');
+  });
+
+  it('缺陷修复型描述判定为 bug_fix', () => {
+    const r = detectTaskType('排查模块异常缺陷，修复数据不一致问题');
+    expect(r.task_type).toBe('bug_fix');
+  });
+
+  it('hotfix 型描述判定为 bug_fix', () => {
+    const r = detectTaskType('hotfix: 修复支付回调失败 bug');
+    expect(r.task_type).toBe('bug_fix');
+  });
 });

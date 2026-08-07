@@ -16,6 +16,7 @@ const FULL_DDD_SIGNALS = ['流程', '履约', '结算', '库存', '订单', '审
 const LIGHT_DDD_SIGNALS = ['状态', '审批', '启用', '停用', '冻结', '评级', '规则', '流转'];
 const CRUD_SIGNALS = ['维护', '字典', '分类', '标签', '参数', '新增', '编辑', '删除', '查询'];
 const ANALYSIS_SIGNALS = ['分析', '审查', 'review', '审计', '排查', '诊断', '梳理', '理解', '研究', '调研', '评估', 'code review', '代码审查'];
+const BUG_FIX_SIGNALS = ['bug', '修复', 'fix', '报错', '异常', '崩溃', '排查', '缺陷', 'patch', '错误', '失败', 'broken', 'issue', 'hotfix'];
 
 function countHits(text: string, signals: string[]): number {
   return signals.filter((s) => text.includes(s)).length;
@@ -32,6 +33,7 @@ export function detectTaskType(description: string): TypeDetection {
   let confidence: number;
 
   const analysisHits = countHits(text, ANALYSIS_SIGNALS);
+  const bugFixHits = countHits(text, BUG_FIX_SIGNALS);
 
   if (fullHits > 0) {
     taskType = 'full_ddd';
@@ -45,6 +47,10 @@ export function detectTaskType(description: string): TypeDetection {
     taskType = 'crud';
     reason = `主要是数据维护操作（如${CRUD_SIGNALS.filter((s) => text.includes(s)).join('、')}），没有明显复杂业务规则或状态流转`;
     confidence = Math.min(0.9, 0.5 + crudHits * 0.07);
+  } else if (bugFixHits > 0 && bugFixHits >= analysisHits) {
+    taskType = 'bug_fix';
+    reason = `命中 Bug 修复信号词（如${BUG_FIX_SIGNALS.filter((s) => text.includes(s)).join('、')}），属于缺陷修复任务`;
+    confidence = Math.min(0.85, 0.55 + bugFixHits * 0.1);
   } else if (analysisHits > 0) {
     taskType = 'analysis';
     reason = `命中分析信号词（如${ANALYSIS_SIGNALS.filter((s) => text.includes(s)).join('、')}），属于代码/逻辑分析任务`;

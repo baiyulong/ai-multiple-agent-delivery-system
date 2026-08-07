@@ -136,7 +136,7 @@ cd delivery-mcp-server && npm install && npm run build
 > 帮我做一个"供应商准入管理"功能：供应商提交准入申请，采购部门审核，通过后进入供应商库。
 
 总控 Agent 会依次：
-1. `task.create` 创建任务（自动识别类型为 crud / lightweight_ddd / full_ddd / analysis）
+1. `task.create` 创建任务（自动识别类型为 crud / lightweight_ddd / full_ddd / analysis / bug_fix）
 2. 查看 `stage.get` 确定当前阶段与指派角色
 3. 调用对应角色 Agent（`delivery-product-manager` / `delivery-ux-designer` / `delivery-domain-architect` / `delivery-engineer` / `delivery-qa` / `delivery-devops`）生成交付物
 4. `artifact.submit` 提交 → `gate.check` 门禁 → `stage.complete` 推进

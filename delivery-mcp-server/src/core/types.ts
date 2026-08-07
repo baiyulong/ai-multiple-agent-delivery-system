@@ -8,6 +8,7 @@ export const TASK_TYPES = [
   'lightweight_ddd',
   'full_ddd',
   'analysis',
+  'bug_fix',
   'ui_only',
   'tech_refactor',
   'qa_only',
@@ -16,7 +17,7 @@ export const TASK_TYPES = [
 export type TaskType = (typeof TASK_TYPES)[number];
 
 /** MVP 优先支持的任务类型（PRD 6.1） */
-export const MVP_TASK_TYPES: readonly TaskType[] = ['crud', 'lightweight_ddd', 'full_ddd', 'analysis'];
+export const MVP_TASK_TYPES: readonly TaskType[] = ['crud', 'lightweight_ddd', 'full_ddd', 'analysis', 'bug_fix'];
 
 export const TASK_STATUSES = ['draft', 'in_progress', 'blocked', 'completed', 'cancelled', 'archived'] as const;
 export type TaskStatus = (typeof TASK_STATUSES)[number];
