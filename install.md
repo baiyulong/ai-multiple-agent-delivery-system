@@ -102,6 +102,8 @@ cp -n /tmp/ai-delivery-system/.opencode/agent/delivery-*.md ./.opencode/agent/
 
 #### 3. 安装依赖并构建
 
+> **注意**：以下命令必须在 `delivery-mcp-server/` 目录下执行，否则会报 ENOENT（找不到 package.json）。
+
 ```bash
 cd delivery-mcp-server
 npm install
@@ -142,6 +144,8 @@ rm -rf /tmp/ai-delivery-system
 ```
 
 #### 7. 启动浏览器任务看板并提示用户
+
+> **注意**：`npm run dashboard` 必须在 `delivery-mcp-server/` 目录下执行，否则会报 ENOENT。
 
 安装完成后，**立即启动 dashboard**，并告知用户可以用浏览器打开查看：
 

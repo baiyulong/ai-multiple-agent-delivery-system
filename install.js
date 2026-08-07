@@ -17,7 +17,7 @@
  *   - opencode.json 只合并新增 mcp.delivery，保留目标项目全部字段
   *   - .gitignore 幂等追加（忽略工具本体 delivery-mcp-server；email.json 是团队共享发件配置，随仓库提交）
  */
-import { cp, mkdir, readFile, realpath, writeFile } from 'node:fs/promises';
+import { cp, mkdir, readFile, realpath, writeFile, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { dirname, join } from 'node:path';
@@ -35,6 +35,7 @@ function takeValue(flag) {
   return null;
 }
 let repoPath = takeValue('--repo') ?? SCRIPT_DIR;
+let releaseTmpDir = null; // --release 模式下的临时目录，安装完成后清理
 const targetArg = args.find((a) => !a.startsWith('--'));
 const targetDir = targetArg ?? process.cwd();
 const FLAG_DRY = args.includes('--dry-run');
@@ -198,6 +199,7 @@ if (FLAG_RELEASE) {
   const releasePath = await downloadFromRelease();
   if (releasePath) {
     repoPath = releasePath;
+    releaseTmpDir = dirname(releasePath); // 临时目录，安装完成后清理
   } else if (!FLAG_DRY) {
     console.error('\nRelease 下载失败，无法继续安装。请检查网络或改用 --repo 指定本地路径。\n');
     process.exit(1);
@@ -320,6 +322,16 @@ if (FLAG_DASH && !FLAG_DRY && existsSync(dstServer)) {
   child.on('error', (e) => warn(`看板启动失败：${e.message}`));
 } else {
   log('\n[6/6] 完成');
+}
+
+// ---------- 清理临时文件 ----------
+if (releaseTmpDir && !FLAG_DRY) {
+  try {
+    await rm(releaseTmpDir, { recursive: true, force: true });
+    ok(`已清理临时文件：${releaseTmpDir}`);
+  } catch {
+    // 清理失败不影响安装结果
+  }
 }
 
 // ---------- 后续指引 ----------
