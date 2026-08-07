@@ -98,7 +98,7 @@ permission:
 
 ## 技术架构文档输出模板（交付物：technical_architecture）
 
-> 针对不同任务类型（crud / lightweight_ddd / full_ddd）代码结构与要求不同。
+> 针对不同任务类型（crud / lightweight_ddd / full_ddd / analysis）代码结构与要求不同。
 > 全新项目：使用 config/architectures/{task_type}.json 预设推荐架构。
 > 已有项目：探索当前工作目录，从现有代码总结并生成，标注 source=project。
 

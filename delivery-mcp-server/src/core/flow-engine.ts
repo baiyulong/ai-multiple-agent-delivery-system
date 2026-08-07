@@ -15,6 +15,7 @@ export const FLOW_FILE_NAMES: Record<TaskType, string> = {
   crud: 'crud-flow.json',
   lightweight_ddd: 'lightweight-ddd-flow.json',
   full_ddd: 'full-ddd-flow.json',
+  analysis: 'analysis-flow.json',
   ui_only: 'ui-only-flow.json',
   tech_refactor: 'tech-refactor-flow.json',
   qa_only: 'qa-only-flow.json',

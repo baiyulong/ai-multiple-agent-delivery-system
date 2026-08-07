@@ -30,4 +30,21 @@ describe('type-detector（PRD 8.2）', () => {
     expect(r.recommended_flow).toContain('business_discovery');
     expect(r.recommended_flow).toContain('devops_release');
   });
+
+  it('分析型描述判定为 analysis', () => {
+    const r = detectTaskType('分析这段代码逻辑，排查潜在风险点');
+    expect(r.task_type).toBe('analysis');
+    expect(r.recommended_flow).toContain('analysis_requirement');
+    expect(r.recommended_flow).toContain('analysis_report');
+  });
+
+  it('代码审查型描述判定为 analysis', () => {
+    const r = detectTaskType('审查核心模块代码，梳理处理逻辑');
+    expect(r.task_type).toBe('analysis');
+  });
+
+  it('调研评估型描述判定为 analysis', () => {
+    const r = detectTaskType('调研现有评估机制，诊断性能瓶颈');
+    expect(r.task_type).toBe('analysis');
+  });
 });

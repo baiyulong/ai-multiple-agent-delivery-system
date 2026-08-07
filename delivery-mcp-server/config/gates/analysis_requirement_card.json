@@ -1,0 +1,12 @@
+{
+  "artifact_type": "analysis_requirement_card",
+  "required_sections": [
+    "分析目标",
+    "分析范围",
+    "输入材料",
+    "待回答问题",
+    "约束与假设"
+  ],
+  "non_empty_sections": ["分析目标", "分析范围", "输入材料"],
+  "pass_threshold": 60
+}

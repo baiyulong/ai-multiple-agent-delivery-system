@@ -32,9 +32,9 @@ export function registerTaskTools(server: McpServer, ctx: () => ToolContext) {
         description: z.string().describe('任务描述（用于识别任务类型）'),
         created_by: z.string().optional().describe('创建人'),
         task_type: z
-          .enum(['crud', 'lightweight_ddd', 'full_ddd'])
+          .enum(['crud', 'lightweight_ddd', 'full_ddd', 'analysis'])
           .optional()
-          .describe('任务类型（缺省自动识别）：crud / lightweight_ddd / full_ddd'),
+          .describe('任务类型（缺省自动识别）：crud / lightweight_ddd / full_ddd / analysis'),
         assignees: z
           .record(z.string(), z.string().email())
           .optional()
@@ -203,7 +203,7 @@ export function registerTaskTools(server: McpServer, ctx: () => ToolContext) {
     {
       description: '获取任务类型对应的流程模板（PRD 9.4）。',
       inputSchema: {
-        task_type: z.enum(['crud', 'lightweight_ddd', 'full_ddd']).describe('任务类型'),
+        task_type: z.enum(['crud', 'lightweight_ddd', 'full_ddd', 'analysis']).describe('任务类型'),
       },
     },
     async (args) => {

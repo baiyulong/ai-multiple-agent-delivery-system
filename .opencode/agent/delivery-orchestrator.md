@@ -59,7 +59,7 @@ permission:
 
 > **工程师实施约束**：指派工程师（engineer）时，必须要求其先输出《工程实施方案》（engineering_plan），由工程师自己 review 确认方案完整、可行、与领域模型/接口契约一致后，才允许实施。若工程师跳过计划直接实施，应打回并要求先出计划。
 
-> 任务是否需要某角色，取决于其类型与范围；不需要的角色对应阶段应通过 `skip_stages` 显式跳过（如 `product_requirement`、`ux_design`、`domain_review`、`engineering_design`、`qa_validation`、`devops_release`）。被跳过阶段标记为 skipped、不产生交付物、不参与门禁，下游阶段将其视为已满足，避免被误判为缺失。
+> 任务是否需要某角色，取决于其类型与范围；不需要的角色对应阶段应通过 `skip_stages` 显式跳过（如 `product_requirement`、`ux_design`、`domain_review`、`engineering_design`、`qa_validation`、`devops_release`、`analysis_requirement`、`analysis_report`）。被跳过阶段标记为 skipped、不产生交付物、不参与门禁，下游阶段将其视为已满足，避免被误判为缺失。
 
 > 团队里同一角色可有多个成员，但每个任务通过 `assignees` 锁定具体负责人；通知邮件会优先发给指派成员，未指派则发给该角色所有成员。
 

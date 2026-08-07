@@ -15,6 +15,7 @@ import type { TypeDetection, TaskType } from './types.js';
 const FULL_DDD_SIGNALS = ['流程', '履约', '结算', '库存', '订单', '审批链', '领域事件', '跨模块联动', '跨上下文'];
 const LIGHT_DDD_SIGNALS = ['状态', '审批', '启用', '停用', '冻结', '评级', '规则', '流转'];
 const CRUD_SIGNALS = ['维护', '字典', '分类', '标签', '参数', '新增', '编辑', '删除', '查询'];
+const ANALYSIS_SIGNALS = ['分析', '审查', 'review', '审计', '排查', '诊断', '梳理', '理解', '研究', '调研', '评估', 'code review', '代码审查'];
 
 function countHits(text: string, signals: string[]): number {
   return signals.filter((s) => text.includes(s)).length;
@@ -30,6 +31,8 @@ export function detectTaskType(description: string): TypeDetection {
   let reason: string;
   let confidence: number;
 
+  const analysisHits = countHits(text, ANALYSIS_SIGNALS);
+
   if (fullHits > 0) {
     taskType = 'full_ddd';
     reason = `命中完整 DDD 信号词（如${FULL_DDD_SIGNALS.filter((s) => text.includes(s)).join('、')}），涉及复杂业务规则/跨上下文协作`;
@@ -42,6 +45,10 @@ export function detectTaskType(description: string): TypeDetection {
     taskType = 'crud';
     reason = `主要是数据维护操作（如${CRUD_SIGNALS.filter((s) => text.includes(s)).join('、')}），没有明显复杂业务规则或状态流转`;
     confidence = Math.min(0.9, 0.5 + crudHits * 0.07);
+  } else if (analysisHits > 0) {
+    taskType = 'analysis';
+    reason = `命中分析信号词（如${ANALYSIS_SIGNALS.filter((s) => text.includes(s)).join('、')}），属于代码/逻辑分析任务`;
+    confidence = Math.min(0.85, 0.55 + analysisHits * 0.1);
   } else {
     taskType = 'crud';
     reason = '未识别到明显特征，按简单 CRUD 默认处理';
