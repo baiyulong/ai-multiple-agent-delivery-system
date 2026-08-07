@@ -6,6 +6,7 @@
  *   node install.js                      # 安装到当前目录
  *   node install.js /path/to/project     # 安装到指定项目目录
  *   node install.js --repo /path/to/clone  # 指定仓库源码路径（默认脚本所在目录）
+ *   node install.js --release            # 从 GitHub Release 下载最新稳定版（而非 git clone 源码）
  *   node install.js --dashboard          # 安装后启动浏览器看板
  *   node install.js --dry-run            # 只打印将要执行的操作，不改动文件
  *   node install.js --force              # 目标目录不是 git 仓库时也继续
@@ -20,6 +21,7 @@ import { cp, mkdir, readFile, realpath, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { dirname, join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url)); // 仓库根目录
@@ -32,12 +34,16 @@ function takeValue(flag) {
   if (i >= 0 && args[i + 1] && !args[i + 1].startsWith('--')) return args.splice(i, 2)[1];
   return null;
 }
-const repoPath = takeValue('--repo') ?? SCRIPT_DIR;
+let repoPath = takeValue('--repo') ?? SCRIPT_DIR;
 const targetArg = args.find((a) => !a.startsWith('--'));
 const targetDir = targetArg ?? process.cwd();
 const FLAG_DRY = args.includes('--dry-run');
 const FLAG_FORCE = args.includes('--force');
 const FLAG_DASH = args.includes('--dashboard');
+const FLAG_RELEASE = args.includes('--release');
+
+const GITHUB_OWNER = 'baiyulong';
+const GITHUB_REPO = 'ai-multiple-agent-delivery-system';
 
 // ---------- 工具 ----------
 const log = (msg) => console.log(msg);
@@ -94,11 +100,109 @@ async function copyDirSafe(src, dest) {
   }
 }
 
+// ---------- 0. 从 GitHub Release 下载（可选） ----------
+async function downloadFromRelease() {
+  const apiUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`;
+  log(`\n[0] 从 GitHub Release 下载最新稳定版`);
+  log(`    仓库：${GITHUB_OWNER}/${GITHUB_REPO}`);
+
+  let tag;
+  try {
+    const res = await fetch(apiUrl, {
+      headers: { 'User-Agent': 'delivery-install' },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (res.status === 404) {
+      warn('尚无 Release，请稍后重试或改用 git clone 源码安装。');
+      return null;
+    }
+    if (!res.ok) throw new Error(`GitHub API 响应 ${res.status}`);
+    const data = await res.json();
+    if (!data || typeof data.tag_name !== 'string') throw new Error('Release 缺少 tag_name');
+    tag = data.tag_name;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    warn(`获取 Release 信息失败：${msg}。请检查网络或改用 --repo 指定本地路径。`);
+    return null;
+  }
+
+  const archiveUrl = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/archive/refs/tags/${tag}.tar.gz`;
+  const tmpDir = join(tmpdir(), `delivery-install-${Date.now()}`);
+  const archiveFile = join(tmpDir, 'release.tar.gz');
+
+  if (!FLAG_DRY) await mkdir(tmpDir, { recursive: true });
+
+  try {
+    log(`    版本：${tag}`);
+    log(`    下载：${archiveUrl}`);
+    const res = await fetch(archiveUrl, {
+      headers: { 'User-Agent': 'delivery-install' },
+      signal: AbortSignal.timeout(60000),
+      redirect: 'follow',
+    });
+    if (!res.ok) throw new Error(`下载失败：HTTP ${res.status}`);
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (FLAG_DRY) {
+      log(`  - 将下载 ${buf.length} 字节到 ${archiveFile}`);
+    } else {
+      await writeFile(archiveFile, buf);
+      ok(`已下载 ${buf.length} 字节`);
+    }
+  } catch (e) {
+    warn(`下载失败：${e instanceof Error ? e.message : String(e)}`);
+    return null;
+  }
+
+  // 解压
+  const extractDir = join(tmpDir, 'extracted');
+  if (FLAG_DRY) {
+    log(`  - 将解压到 ${extractDir}`);
+  } else {
+    await mkdir(extractDir, { recursive: true });
+    try {
+      await new Promise((resolve, reject) => {
+        const child = spawn('tar', ['-xzf', archiveFile, '-C', extractDir], { stdio: 'inherit' });
+        child.on('error', reject);
+        child.on('exit', (code) => (code === 0 ? resolve() : reject(new Error(`tar 退出码 ${code}`))));
+      });
+      ok('解压完成');
+    } catch (e) {
+      warn(`解压失败：${e instanceof Error ? e.message : String(e)}。请手动下载 Release 包并解压后用 --repo 指定路径。`);
+      return null;
+    }
+  }
+
+  // GitHub 解压后目录名为 {repo}-{tag}
+  const extractedName = `${GITHUB_REPO}-${tag}`;
+  const extractedPath = join(extractDir, extractedName);
+  if (FLAG_DRY) {
+    log(`  - 解压目录：${extractedPath}`);
+    return extractedPath;
+  }
+  if (!existsSync(extractedPath)) {
+    warn(`解压后未找到目录 ${extractedName}`);
+    return null;
+  }
+  ok(`源码路径：${extractedPath}`);
+  return extractedPath;
+}
+
 // ---------- 1. 校验目标目录 ----------
 log('\nAI 交付任务系统安装');
 log('====================');
 
 if (FLAG_DRY) log('（dry-run 模式：仅预览，不改动任何文件）\n');
+
+// 从 GitHub Release 下载（可选）
+if (FLAG_RELEASE) {
+  const releasePath = await downloadFromRelease();
+  if (releasePath) {
+    repoPath = releasePath;
+  } else if (!FLAG_DRY) {
+    console.error('\nRelease 下载失败，无法继续安装。请检查网络或改用 --repo 指定本地路径。\n');
+    process.exit(1);
+  }
+}
 
 const [repoReal, targetReal] = await Promise.all([
   realpath(repoPath).catch(() => repoPath),

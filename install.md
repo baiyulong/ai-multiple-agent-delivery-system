@@ -35,33 +35,51 @@
 在**目标项目根目录**执行（需要 Node.js ≥ 22）：
 
 ```bash
-node /path/to/ai-delivery-system/install.js
-# 或指定仓库路径（脚本未与仓库同目录时）：
+# 从 GitHub Release 下载最新稳定版安装（推荐，体积小、版本固定）
+node /path/to/ai-delivery-system/install.js --release
+
+# 或指定本地仓库路径（脚本未与仓库同目录时）：
 node /path/to/ai-delivery-system/install.js --repo /tmp/ai-delivery-system
 ```
 
 脚本会自动：
-1. 校验目标目录（拒绝安装进本仓库自身、拒绝非 git 项目可加 `--force`）
-2. 拷贝 `delivery-mcp-server/` 到目标项目（已存在则跳过并提示）
-3. 拷贝 `.opencode/agent/` 角色配置到目标项目（**只新增 `delivery-*.md`，绝不覆盖目标项目已有 agent 文件**）
-4. 合并 `opencode.json`：**保留目标项目已有的全部字段**（mcp/plugin/permission/agent 等），只新增 `mcp.delivery`，若已存在同名 mcp 则跳过
-5. 追加 `.gitignore`：`delivery-mcp-server`（幂等）。注意 **`email.json` 不要排除**——它是团队共享的公共发件服务器配置，应随仓库提交，让所有成员复用同一个发件账号，无需各自配置授权码。
-6. 在 `delivery-mcp-server` 内执行 `npm install` + `npm run build`
-7. 可选 `--dashboard` 启动浏览器看板
-8. 打印后续配置指引（user.set / team.set / email.set）
+1. **（--release 模式）** 从 GitHub Release 下载最新稳定版 tar.gz → 解压到临时目录 → 作为源码路径；若无 Release 则提示并退出
+2. 校验目标目录（拒绝安装进本仓库自身、拒绝非 git 项目可加 `--force`）
+3. 拷贝 `delivery-mcp-server/` 到目标项目（已存在则跳过并提示）
+4. 拷贝 `.opencode/agent/` 角色配置到目标项目（**只新增 `delivery-*.md`，绝不覆盖目标项目已有 agent 文件**）
+5. 合并 `opencode.json`：**保留目标项目已有的全部字段**（mcp/plugin/permission/agent 等），只新增 `mcp.delivery`，若已存在同名 mcp 则跳过
+6. 追加 `.gitignore`：`delivery-mcp-server`（幂等）。注意 **`email.json` 不要排除**——它是团队共享的公共发件服务器配置，应随仓库提交，让所有成员复用同一个发件账号，无需各自配置授权码。
+7. 在 `delivery-mcp-server` 内执行 `npm install` + `npm run build`
+8. 可选 `--dashboard` 启动浏览器看板
+9. 打印后续配置指引（user.set / team.set / email.set）
 
 ```bash
 # 常用参数
 node install.js                 # 安装到当前目录
 node install.js /path/to/proj   # 安装到指定项目
-node install.js --repo ../clone # 指定克隆的仓库路径
+node install.js --release       # 从 GitHub Release 下载最新稳定版
+node install.js --repo ../clone # 指定本地仓库路径
 node install.js --dashboard     # 安装后启动看板
 node install.js --dry-run       # 只打印将要执行的操作，不改动文件
 ```
 
 ### 方式二：手动安装
 
-#### 1. 克隆仓库（临时）
+#### 1. 获取源码（推荐从 Release 下载）
+
+**方式 A：从 GitHub Release 下载（推荐，体积小、版本固定）**
+
+```bash
+# 查询最新 Release 版本
+curl -s https://api.github.com/repos/baiyulong/ai-multiple-agent-delivery-system/releases/latest | grep tag_name
+
+# 下载并解压（将 v0.1.0 替换为实际版本）
+curl -L -o /tmp/release.tar.gz https://github.com/baiyulong/ai-multiple-agent-delivery-system/archive/refs/tags/v0.1.0.tar.gz
+mkdir -p /tmp/ai-delivery-system
+tar -xzf /tmp/release.tar.gz -C /tmp/ai-delivery-system --strip-components=1
+```
+
+**方式 B：git clone（完整源码，含 git history）**
 
 ```bash
 git clone https://github.com/baiyulong/ai-multiple-agent-delivery-system.git /tmp/ai-delivery-system
