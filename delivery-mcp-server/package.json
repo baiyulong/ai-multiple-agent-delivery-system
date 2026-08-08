@@ -17,6 +17,7 @@
     "build": "tsup",
     "dev": "tsx src/server.ts",
     "dashboard": "tsx src/dashboard.ts",
+    "dashboard:stop": "node install.js --stop-dashboard",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "example": "tsx scripts/run-example.ts"

@@ -23,7 +23,7 @@
   *   - .gitignore 幂等追加（忽略工具本体 delivery-mcp-server；email.json 是团队共享发件配置，随仓库提交）
  */
 import { cp, mkdir, readFile, realpath, writeFile, rm } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+import { existsSync, createWriteStream } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -45,9 +45,9 @@ const targetArg = args.find((a) => !a.startsWith('--'));
 const targetDir = targetArg ?? process.cwd();
 const FLAG_DRY = args.includes('--dry-run');
 const FLAG_FORCE = args.includes('--force');
-const FLAG_NO_DASH = args.includes('--no-dashboard');
 const FLAG_RELEASE = args.includes('--release');
-const FLAG_DASH = !FLAG_NO_DASH; // 默认启动看板，加 --no-dashboard 禁用
+const FLAG_DASH = args.includes('--dashboard'); // 显式开启才后台启动看板（默认不自动启动）
+const FLAG_STOP_DASH = args.includes('--stop-dashboard'); // 仅停止看板进程，不执行安装
 
 const GITHUB_OWNER = 'baiyulong';
 const GITHUB_REPO = 'ai-multiple-agent-delivery-system';
@@ -216,6 +216,108 @@ async function stopTargetProcesses(targetDir) {
   else skip('未发现运行中的进程');
 }
 
+// ---------- 后台启动看板（detached，避免被前台命令超时误杀） ----------
+async function startDashboardDetached(serverDir, projectRoot) {
+  const logFile = join(projectRoot, '.delivery', 'dashboard.log');
+  try {
+    await mkdir(dirname(logFile), { recursive: true });
+  } catch {
+    // 忽略
+  }
+  const out = createWriteStream(logFile, { flags: 'a' });
+  const child = spawn(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['run', 'dashboard'], {
+    cwd: serverDir,
+    detached: true,
+    stdio: ['ignore', out, out],
+    shell: process.platform === 'win32',
+  });
+  child.unref();
+  child.on('error', (e) => warn(`看板进程启动失败：${e.message}（日志：${logFile}）`));
+
+  // 探测端口确认启动成功（dashboard 启动后写入 <root>/.delivery/dashboard.port）
+  const port = await waitForDashboardPort(projectRoot, 10000);
+  if (port) {
+    ok(`看板已后台启动：http://localhost:${port}（日志：${logFile}）`);
+  } else {
+    warn(`看板进程已后台启动，但 10 秒内未检测到端口监听（日志：${logFile}）。可手动运行 cd delivery-mcp-server && npm run dashboard 排查。`);
+  }
+}
+
+/** 轮询 <root>/.delivery/dashboard.port，端口就绪时返回，超时返回 null */
+async function waitForDashboardPort(projectRoot, timeoutMs) {
+  const portFile = join(projectRoot, '.delivery', 'dashboard.port');
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    try {
+      const content = (await readFile(portFile, 'utf-8')).trim();
+      const port = parseInt(content, 10);
+      if (Number.isFinite(port) && port > 0) return port;
+    } catch {
+      // 文件尚未写入
+    }
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  return null;
+}
+
+// ---------- 停止看板进程（--stop-dashboard） ----------
+async function stopDashboardProcess(targetDir) {
+  let dashboardPort = '8787';
+  try {
+    const portContent = await readFile(join(targetDir, '.delivery', 'dashboard.port'), 'utf-8');
+    dashboardPort = portContent.trim() || '8787';
+  } catch {
+    // 使用默认端口
+  }
+
+  let stopped = false;
+  if (process.platform === 'win32') {
+    try {
+      const result = await new Promise((resolve, reject) => {
+        const child = spawn('netstat', ['-ano'], { shell: true });
+        let output = '';
+        child.stdout?.on('data', (d) => (output += d));
+        child.on('exit', () => resolve(output));
+        child.on('error', reject);
+      });
+      for (const line of result.split('\n')) {
+        if (line.includes(`:${dashboardPort}`) && line.includes('LISTENING')) {
+          const parts = line.trim().split(/\s+/);
+          const pid = parts[parts.length - 1];
+          if (pid && pid !== '0') {
+            log(`  停止 dashboard 进程 (PID: ${pid}, 端口: ${dashboardPort})`);
+            spawn('taskkill', ['/F', '/PID', pid], { shell: true, stdio: 'ignore' });
+            stopped = true;
+          }
+        }
+      }
+    } catch {
+      // 忽略错误
+    }
+  } else {
+    try {
+      const result = await new Promise((resolve, reject) => {
+        const child = spawn('sh', ['-c', `lsof -ti:${dashboardPort}`], { stdio: ['ignore', 'pipe', 'ignore'] });
+        let output = '';
+        child.stdout?.on('data', (d) => (output += d));
+        child.on('exit', () => resolve(output));
+        child.on('error', reject);
+      });
+      const pids = result.trim().split('\n').filter(Boolean);
+      for (const pid of pids) {
+        log(`  停止 dashboard 进程 (PID: ${pid}, 端口: ${dashboardPort})`);
+        spawn('kill', ['-9', pid], { stdio: 'ignore' });
+        stopped = true;
+      }
+    } catch {
+      // 忽略错误
+    }
+  }
+
+  if (stopped) ok('dashboard 已停止');
+  else skip(`未发现端口 ${dashboardPort} 上运行中的 dashboard`);
+}
+
 // ---------- 0. 从 GitHub Release 下载（可选） ----------
 async function downloadFromRelease() {
   const apiUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`;
@@ -309,6 +411,12 @@ log('\nAI 交付任务系统安装');
 log('====================');
 
 if (FLAG_DRY) log('（dry-run 模式：仅预览，不改动任何文件）\n');
+
+// --stop-dashboard：仅停止看板，不执行安装
+if (FLAG_STOP_DASH) {
+  await stopDashboardProcess(targetDir);
+  process.exit(0);
+}
 
 // 从 GitHub Release 下载（可选）
 if (FLAG_RELEASE) {
@@ -446,13 +554,10 @@ if (!FLAG_DRY && existsSync(dstServer)) {
 
 // ---------- 7. 可选启动看板 ----------
 if (FLAG_DASH && !FLAG_DRY && existsSync(dstServer)) {
-  log(`\n[6/6] 启动浏览器任务看板（Ctrl+C 停止）`);
-  const child = spawn(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['run', 'dashboard'], {
-    cwd: dstServer,
-    stdio: 'inherit',
-    shell: process.platform === 'win32',
-  });
-  child.on('error', (e) => warn(`看板启动失败：${e.message}`));
+  log(`\n[6/6] 后台启动浏览器任务看板（--dashboard）`);
+  await startDashboardDetached(dstServer, targetReal);
+} else if (FLAG_DRY && FLAG_DASH) {
+  log('  - 将后台启动看板（--dashboard）');
 } else {
   log('\n[6/6] 完成');
 }
@@ -479,9 +584,13 @@ log(`
 4. 可选配置邮件： email.set { "user": "your@qq.com", "pass": "SMTP 授权码" }  ← 只填邮箱+授权码即可
 5. 选择 delivery-orchestrator Agent 开始交付任务
 
-启动看板（可选）：
-  cd delivery-mcp-server && npm run dashboard
+启动看板：
+  node delivery-mcp-server/install.js --dashboard   # 后台启动（推荐）
+  cd delivery-mcp-server && npm run dashboard        # 前台启动
   →  http://localhost:8787
+停止看板：
+  node delivery-mcp-server/install.js --stop-dashboard
+  cd delivery-mcp-server && npm run dashboard:stop
 `);
 
 if (FLAG_DRY) {

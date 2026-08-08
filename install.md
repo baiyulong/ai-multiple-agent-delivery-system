@@ -50,7 +50,7 @@ node delivery-mcp-server/install.js --repo /tmp/ai-delivery-system
 5. 合并 `opencode.json`：**保留目标项目已有的全部字段**（mcp/plugin/permission/agent 等），只新增 `mcp.delivery`，若已存在同名 mcp 则跳过
 6. 追加 `.gitignore`：`delivery-mcp-server`（幂等）。注意 **`email.json` 不要排除**——它是团队共享的公共发件服务器配置，应随仓库提交，让所有成员复用同一个发件账号，无需各自配置授权码。
 7. 在 `delivery-mcp-server` 内执行 `npm install` + `npm run build`
-8. 默认启动浏览器看板（加 `--no-dashboard` 禁用）
+8. 默认**不**自动启动看板（加 `--dashboard` 后台启动；避免被有超时的命令行误杀）
 9. 打印后续配置指引（user.set / team.set / email.set）
 10. 自动清理临时文件
 
@@ -60,7 +60,8 @@ node delivery-mcp-server/install.js                 # 安装到当前目录
 node delivery-mcp-server/install.js /path/to/proj   # 安装到指定项目
 node delivery-mcp-server/install.js --release       # 从 GitHub Release 下载最新稳定版
 node delivery-mcp-server/install.js --repo ../clone # 指定本地仓库路径
-node delivery-mcp-server/install.js --no-dashboard   # 安装后不启动看板
+node delivery-mcp-server/install.js --dashboard     # 安装后后台启动看板（detached，日志 .delivery/dashboard.log）
+node delivery-mcp-server/install.js --stop-dashboard # 停止看板进程（或 npm run dashboard:stop）
 node delivery-mcp-server/install.js --dry-run       # 只打印将要执行的操作，不改动文件
 ```
 
@@ -98,6 +99,11 @@ cp -r /tmp/ai-delivery-system/delivery-mcp-server ./delivery-mcp-server
 mkdir -p .opencode/agent
 cp -n /tmp/ai-delivery-system/.opencode/agent/delivery-*.md ./.opencode/agent/
 ```
+
+> **Windows 用户注意**：`cp` 是 Unix 命令，PowerShell（cmd）默认没有。三选一：
+> 1. 优先使用安装脚本：`node delivery-mcp-server/install.js`（跨平台，自动完成全部步骤）
+> 2. 使用 PowerShell 等价命令：`Copy-Item -Recurse /tmp/ai-delivery-system/delivery-mcp-server ./delivery-mcp-server`；`Copy-Item /tmp/ai-delivery-system/.opencode/agent/delivery-*.md .opencode/agent/`（`-NoClobber` 等价 `-n`）
+> 3. 使用 Git Bash / WSL 执行上述 Unix 命令
 
 > **重要**：所有角色 Agent 文件都以 `delivery-` 前缀命名（`delivery-engineer.md`、`delivery-qa.md` 等），**只新增、不覆盖**目标项目已有的同名 agent（如 `engineer.md`）。`cp -n` 保证已存在的同名文件不被覆盖。
 
@@ -146,9 +152,11 @@ rm -rf /tmp/ai-delivery-system
 
 #### 7. 启动浏览器任务看板并提示用户
 
-> **注意**：`npm run dashboard` 必须在 `delivery-mcp-server/` 目录下执行，否则会报 ENOENT。
-
-安装完成后，**立即启动 dashboard**，并告知用户可以用浏览器打开查看：
+> **注意**：dashboard 是长期运行的服务，**默认不随安装自动启动**（避免被有超时的命令行工具误杀）。安装完成后按需启动：
+>
+> - 后台启动（推荐，独立进程 + 日志 + 端口探测确认）：`node delivery-mcp-server/install.js --dashboard`
+> - 前台启动：`cd delivery-mcp-server && npm run dashboard`（必须在 `delivery-mcp-server/` 目录下执行，否则报 ENOENT）
+> - 停止：`node delivery-mcp-server/install.js --stop-dashboard` 或 `cd delivery-mcp-server && npm run dashboard:stop`
 
 ```bash
 cd delivery-mcp-server
@@ -157,7 +165,7 @@ npm run dashboard
 ```
 
 **必须向用户提示**：
-- 看板地址：`http://localhost:8787`（端口被占用时查看启动日志的实际端口）
+- 看板地址：`http://localhost:8787`（端口被占用时查看 `.delivery/dashboard.port` 或启动日志的实际端口）
 - 说明：所有任务的新建与状态变化都可以在这个页面看到；`task.create` / `stage.complete` 等工具返回中也附带 `dashboard_url` 和 `view_hint`，可直接用浏览器打开查看对应任务。
 
 > dashboard 会自动读取**项目根目录**的 `.delivery`（即 delivery-mcp-server 的父目录），无需额外配置。若想指定其他数据目录，设置环境变量 `DELIVERY_ROOT`。
@@ -277,6 +285,9 @@ cd delivery-mcp-server
 npm run dashboard
 # 打开 http://localhost:8787
 ```
+
+后台启动（独立进程 + 日志）：`node delivery-mcp-server/install.js --dashboard`
+停止看板：`node delivery-mcp-server/install.js --stop-dashboard` 或 `cd delivery-mcp-server && npm run dashboard:stop`
 
 > dashboard 会自动读取**项目根目录**的 `.delivery`（即 delivery-mcp-server 的父目录），无需额外配置。若想指定其他数据目录，设置环境变量 `DELIVERY_ROOT`。
 
