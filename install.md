@@ -36,10 +36,10 @@
 
 ```bash
 # 从 GitHub Release 下载最新稳定版安装（推荐，体积小、版本固定）
-node /path/to/ai-delivery-system/install.js --release
+node delivery-mcp-server/install.js --release
 
 # 或指定本地仓库路径（脚本未与仓库同目录时）：
-node /path/to/ai-delivery-system/install.js --repo /tmp/ai-delivery-system
+node delivery-mcp-server/install.js --repo /tmp/ai-delivery-system
 ```
 
 脚本会自动：
@@ -52,15 +52,16 @@ node /path/to/ai-delivery-system/install.js --repo /tmp/ai-delivery-system
 7. 在 `delivery-mcp-server` 内执行 `npm install` + `npm run build`
 8. 可选 `--dashboard` 启动浏览器看板
 9. 打印后续配置指引（user.set / team.set / email.set）
+10. 自动清理临时文件
 
 ```bash
 # 常用参数
-node install.js                 # 安装到当前目录
-node install.js /path/to/proj   # 安装到指定项目
-node install.js --release       # 从 GitHub Release 下载最新稳定版
-node install.js --repo ../clone # 指定本地仓库路径
-node install.js --dashboard     # 安装后启动看板
-node install.js --dry-run       # 只打印将要执行的操作，不改动文件
+node delivery-mcp-server/install.js                 # 安装到当前目录
+node delivery-mcp-server/install.js /path/to/proj   # 安装到指定项目
+node delivery-mcp-server/install.js --release       # 从 GitHub Release 下载最新稳定版
+node delivery-mcp-server/install.js --repo ../clone # 指定本地仓库路径
+node delivery-mcp-server/install.js --dashboard     # 安装后启动看板
+node delivery-mcp-server/install.js --dry-run       # 只打印将要执行的操作，不改动文件
 ```
 
 ### 方式二：手动安装
@@ -299,12 +300,25 @@ npm run dashboard
 
 ---
 
-## 六·附、自动更新
+## 六·附、更新
 
-- **每次启动自动检测**：OpenCode 启动拉起 MCP server 时，server 自动异步检测新版本（基于 GitHub Releases），检测到新版本会在启动日志打印提示；无网络时静默跳过，不影响启动。无需手动操作。
+### 方式一：一键更新（推荐）
+
+已安装的项目可以直接用安装脚本更新到最新版：
+
+```bash
+# 在目标项目根目录执行
+node delivery-mcp-server/install.js --release
+```
+
+脚本会自动下载最新 Release → 覆盖 `delivery-mcp-server/` 工具本体 + `delivery-*.md` 角色配置 → 重新构建。**保留 `.delivery` 任务数据**与 `opencode.json` 中的自定义配置。
+
+### 方式二：MCP 工具更新
+
+- **每次启动自动检测**：OpenCode 启动拉起 MCP server 时，server 自动异步检测新版本（基于 GitHub Releases），检测到新版本会在启动日志打印提示；无网络时静默跳过，不影响启动。
 - **手动更新**：用 `update.check` 查看版本状态（可选 `force` 强制重新检测）；用 `update.apply`（需 `confirm: true`）手动拉取并更新工具本体。
-- **更新范围**：替换 `delivery-mcp-server` 工具本体与 `delivery-*.md` 角色配置；**保留 `.delivery` 任务数据**与 `opencode.json` 中你的自定义配置。
-- 更新后需**重启 OpenCode** 生效。可用环境变量 `DELIVERY_UPDATE_CHECK=0` 关闭自动检测。
+
+更新后需**重启 OpenCode** 生效。可用环境变量 `DELIVERY_UPDATE_CHECK=0` 关闭自动检测。
 
 ---
 

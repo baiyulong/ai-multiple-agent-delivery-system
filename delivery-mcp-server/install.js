@@ -3,10 +3,15 @@
  * AI 交付任务系统 · 一键安装脚本（Windows / Linux / macOS 通用）
  *
  * 用法：
- *   node install.js                      # 安装到当前目录
- *   node install.js /path/to/project     # 安装到指定项目目录
- *   node install.js --repo /path/to/clone  # 指定仓库源码路径（默认脚本所在目录）
- *   node install.js --release            # 从 GitHub Release 下载最新稳定版（而非 git clone 源码）
+ *   # 从源码仓库安装（在仓库根目录执行）
+ *   node delivery-mcp-server/install.js
+ *   # 从源码仓库安装到指定项目
+ *   node delivery-mcp-server/install.js /path/to/project
+ *   # 从 GitHub Release 下载最新稳定版安装（推荐）
+ *   node install.js --release
+ *   # 已安装的项目更新到最新版
+ *   cd delivery-mcp-server && node install.js --release
+ *   node install.js --repo /path/to/source  # 指定本地源码路径
  *   node install.js --dashboard          # 安装后启动浏览器看板
  *   node install.js --dry-run            # 只打印将要执行的操作，不改动文件
  *   node install.js --force              # 目标目录不是 git 仓库时也继续
@@ -24,7 +29,7 @@ import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
-const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url)); // 仓库根目录
+const SCRIPT_DIR = dirname(dirname(fileURLToPath(import.meta.url))); // 仓库根目录（脚本在 delivery-mcp-server/ 中，取其父目录）
 const AGENT_PREFIX = 'delivery-';
 
 // ---------- 参数解析 ----------
@@ -211,7 +216,9 @@ const [repoReal, targetReal] = await Promise.all([
   realpath(targetDir).catch(() => targetDir),
 ]);
 if (repoReal === targetReal) {
-  console.error('\n错误：目标目录就是本仓库自身。请指定一个目标项目目录，例如：\n  node install.js /path/to/your-project\n');
+  console.error('\n错误：目标目录就是当前项目自身。');
+  console.error('  若要从源码安装到其他项目，请指定目标目录：node delivery-mcp-server/install.js /path/to/project');
+  console.error('  若要更新当前项目，请使用 --release：node delivery-mcp-server/install.js --release\n');
   process.exit(1);
 }
 

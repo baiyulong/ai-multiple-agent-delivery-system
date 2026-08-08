@@ -288,6 +288,23 @@ crud_spec_card → ux_interaction_card → ddd_applicability_review + ubiquitous
 
 ---
 
+## 更新
+
+已安装的项目可以直接用安装脚本更新到最新版：
+
+```bash
+# 在目标项目根目录执行
+node delivery-mcp-server/install.js --release
+```
+
+脚本会自动下载最新 Release → 覆盖 `delivery-mcp-server/` 工具本体 + `delivery-*.md` 角色配置 → 重新构建。**保留 `.delivery` 任务数据**与 `opencode.json` 中的自定义配置。
+
+或者使用 MCP 工具：`update.check` 查看版本、`update.apply`（需 `confirm: true`）更新。
+
+更新后需**重启 OpenCode** 生效。
+
+---
+
 ## 自定义流程与门禁
 
 所有流程与门禁规则都是 JSON 配置，**用户配置优先于内置**：
