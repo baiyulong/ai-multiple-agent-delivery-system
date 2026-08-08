@@ -22,7 +22,7 @@
  *   - opencode.json 只合并新增 mcp.delivery，保留目标项目全部字段
   *   - .gitignore 幂等追加（忽略工具本体 delivery-mcp-server；email.json 是团队共享发件配置，随仓库提交）
  */
-import { cp, mkdir, readFile, realpath, writeFile, rm, rename } from 'node:fs/promises';
+import { cp, mkdir, readFile, realpath, writeFile, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { dirname, join } from 'node:path';
@@ -40,7 +40,7 @@ function takeValue(flag) {
   return null;
 }
 let repoPath = takeValue('--repo') ?? SCRIPT_DIR;
-let releaseTmpDir = null; // --release 模式下的临时目录，安装完成后清理
+const tempDirs = []; // 本次运行创建的临时目录，安装成功后统一清理
 const targetArg = args.find((a) => !a.startsWith('--'));
 const targetDir = targetArg ?? process.cwd();
 const FLAG_DRY = args.includes('--dry-run');
@@ -244,6 +244,7 @@ async function downloadFromRelease() {
 
   const archiveUrl = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/archive/refs/tags/${tag}.tar.gz`;
   const tmpDir = join(tmpdir(), `delivery-install-${Date.now()}`);
+  if (!FLAG_DRY) tempDirs.push(tmpDir);
   const archiveFile = join(tmpDir, 'release.tar.gz');
 
   if (!FLAG_DRY) await mkdir(tmpDir, { recursive: true });
@@ -314,7 +315,6 @@ if (FLAG_RELEASE) {
   const releasePath = await downloadFromRelease();
   if (releasePath) {
     repoPath = releasePath;
-    releaseTmpDir = dirname(releasePath); // 临时目录，安装完成后清理
   } else if (!FLAG_DRY) {
     console.error('\nRelease 下载失败，无法继续安装。请检查网络或改用 --repo 指定本地路径。\n');
     process.exit(1);
@@ -347,17 +347,15 @@ if (existsSync(join(targetReal, 'delivery-mcp-server'))) {
 log(`\n[1/6] 拷贝 delivery-mcp-server → ${targetReal}`);
 const srcServer = join(repoReal, 'delivery-mcp-server');
 const dstServer = join(targetReal, 'delivery-mcp-server');
-let serverBackupDir = null; // 更新模式下旧版备份，成功后删除
 if (existsSync(srcServer)) {
   if (existsSync(dstServer)) {
     if (FLAG_RELEASE) {
-      // 更新模式：备份旧版后强制替换，避免旧代码残留
-      serverBackupDir = `${dstServer}.bak-${Date.now()}`;
+      // 更新模式：直接删除旧版后拷贝新版本（进程已在 1.5 停止，避免文件锁定）
       if (!FLAG_DRY) {
-        await rm(serverBackupDir, { recursive: true, force: true });
-        await rename(dstServer, serverBackupDir);
+        await rm(dstServer, { recursive: true, force: true });
+      } else {
+        log(`  - 将删除旧版 ${dstServer} 并拷贝新版`);
       }
-      log('  更新模式：旧版已备份到 ' + serverBackupDir);
       await copyDirSafe(srcServer, dstServer);
       ok('delivery-mcp-server 已更新');
     } else {
@@ -439,25 +437,8 @@ if (!FLAG_DRY && existsSync(dstServer)) {
     await run('install', dstServer);
     await run('run build', dstServer);
     ok('构建完成：delivery-mcp-server/dist/server.js');
-    // 构建成功后删除更新备份
-    if (serverBackupDir && existsSync(serverBackupDir)) {
-      await rm(serverBackupDir, { recursive: true, force: true });
-      ok(`已删除更新备份：${serverBackupDir}`);
-      serverBackupDir = null;
-    }
   } catch (e) {
     warn(`依赖安装/构建失败：${e.message}。可稍后在 ${dstServer} 手动执行 npm install && npm run build。`);
-    // 更新模式构建失败：恢复旧版备份，避免半成品
-    if (serverBackupDir && existsSync(serverBackupDir)) {
-      try {
-        await rm(dstServer, { recursive: true, force: true });
-        await rename(serverBackupDir, dstServer);
-        ok(`已回滚到旧版：${dstServer}`);
-        serverBackupDir = null;
-      } catch (rollbackErr) {
-        warn(`回滚失败：${rollbackErr.message}。旧版备份仍在 ${serverBackupDir}，请手动恢复。`);
-      }
-    }
   }
 } else if (FLAG_DRY) {
   log('  - 将执行 npm install && npm run build（delivery-mcp-server 目录）');
@@ -476,13 +457,15 @@ if (FLAG_DASH && !FLAG_DRY && existsSync(dstServer)) {
   log('\n[6/6] 完成');
 }
 
-// ---------- 清理临时文件 ----------
-if (releaseTmpDir && !FLAG_DRY) {
-  try {
-    await rm(releaseTmpDir, { recursive: true, force: true });
-    ok(`已清理临时文件：${releaseTmpDir}`);
-  } catch {
-    // 清理失败不影响安装结果
+// ---------- 清理临时文件（任何模式：安装成功后统一清理） ----------
+if (!FLAG_DRY) {
+  for (const dir of tempDirs) {
+    try {
+      await rm(dir, { recursive: true, force: true });
+      ok(`已清理临时目录：${dir}`);
+    } catch {
+      // 清理失败不影响安装结果
+    }
   }
 }
 
