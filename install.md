@@ -50,7 +50,7 @@ node delivery-mcp-server/install.js --repo /tmp/ai-delivery-system
 5. 合并 `opencode.json`：**保留目标项目已有的全部字段**（mcp/plugin/permission/agent 等），只新增 `mcp.delivery`，若已存在同名 mcp 则跳过
 6. 追加 `.gitignore`：`delivery-mcp-server`（幂等）。注意 **`email.json` 不要排除**——它是团队共享的公共发件服务器配置，应随仓库提交，让所有成员复用同一个发件账号，无需各自配置授权码。
 7. 在 `delivery-mcp-server` 内执行 `npm install` + `npm run build`
-8. 可选 `--dashboard` 启动浏览器看板
+8. 默认启动浏览器看板（加 `--no-dashboard` 禁用）
 9. 打印后续配置指引（user.set / team.set / email.set）
 10. 自动清理临时文件
 
@@ -60,7 +60,7 @@ node delivery-mcp-server/install.js                 # 安装到当前目录
 node delivery-mcp-server/install.js /path/to/proj   # 安装到指定项目
 node delivery-mcp-server/install.js --release       # 从 GitHub Release 下载最新稳定版
 node delivery-mcp-server/install.js --repo ../clone # 指定本地仓库路径
-node delivery-mcp-server/install.js --dashboard     # 安装后启动看板
+node delivery-mcp-server/install.js --no-dashboard   # 安装后不启动看板
 node delivery-mcp-server/install.js --dry-run       # 只打印将要执行的操作，不改动文件
 ```
 
