@@ -243,6 +243,8 @@ async function buildTaskList() {
       task_type: task.task_type,
       status: task.status,
       current_stage: task.current_stage,
+      created_by: task.created_by,
+      assignees: task.assignees ?? {},
       created_at: task.created_at,
       updated_at: task.updated_at,
       completed_stages: completed,
@@ -251,6 +253,95 @@ async function buildTaskList() {
   }
   tasks.sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
   return { tasks };
+}
+
+/** 任务列表条目（API 返回结构，含用户字段用于"我的任务"筛选） */
+interface TaskListItem {
+  task_id: string;
+  title: string;
+  task_type: string;
+  status: string;
+  current_stage: string | null;
+  created_by?: string;
+  assignees?: Record<string, string>;
+  created_at: string;
+  updated_at: string;
+  completed_stages: number;
+  total_stages: number;
+}
+
+/** 判断任务是否属于当前用户：创建者或参与者（邮箱不区分大小写） */
+function isMyTask(task: TaskListItem, userEmail: string | null | undefined): boolean {
+  if (!userEmail) return false;
+  const email = userEmail.toLowerCase();
+  if (task.created_by && task.created_by.toLowerCase() === email) return true;
+  const assignees = task.assignees ?? {};
+  for (const e of Object.values(assignees)) {
+    if (e && e.toLowerCase() === email) return true;
+  }
+  return false;
+}
+
+/** 任务状态列表（用于前端筛选） */
+const TASK_STATUSES = ['draft', 'in_progress', 'blocked', 'completed', 'cancelled', 'archived'];
+
+/** 任务状态中文标签 */
+const STATUS_LABELS: Record<string, string> = {
+  draft: '草稿',
+  in_progress: '进行中',
+  blocked: '阻塞',
+  completed: '已完成',
+  cancelled: '已取消',
+  archived: '已归档',
+};
+
+/** 导出文档为 Markdown：聚合所有文档内容为单个 Markdown 字符串（内容缺失时服务端补齐） */
+async function buildDocumentsMarkdown(docs: PublicDocEntry[]): Promise<string> {
+  const lines: string[] = [];
+  lines.push('# 公共文档');
+  lines.push('');
+  const grouped = new Map<string, PublicDocEntry[]>();
+  for (const doc of docs) {
+    const key = doc.artifact_type;
+    if (!grouped.has(key)) grouped.set(key, []);
+    grouped.get(key)!.push(doc);
+  }
+  for (const [type, items] of grouped) {
+    lines.push(`## ${type}`);
+    lines.push('');
+    for (const item of items) {
+      const title = item.task_title ? `${item.task_title} (${item.task_id})` : item.title ?? item.task_id ?? '未知任务';
+      lines.push(`### ${title}`);
+      lines.push('');
+      let content = item.content;
+      if (!content && item.artifact_id && item.task_id) {
+        const art = await getArtifact(root, item.task_id, item.artifact_id);
+        content = art?.content;
+      }
+      lines.push(content ?? '_（无内容）_');
+      lines.push('');
+    }
+  }
+  return lines.join('\n');
+}
+
+function buildTasksMarkdown(tasks: TaskListItem[]): string {
+  const lines: string[] = [];
+  lines.push('# 任务列表');
+  lines.push('');
+  for (const t of tasks) {
+    lines.push(`## ${t.title}`);
+    lines.push('');
+    lines.push(`- ID: ${t.task_id}`);
+    lines.push(`- 类型: ${t.task_type}`);
+    lines.push(`- 状态: ${STATUS_LABELS[t.status] ?? t.status}`);
+    lines.push(`- 当前阶段: ${t.current_stage ?? '-'}`);
+    lines.push(`- 创建者: ${t.created_by ?? '-'}`);
+    lines.push(`- 进度: ${t.completed_stages}/${t.total_stages}`);
+    lines.push(`- 更新时间: ${t.updated_at}`);
+    lines.push('');
+  }
+  return lines.join('\n');
 }
 
 /** 组装任务详情：任务 + 阶段 + 交付物 + 未决问题 + 每阶段最新门禁结果 */
@@ -323,6 +414,26 @@ const server = createServer(async (req, res) => {
     }
     if (path === '/api/documents') {
       return sendJson(res, 200, await buildPublicDocuments());
+    }
+    // 导出：文档聚合 Markdown
+    if (path === '/api/export/documents') {
+      const { documents } = await buildPublicDocuments();
+      const md = await buildDocumentsMarkdown(documents);
+      res.writeHead(200, {
+        'Content-Type': 'text/markdown; charset=utf-8',
+        'Content-Disposition': 'attachment; filename="documents.md"',
+      });
+      return res.end(md);
+    }
+    // 导出：任务列表 Markdown
+    if (path === '/api/export/tasks') {
+      const { tasks } = await buildTaskList();
+      const md = buildTasksMarkdown(tasks);
+      res.writeHead(200, {
+        'Content-Type': 'text/markdown; charset=utf-8',
+        'Content-Disposition': 'attachment; filename="tasks.md"',
+      });
+      return res.end(md);
     }
     if (path === '/api/team') {
       const configured = await isTeamConfigured(root);

@@ -461,6 +461,69 @@ body {
   border-radius: 12px;
 }
 
+/* --- 视图头部左侧（标题 + 计数） --- */
+.view-header-left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+/* --- 任务列表筛选栏 --- */
+.list-filters {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  margin-bottom: var(--space-lg);
+  flex-wrap: wrap;
+}
+
+.scope-tabs {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.scope-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 14px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-family: var(--font-sans);
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+
+.scope-btn:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+}
+
+.scope-btn.active {
+  background: var(--color-primary);
+  color: #ffffff;
+}
+
+.status-filter {
+  padding: 6px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
 /* --- 按钮 --- */
 .btn {
   display: inline-flex;

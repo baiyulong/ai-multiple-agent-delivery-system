@@ -328,6 +328,8 @@
     artifactCache: {}, // artifactId → markdown content
     teamData: null, // { configured, members, role_labels, updated_at }
     userData: null, // { configured, user, roles, role_labels, in_team, team_configured }
+    taskScope: 'all', // 'all' | 'mine'
+    taskStatus: 'all', // 'all' | 具体状态值
   };
 
   // ==================== DOM 引用 ====================
@@ -419,6 +421,43 @@
     dom.listLoading.classList.add('hidden');
     dom.listError.classList.add('hidden');
     dom.listEmpty.classList.remove('hidden');
+  }
+
+  // ==================== 任务列表筛选 & 导出 ====================
+
+  /** 切换范围：全部任务 / 我的任务 */
+  function setTaskScope(scope) {
+    state.taskScope = scope;
+    $$('.scope-btn').forEach((btn) => {
+      btn.classList.toggle('active', btn.getAttribute('data-scope') === scope);
+    });
+    applyTaskFilters();
+  }
+
+  /** 切换状态筛选 */
+  function setTaskStatus(status) {
+    state.taskStatus = status;
+    applyTaskFilters();
+  }
+
+  /** 触发浏览器下载（利用后端 Content-Disposition 提供文件名） */
+  function downloadUrl(path, fallbackName) {
+    const a = document.createElement('a');
+    a.href = API_BASE + path;
+    a.download = fallbackName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
+
+  /** 导出任务列表为 Markdown */
+  function exportTasks() {
+    downloadUrl('/export/tasks', 'tasks.md');
+  }
+
+  /** 导出公共文档为 Markdown */
+  function exportDocuments() {
+    downloadUrl('/export/documents', 'documents.md');
   }
 
   // ==================== 团队 & 用户配置 ====================
@@ -546,26 +585,58 @@
 
   // ==================== 任务列表 ====================
 
+  /** 判断任务是否属于当前用户：创建者或参与者（邮箱不区分大小写） */
+  function isMyTask(task) {
+    const user = state.userData && state.userData.user;
+    if (!user || !user.email) return false;
+    const email = user.email.toLowerCase();
+    if (task.created_by && task.created_by.toLowerCase() === email) return true;
+    const assignees = task.assignees || {};
+    for (const e of Object.values(assignees)) {
+      if (e && e.toLowerCase() === email) return true;
+    }
+    return false;
+  }
+
   async function loadTaskList() {
     showLoading('list');
     try {
       const data = await apiFetch('/tasks');
       const tasks = data.tasks || [];
       state.taskList = tasks;
-      dom.taskCount.textContent = tasks.length + ' 个任务';
-      renderTaskList(tasks);
+      applyTaskFilters();
     } catch (err) {
       showError('list', '加载任务列表失败：' + err.message);
     }
   }
 
-  function renderTaskList(tasks) {
+  /** 按「范围（全部/我的）+ 状态」过滤并渲染任务列表 */
+  function applyTaskFilters() {
+    let tasks = state.taskList.slice();
+
+    if (state.taskScope === 'mine') {
+      tasks = tasks.filter(isMyTask);
+    }
+    if (state.taskStatus !== 'all') {
+      tasks = tasks.filter((t) => t.status === state.taskStatus);
+    }
+
+    const isFiltered = state.taskScope !== 'all' || state.taskStatus !== 'all';
+    dom.taskCount.textContent = tasks.length + ' / ' + state.taskList.length + ' 个任务';
+    renderTaskList(tasks, isFiltered);
+  }
+
+  function renderTaskList(tasks, isFiltered) {
     // 清空现有卡片（保留 loading/error/empty 节点）
     const container = dom.viewList.querySelector('.task-list');
     container.querySelectorAll('.task-card').forEach((el) => el.remove());
 
     if (tasks.length === 0) {
       showEmpty();
+      const emptyMsg = dom.viewList.querySelector('#list-empty-msg');
+      if (emptyMsg) {
+        emptyMsg.textContent = isFiltered ? '没有匹配的任务' : '暂无任务';
+      }
       return;
     }
 
@@ -1110,6 +1181,19 @@
 
     // 监听 hash 变化
     window.addEventListener('hashchange', handleRoute);
+
+    // 任务列表筛选控件
+    $$('.scope-btn').forEach((btn) => {
+      btn.addEventListener('click', () => setTaskScope(btn.getAttribute('data-scope')));
+    });
+    const statusFilter = document.getElementById('status-filter');
+    if (statusFilter) {
+      statusFilter.addEventListener('change', () => setTaskStatus(statusFilter.value));
+    }
+    const btnExportTasks = document.getElementById('btn-export-tasks');
+    if (btnExportTasks) btnExportTasks.addEventListener('click', exportTasks);
+    const btnExportDocs = document.getElementById('btn-export-docs');
+    if (btnExportDocs) btnExportDocs.addEventListener('click', exportDocuments);
 
     // 加载团队与用户配置（全局，只拉取一次）
     loadTeamAndUser();
