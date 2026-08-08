@@ -249,12 +249,16 @@ async function startDashboardDetached(serverDir, projectRoot) {
     // 忽略
   }
   const out = createWriteStream(logFile, { flags: 'a' });
+  // 注意：stdio 数组不能直接传流对象（未打开前 fd 为空会抛 ERR_INVALID_ARG_VALUE），
+  // 改用 'pipe' 并在子进程输出上手动 pipe 到日志文件。
   const child = spawn(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['run', 'dashboard'], {
     cwd: serverDir,
     detached: true,
-    stdio: ['ignore', out, out],
+    stdio: ['ignore', 'pipe', 'pipe'],
     shell: process.platform === 'win32',
   });
+  child.stdout?.pipe(out);
+  child.stderr?.pipe(out);
   child.unref();
   child.on('error', (e) => warn(`看板进程启动失败：${e.message}（日志：${logFile}）`));
 
@@ -385,6 +389,11 @@ async function downloadFromRelease() {
     });
     if (!res.ok) throw new Error(`下载失败：HTTP ${res.status}`);
     const buf = Buffer.from(await res.arrayBuffer());
+    // gzip 魔数校验：防止拿到 HTML 错误页 / 被 PowerShell curl 别名损坏的文件
+    if (buf.length < 2 || buf[0] !== 0x1f || buf[1] !== 0x8b) {
+      const preview = buf.length > 120 ? buf.subarray(0, 120).toString('utf-8') : buf.toString('utf-8');
+      throw new Error(`下载内容不是有效的 gzip（前 2 字节 0x${buf.length ? buf[0].toString(16) : '?'} 0x${buf.length > 1 ? buf[1].toString(16) : '?'}）。内容预览：${preview.slice(0, 80)}`);
+    }
     if (FLAG_DRY) {
       log(`  - 将下载 ${buf.length} 字节到 ${archiveFile}`);
     } else {

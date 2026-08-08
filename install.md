@@ -158,6 +158,15 @@ rm -rf /tmp/ai-delivery-system
 > - 后台启动（推荐，独立进程 + 日志 + 端口探测确认）：`node delivery-mcp-server/install.js --dashboard`
 > - 前台启动：`cd delivery-mcp-server && npm run dashboard`（必须在 `delivery-mcp-server/` 目录下执行，否则报 ENOENT）
 > - 停止：`node delivery-mcp-server/install.js --stop-dashboard` 或 `cd delivery-mcp-server && npm run dashboard:stop`
+>
+> **Windows 手动启动**（若脚本后台启动不可用）：
+> ```powershell
+> # 方式一：PowerShell Start-Process 后台启动
+> cd delivery-mcp-server
+> Start-Process -FilePath "npm.cmd" -ArgumentList "run","dashboard" -RedirectStandardOutput ".delivery\dashboard.log" -RedirectStandardError ".delivery\dashboard.err.log" -NoNewWindow
+> # 方式二：新开独立 cmd 窗口前台启动（关闭窗口即停止）
+> Start-Process cmd -ArgumentList "/k","npm run dashboard"
+> ```
 
 ```bash
 cd delivery-mcp-server
