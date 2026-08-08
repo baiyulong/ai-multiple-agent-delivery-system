@@ -458,13 +458,16 @@ if (releaseTmpDir && !FLAG_DRY) {
 // ---------- 后续指引 ----------
 log(`
 安装完成。接下来：
-1. 重启 OpenCode（加载新 agent 与 MCP 配置）
+1. 重启 OpenCode（加载新 agent 与 MCP 配置，MCP server 会随之启动）
 2. 配置当前人：   user.set  { "name": "你的姓名", "email": "your@email.com" }
 3. 配置团队名册： team.set  { "name": "你的姓名", "email": "your@email.com", "roles": ["..."] }
    （全部成员 roles 并集需覆盖 8 个角色）
 4. 可选配置邮件： email.set { "user": "your@qq.com", "pass": "SMTP 授权码" }  ← 只填邮箱+授权码即可
 5. 选择 delivery-orchestrator Agent 开始交付任务
-看板（可选）：cd delivery-mcp-server && npm run dashboard  →  http://localhost:8787
+
+启动看板（可选）：
+  cd delivery-mcp-server && npm run dashboard
+  →  http://localhost:8787
 `);
 
 if (FLAG_DRY) {
