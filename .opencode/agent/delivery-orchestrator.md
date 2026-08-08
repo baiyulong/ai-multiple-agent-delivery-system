@@ -63,7 +63,7 @@ permission:
 
 > 团队里同一角色可有多个成员，但每个任务通过 `assignees` 锁定具体负责人；通知邮件会优先发给指派成员，未指派则发给该角色所有成员。
 
-> **版本与更新**：server 启动时会自动检测新版本（GitHub Releases 版本源），检测到新版本会在启动日志打印提示。可用 `update.check` 查看版本状态、`update.apply`（confirm:true）手动更新工具本体；更新后需重启 OpenCode 生效。
+> **版本与更新**：server 启动时会自动检测新版本（GitHub Releases 版本源），检测到新版本会在启动日志打印提示。可用 `update.check` 查看版本状态；更新统一执行 `node delivery-mcp-server/install.js --release`（停进程 → 下载 → 删除旧版 → 拷贝 → 构建 → 启动），更新后需重启 OpenCode 生效。
 
 ## 通用约束
 

@@ -4,15 +4,16 @@
  *
  * 用法：
  *   node uninstall.js                      # 卸载当前项目中的 delivery 系统
- *   node uninstall.js --keep-data          # 保留 .delivery 任务数据
+ *   node uninstall.js --purge-data         # 同时删除 .delivery/ 任务数据（默认保留）
+ *   node uninstall.js --purge-agents       # 同时删除 .opencode/agent/delivery-*.md（默认保留，可能被自定义过）
  *   node uninstall.js --dry-run            # 只打印将要执行的操作，不改动文件
  *
  * 功能：
  *   1. 停止运行中的 dashboard 与 MCP server 进程
  *   2. 移除 delivery-mcp-server/ 目录
- *   3. 移除 .opencode/agent/delivery-*.md 角色配置
- *   4. 移除 opencode.json 中的 mcp.delivery 配置
- *   5. 可选移除 .delivery/ 任务数据目录
+ *   3. 移除 opencode.json 中的 mcp.delivery 配置
+ *   4. 保留 .opencode/agent/delivery-*.md（可能被自定义过，除非 --purge-agents）
+ *   5. 保留 .delivery/ 任务数据（除非 --purge-data）
  */
 
 import { existsSync } from 'node:fs';
@@ -28,7 +29,8 @@ const AGENT_PREFIX = 'delivery-';
 // ---------- 参数解析 ----------
 const args = process.argv.slice(2);
 const FLAG_DRY = args.includes('--dry-run');
-const FLAG_KEEP_DATA = args.includes('--keep-data');
+const FLAG_PURGE_DATA = args.includes('--purge-data');
+const FLAG_PURGE_AGENTS = args.includes('--purge-agents');
 
 // ---------- 工具 ----------
 const log = (msg) => console.log(msg);
@@ -174,9 +176,9 @@ async function removeServer() {
   }
 }
 
-// ---------- 3. 移除角色 Agent 配置 ----------
+// ---------- 3. 角色 Agent 配置（默认保留，可能被自定义过） ----------
 async function removeAgents() {
-  log('\n[3/5] 移除角色 Agent 配置（仅 delivery-* 前缀）');
+  log('\n[3/5] 角色 Agent 配置');
   const agentsDir = join(PROJECT_ROOT, '.opencode', 'agent');
   if (!existsSync(agentsDir)) {
     skip('.opencode/agent/ 不存在');
@@ -184,8 +186,12 @@ async function removeAgents() {
   }
 
   const { readdir } = await import('node:fs/promises');
-  let files = await readdir(agentsDir);
-  files = files.filter((f) => f.endsWith('.md') && f.startsWith(AGENT_PREFIX));
+  const files = (await readdir(agentsDir)).filter((f) => f.endsWith('.md') && f.startsWith(AGENT_PREFIX));
+
+  if (!FLAG_PURGE_AGENTS) {
+    skip(`保留 ${files.length} 个 delivery-*.md（可能被自定义过，需 --purge-agents 才删除）`);
+    return;
+  }
 
   if (files.length === 0) {
     skip('未找到 delivery-*.md 文件');
@@ -225,7 +231,7 @@ async function removeMcpConfig() {
   }
 }
 
-// ---------- 5. 可选移除任务数据 ----------
+// ---------- 5. 任务数据（默认保留） ----------
 async function removeData() {
   log('\n[5/5] 任务数据');
   const dataDir = join(PROJECT_ROOT, '.delivery');
@@ -234,8 +240,8 @@ async function removeData() {
     return;
   }
 
-  if (FLAG_KEEP_DATA) {
-    skip('.delivery/ 已保留（--keep-data）');
+  if (!FLAG_PURGE_DATA) {
+    skip('.delivery/ 已保留（数据目录，需 --purge-data 才删除）');
     return;
   }
 
@@ -261,6 +267,7 @@ await removeData();
 
 log(`
 卸载完成。
+  - 已保留 .opencode/agent/delivery-*.md（可能被自定义过，如需删除加 --purge-agents）
+  - 已保留 .delivery/ 任务数据（如需删除加 --purge-data）
   若需重新安装，请运行：node delivery-mcp-server/install.js --release
-  若保留了任务数据（--keep-data），重新安装后数据会自动恢复。
 `);

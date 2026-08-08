@@ -217,7 +217,7 @@ npm run dashboard
 
 ## MCP 工具一览
 
-> 每次启动自动检测新版本，更新需主动触发（`update.check` 查看、`update.apply` 更新）。
+> 每次启动自动检测新版本，检测到新版本时启动日志会提示；更新统一走 `node delivery-mcp-server/install.js --release`。
 
 | 工具 | 说明 |
 |---|---|
@@ -236,7 +236,6 @@ npm run dashboard
 | `context.get_shared` / `context.update` | 读写共享上下文 |
 | `question.create` / `question.resolve` | 创建/解决阻塞问题 |
 | `update.check` | 检查系统新版本，可选 force 强制重新检测 |
-| `update.apply` | 从 GitHub Releases 手动更新工具本体，需 confirm:true |
 
 ---
 
@@ -299,7 +298,7 @@ node delivery-mcp-server/install.js --release
 
 脚本会自动下载最新 Release → 覆盖 `delivery-mcp-server/` 工具本体 + `delivery-*.md` 角色配置 → 重新构建。**保留 `.delivery` 任务数据**与 `opencode.json` 中的自定义配置。
 
-或者使用 MCP 工具：`update.check` 查看版本、`update.apply`（需 `confirm: true`）更新。
+或使用 `update.check` 查看版本状态，然后运行 `node delivery-mcp-server/install.js --release` 更新。
 
 更新后需**重启 OpenCode** 生效。
 

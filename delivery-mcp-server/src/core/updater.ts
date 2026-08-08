@@ -1,24 +1,19 @@
-import { spawn } from 'node:child_process';
-import type { Dirent } from 'node:fs';
-import { copyFile, readdir, rename, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { ensureDir, exists, readJson, writeJsonAtomic } from './fsx.js';
+import { readJson, writeJsonAtomic } from './fsx.js';
 import { packageRoot } from './locate.js';
 
 /**
- * 版本检测 + 自动更新（更新核心）。
+ * 版本检测（更新检测）。
  *
  * - 版本源：GitHub Releases。仓库 baiyulong/ai-multiple-agent-delivery-system。
- * - 启动自动检测（后台静默，失败不阻塞）；更新需手动触发（update.apply）。
- * - 用户数据（<root>/tasks 等）绝不触碰；只替换 delivery-mcp-server 工具本体
- *   与 .opencode/agent/delivery-*.md 角色文件（工具所有，覆盖安全）。
+ * - 启动自动检测（后台静默，失败不阻塞）；仅提示，不做自动更新。
+ * - 更新统一走 install.js --release（停进程 → 下载 → 删除旧版 → 拷贝 → 构建 → 启动）。
+ *   不在 MCP 进程内执行，避免 Windows 文件锁与无法自停自身的问题。
  */
 
 const GITHUB_OWNER = 'baiyulong';
 const GITHUB_REPO = 'ai-multiple-agent-delivery-system';
 const GITHUB_API_URL = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`;
-const GITHUB_CLONE_URL = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}.git`;
 
 /** 更新状态文件结构 */
 export interface UpdateState {
@@ -154,147 +149,6 @@ export async function checkForUpdates(root: string, opts: { force?: boolean } = 
   }
 }
 
-function spawnCmd(cmd: string, args: string[], cwd: string, opts: { shell?: boolean } = {}): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const child = spawn(cmd, args, { cwd, stdio: 'ignore', shell: opts.shell === true });
-    child.on('error', reject);
-    child.on('close', (code) => {
-      if (code === 0) resolve();
-      else reject(new Error(`${cmd} ${args.join(' ')} 退出码 ${code}`));
-    });
-  });
-}
-
-async function runGit(args: string[], cwd: string): Promise<void> {
-  await spawnCmd('git', args, cwd);
-}
-
-async function runNpm(args: string[], cwd: string): Promise<void> {
-  // Windows 上 .cmd 需经 shell 执行（否则 spawn EINVAL），用 shell:true 跨平台统一
-  await spawnCmd('npm', args, cwd, { shell: true });
-}
-
-/** 递归拷贝目录，可选跳过某些顶层子目录 */
-async function copyDir(src: string, dest: string, opts: { skip?: Set<string> } = {}): Promise<void> {
-  await ensureDir(dest);
-  const entries = await readdir(src, { withFileTypes: true });
-  for (const ent of entries) {
-    if (opts.skip?.has(ent.name)) continue;
-    const s = join(src, ent.name);
-    const d = join(dest, ent.name);
-    if (ent.isDirectory()) {
-      await copyDir(s, d, opts);
-    } else {
-      await copyFile(s, d);
-    }
-  }
-}
-
-/** 拷贝 .opencode/agent 下的 delivery-*.md 角色文件（覆盖） */
-async function copyAgentFiles(srcDir: string, destDir: string): Promise<void> {
-  let entries: Dirent[] = [];
-  try {
-    entries = await readdir(srcDir, { withFileTypes: true });
-  } catch {
-    return;
-  }
-  await ensureDir(destDir);
-  for (const ent of entries) {
-    if (ent.isFile() && /^delivery-.*\.md$/.test(ent.name)) {
-      await copyFile(join(srcDir, ent.name), join(destDir, ent.name));
-    }
-  }
-}
-
-/**
- * 应用更新（手动触发）：
- * 1. 调 checkForUpdates(force=true)，若无新版本返回 { applied:false, reason:'up_to_date' }
- * 2. git clone 拉取最新 tag 到 os.tmpdir() 下唯一目录
- * 3. 校验 {tmp}/delivery-mcp-server/package.json 存在
- * 4. 备份现有 <root>/delivery-mcp-server → .bak-{ts}（rm+rename 兜底）
- * 5. 拷贝新 server（跳过 node_modules/.git/dist）
- * 6. 拷贝 .opencode/agent/delivery-*.md → <root>/.opencode/agent/
- * 7. 新目录执行 npm install && npm run build（Windows 用 npm.cmd）
- * 8. 成功：删除备份，写 applied_at
- * 9. 任一步失败：恢复备份、删除半成品、返回结构化失败
- * 10. 清理 tmpDir
- */
-export async function applyUpdate(
-  root: string,
-): Promise<{ applied: boolean; reason: string; from?: string; to?: string; error?: string }> {
-  let check: UpdateState;
-  try {
-    check = await checkForUpdates(root, { force: true });
-  } catch (e) {
-    return { applied: false, reason: 'check_failed', error: e instanceof Error ? e.message : String(e) };
-  }
-
-  if (!check.latest_tag) {
-    return { applied: false, reason: check.notes === 'no_releases' ? 'no_releases' : 'up_to_date' };
-  }
-  if (check.latest_version && compareVersions(check.latest_version, check.current_version) <= 0) {
-    return { applied: false, reason: 'up_to_date' };
-  }
-
-  const latestTag = check.latest_tag;
-  const from = check.current_version;
-  const to = check.latest_version ?? latestTag;
-
-  const tmpDir = join(tmpdir(), `delivery-update-${Date.now()}`);
-  const serverDir = join(root, 'delivery-mcp-server');
-  let backupDir: string | null = null;
-
-  try {
-    // 2. clone
-    await ensureDir(tmpDir);
-    await runGit(['clone', '--depth', '1', '--branch', latestTag, GITHUB_CLONE_URL, tmpDir], tmpdir());
-
-    // 3. 校验
-    if (!(await exists(join(tmpDir, 'delivery-mcp-server', 'package.json')))) {
-      throw new Error('克隆的仓库中未找到 delivery-mcp-server/package.json');
-    }
-
-    // 4. 备份（rm+rename 兜底）
-    if (await exists(serverDir)) {
-      backupDir = `${serverDir}.bak-${Date.now()}`;
-      await rm(backupDir, { recursive: true, force: true });
-      await rename(serverDir, backupDir);
-    }
-
-    // 5. 拷贝新 server（跳过 node_modules/.git/dist）
-    const tmpServer = join(tmpDir, 'delivery-mcp-server');
-    await copyDir(tmpServer, serverDir, { skip: new Set(['node_modules', '.git', 'dist']) });
-
-    // 6. 拷贝角色文件
-    await copyAgentFiles(join(tmpDir, '.opencode', 'agent'), join(root, '.opencode', 'agent'));
-
-    // 7. 重新 install + build
-    await runNpm(['install'], serverDir);
-    await runNpm(['run', 'build'], serverDir);
-
-    // 8. 成功：删除备份，写 applied_at
-    if (backupDir) {
-      await rm(backupDir, { recursive: true, force: true });
-      backupDir = null;
-    }
-    const state = await checkForUpdates(root, { force: true });
-    await writeUpdateState(root, { ...state, applied_at: new Date().toISOString() });
-
-    return { applied: true, reason: 'ok', from, to };
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    // 9. 失败恢复备份
-    if (backupDir && (await exists(backupDir))) {
-      await rm(serverDir, { recursive: true, force: true });
-      await rename(backupDir, serverDir);
-    }
-    return { applied: false, reason: 'error', error: msg };
-  } finally {
-    // 10. 清理 tmpDir
-    await rm(tmpDir, { recursive: true, force: true });
-  }
-}
-
 /**
  * 启动时触发（异步、静默）：
  * DELIVERY_UPDATE_CHECK !== '0' 时 fire-and-forget checkForUpdates(root)（内部已吞错）。
@@ -305,7 +159,7 @@ export function startBackgroundUpdateCheck(root: string): void {
   checkForUpdates(root)
     .then((state) => {
       if (state.update_available && state.latest_version) {
-        console.error(`[delivery] 发现新版本 ${state.latest_version}，可调用 update.apply 更新`);
+        console.error(`[delivery] 发现新版本 ${state.latest_version}，请运行 node delivery-mcp-server/install.js --release 更新`);
       }
     })
     .catch(() => {

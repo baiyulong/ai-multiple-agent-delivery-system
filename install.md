@@ -316,7 +316,7 @@ node delivery-mcp-server/install.js --release
 ### 方式二：MCP 工具更新
 
 - **每次启动自动检测**：OpenCode 启动拉起 MCP server 时，server 自动异步检测新版本（基于 GitHub Releases），检测到新版本会在启动日志打印提示；无网络时静默跳过，不影响启动。
-- **手动更新**：用 `update.check` 查看版本状态（可选 `force` 强制重新检测）；用 `update.apply`（需 `confirm: true`）手动拉取并更新工具本体。
+- **手动更新**：用 `update.check` 查看版本状态（可选 `force` 强制重新检测），然后运行 `node delivery-mcp-server/install.js --release` 完成更新。
 
 更新后需**重启 OpenCode** 生效。可用环境变量 `DELIVERY_UPDATE_CHECK=0` 关闭自动检测。
 
@@ -352,8 +352,11 @@ A：设置环境变量 `DELIVERY_ROOT` 指向目标目录。
 # 在目标项目根目录执行（自动停止运行中的进程并清理）
 node delivery-mcp-server/uninstall.js
 
-# 保留任务数据（仅移除工具本体，保留 .delivery/）
-node delivery-mcp-server/uninstall.js --keep-data
+# 同时删除 .delivery/ 任务数据（默认保留）
+node delivery-mcp-server/uninstall.js --purge-data
+
+# 同时删除 .opencode/agent/delivery-*.md（默认保留，可能被自定义过）
+node delivery-mcp-server/uninstall.js --purge-agents
 
 # 预览将要执行的操作
 node delivery-mcp-server/uninstall.js --dry-run
@@ -362,14 +365,14 @@ node delivery-mcp-server/uninstall.js --dry-run
 脚本会自动：
 1. 停止运行中的 dashboard 与 MCP server 进程
 2. 删除 `delivery-mcp-server/` 目录
-3. 删除 `.opencode/agent/delivery-*.md` 角色配置（只删 delivery 前缀，不碰其他 agent）
+3. 保留 `.opencode/agent/delivery-*.md` 角色配置（可能被自定义过，默认不删；加 `--purge-agents` 才删除）
 4. 移除 `opencode.json` 中的 `mcp.delivery` 配置
-5. 可选删除 `.delivery/` 任务数据目录（默认删除，加 `--keep-data` 保留）
+5. 保留 `.delivery/` 任务数据目录（默认不删；加 `--purge-data` 才删除）
 
 ### 方式二：手动卸载
 
 1. 停止 dashboard（Ctrl+C 关闭看板窗口）和退出 OpenCode（释放 MCP server）
 2. 从 `opencode.json` 移除 `mcp.delivery` 配置
 3. 删除 `delivery-mcp-server/` 目录
-4. 删除 `.opencode/agent/delivery-*.md`（只删 delivery 前缀文件）
-5. 可选：删除 `.delivery/` 目录（任务数据）
+4. `.opencode/agent/delivery-*.md` 保留（可能被自定义过，如确实要删除只删 delivery 前缀文件）
+5. `.delivery/` 目录保留（任务数据，如确实要删除再手动删）
