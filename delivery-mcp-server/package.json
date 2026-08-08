@@ -1,6 +1,6 @@
 {
   "name": "delivery-mcp-server",
-  "version": "0.2.9",
+  "version": "0.2.10",
   "description": "AI Delivery Task System MCP Server: task state, artifact gates and seven-role delivery workflow for OpenCode",
   "type": "module",
   "bin": {
