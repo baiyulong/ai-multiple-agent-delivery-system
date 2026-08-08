@@ -346,8 +346,30 @@ A：设置环境变量 `DELIVERY_ROOT` 指向目标目录。
 
 ## 八、卸载
 
-1. 从 `opencode.json` 移除 `delivery` MCP 配置（只删 `mcp.delivery` 字段，保留其他配置）。
-2. 删除目标项目下的 `delivery-mcp-server/` 目录。
-3. 删除目标项目下的 `.opencode/agent/delivery-*.md`（**只删 delivery 前缀文件，不要删整个 agent 目录**，避免误删目标项目已有 agent）。
-4. 可选：删除 `.delivery/` 目录（任务数据）。
-5. 可选：从目标项目 `.gitignore` 移除 `delivery-mcp-server` 条目。
+### 方式一：一键卸载（推荐）
+
+```bash
+# 在目标项目根目录执行（自动停止运行中的进程并清理）
+node delivery-mcp-server/uninstall.js
+
+# 保留任务数据（仅移除工具本体，保留 .delivery/）
+node delivery-mcp-server/uninstall.js --keep-data
+
+# 预览将要执行的操作
+node delivery-mcp-server/uninstall.js --dry-run
+```
+
+脚本会自动：
+1. 停止运行中的 dashboard 与 MCP server 进程
+2. 删除 `delivery-mcp-server/` 目录
+3. 删除 `.opencode/agent/delivery-*.md` 角色配置（只删 delivery 前缀，不碰其他 agent）
+4. 移除 `opencode.json` 中的 `mcp.delivery` 配置
+5. 可选删除 `.delivery/` 任务数据目录（默认删除，加 `--keep-data` 保留）
+
+### 方式二：手动卸载
+
+1. 停止 dashboard（Ctrl+C 关闭看板窗口）和退出 OpenCode（释放 MCP server）
+2. 从 `opencode.json` 移除 `mcp.delivery` 配置
+3. 删除 `delivery-mcp-server/` 目录
+4. 删除 `.opencode/agent/delivery-*.md`（只删 delivery 前缀文件）
+5. 可选：删除 `.delivery/` 目录（任务数据）
