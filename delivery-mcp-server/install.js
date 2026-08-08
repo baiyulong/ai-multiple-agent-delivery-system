@@ -22,7 +22,7 @@
  *   - opencode.json 只合并新增 mcp.delivery，保留目标项目全部字段
   *   - .gitignore 幂等追加（忽略工具本体 delivery-mcp-server；email.json 是团队共享发件配置，随仓库提交）
  */
-import { cp, mkdir, readFile, realpath, writeFile, rm } from 'node:fs/promises';
+import { cp, mkdir, readFile, realpath, writeFile, rm, rename } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { dirname, join } from 'node:path';
@@ -347,11 +347,24 @@ if (existsSync(join(targetReal, 'delivery-mcp-server'))) {
 log(`\n[1/6] 拷贝 delivery-mcp-server → ${targetReal}`);
 const srcServer = join(repoReal, 'delivery-mcp-server');
 const dstServer = join(targetReal, 'delivery-mcp-server');
+let serverBackupDir = null; // 更新模式下旧版备份，成功后删除
 if (existsSync(srcServer)) {
   if (existsSync(dstServer)) {
-    skip('delivery-mcp-server');
-    if (!existsSync(join(dstServer, 'package.json'))) {
-      warn('目标目录的 delivery-mcp-server 不完整（缺少 package.json），建议删除后重装。');
+    if (FLAG_RELEASE) {
+      // 更新模式：备份旧版后强制替换，避免旧代码残留
+      serverBackupDir = `${dstServer}.bak-${Date.now()}`;
+      if (!FLAG_DRY) {
+        await rm(serverBackupDir, { recursive: true, force: true });
+        await rename(dstServer, serverBackupDir);
+      }
+      log('  更新模式：旧版已备份到 ' + serverBackupDir);
+      await copyDirSafe(srcServer, dstServer);
+      ok('delivery-mcp-server 已更新');
+    } else {
+      skip('delivery-mcp-server');
+      if (!existsSync(join(dstServer, 'package.json'))) {
+        warn('目标目录的 delivery-mcp-server 不完整（缺少 package.json），建议删除后重装。');
+      }
     }
   } else {
     await copyDirSafe(srcServer, dstServer);
@@ -362,7 +375,7 @@ if (existsSync(srcServer)) {
 }
 
 // ---------- 3. 拷贝 agent 配置（只新增 delivery-*） ----------
-log(`\n[2/6] 拷贝角色 Agent 配置（仅 delivery-* 前缀，不覆盖已有文件）`);
+log(`\n[2/6] 拷贝角色 Agent 配置（仅 delivery-* 前缀${FLAG_RELEASE ? '，更新模式覆盖已有文件' : '，不覆盖已有文件'}）`);
 const srcAgents = join(repoReal, '.opencode', 'agent');
 const dstAgents = join(targetReal, '.opencode', 'agent');
 if (existsSync(srcAgents)) {
@@ -373,16 +386,16 @@ if (existsSync(srcAgents)) {
   let copied = 0;
   for (const f of files) {
     const dst = join(dstAgents, f);
-    if (existsSync(dst)) {
+    if (existsSync(dst) && !FLAG_RELEASE) {
       skip(`agent/${f}`);
     } else if (FLAG_DRY) {
-      log(`  - 将拷贝 agent/${f}`);
+      log(`  - 将拷贝 agent/${f}${existsSync(dst) ? '（覆盖）' : ''}`);
     } else {
-      await cp(join(srcAgents, f), dst);
+      await cp(join(srcAgents, f), dst, { force: true });
       copied++;
     }
   }
-  if (FLAG_DRY) ok(`将拷贝 ${files.filter((f) => !existsSync(join(dstAgents, f))).length} 个角色 Agent（delivery-*.md）`);
+  if (FLAG_DRY) ok(`将拷贝 ${files.length} 个角色 Agent（delivery-*.md）`);
   else if (copied === 0) ok('已是最新（所有 delivery-*.md 均已存在）');
   else ok(`已拷贝 ${copied} 个角色 Agent（delivery-*.md）`);
 } else {
@@ -426,8 +439,25 @@ if (!FLAG_DRY && existsSync(dstServer)) {
     await run('install', dstServer);
     await run('run build', dstServer);
     ok('构建完成：delivery-mcp-server/dist/server.js');
+    // 构建成功后删除更新备份
+    if (serverBackupDir && existsSync(serverBackupDir)) {
+      await rm(serverBackupDir, { recursive: true, force: true });
+      ok(`已删除更新备份：${serverBackupDir}`);
+      serverBackupDir = null;
+    }
   } catch (e) {
     warn(`依赖安装/构建失败：${e.message}。可稍后在 ${dstServer} 手动执行 npm install && npm run build。`);
+    // 更新模式构建失败：恢复旧版备份，避免半成品
+    if (serverBackupDir && existsSync(serverBackupDir)) {
+      try {
+        await rm(dstServer, { recursive: true, force: true });
+        await rename(serverBackupDir, dstServer);
+        ok(`已回滚到旧版：${dstServer}`);
+        serverBackupDir = null;
+      } catch (rollbackErr) {
+        warn(`回滚失败：${rollbackErr.message}。旧版备份仍在 ${serverBackupDir}，请手动恢复。`);
+      }
+    }
   }
 } else if (FLAG_DRY) {
   log('  - 将执行 npm install && npm run build（delivery-mcp-server 目录）');

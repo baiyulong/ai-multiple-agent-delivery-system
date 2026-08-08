@@ -154,9 +154,9 @@ export async function checkForUpdates(root: string, opts: { force?: boolean } = 
   }
 }
 
-function spawnCmd(cmd: string, args: string[], cwd: string): Promise<void> {
+function spawnCmd(cmd: string, args: string[], cwd: string, opts: { shell?: boolean } = {}): Promise<void> {
   return new Promise((resolve, reject) => {
-    const child = spawn(cmd, args, { cwd, stdio: 'ignore' });
+    const child = spawn(cmd, args, { cwd, stdio: 'ignore', shell: opts.shell === true });
     child.on('error', reject);
     child.on('close', (code) => {
       if (code === 0) resolve();
@@ -170,8 +170,8 @@ async function runGit(args: string[], cwd: string): Promise<void> {
 }
 
 async function runNpm(args: string[], cwd: string): Promise<void> {
-  const cmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-  await spawnCmd(cmd, args, cwd);
+  // Windows 上 .cmd 需经 shell 执行（否则 spawn EINVAL），用 shell:true 跨平台统一
+  await spawnCmd('npm', args, cwd, { shell: true });
 }
 
 /** 递归拷贝目录，可选跳过某些顶层子目录 */
