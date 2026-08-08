@@ -43,9 +43,9 @@ node delivery-mcp-server/install.js --repo /tmp/ai-delivery-system
 ```
 
 脚本会自动：
-1. **（--release 模式）** 从 GitHub Release 下载最新稳定版 tar.gz → 解压到临时目录 → 作为源码路径；若无 Release 则提示并退出
+1. **（--release 模式）** 从 GitHub Release 下载最新稳定版 tar.gz → 解压到临时目录 → 作为源码路径；解压目录名兼容带 `v` 与不带 `v` 前缀两种格式；若无 Release 则提示并退出
 2. 校验目标目录（拒绝安装进本仓库自身、拒绝非 git 项目可加 `--force`）
-3. 拷贝 `delivery-mcp-server/` 到目标项目（已存在则跳过并提示）
+3. 拷贝 `delivery-mcp-server/` 到目标项目（已存在时：`--release` / `--force-update` / **本地版本低于源码版本** 三种情况会直接删除旧版并拷贝新版，否则跳过）
 4. 拷贝 `.opencode/agent/` 角色配置到目标项目（**只新增 `delivery-*.md`，绝不覆盖目标项目已有 agent 文件**）
 5. 合并 `opencode.json`：**保留目标项目已有的全部字段**（mcp/plugin/permission/agent 等），只新增 `mcp.delivery`，若已存在同名 mcp 则跳过
 6. 追加 `.gitignore`：`delivery-mcp-server`（幂等）。注意 **`email.json` 不要排除**——它是团队共享的公共发件服务器配置，应随仓库提交，让所有成员复用同一个发件账号，无需各自配置授权码。
@@ -60,6 +60,7 @@ node delivery-mcp-server/install.js                 # 安装到当前目录
 node delivery-mcp-server/install.js /path/to/proj   # 安装到指定项目
 node delivery-mcp-server/install.js --release       # 从 GitHub Release 下载最新稳定版
 node delivery-mcp-server/install.js --repo ../clone # 指定本地仓库路径
+node delivery-mcp-server/install.js --force-update  # 强制覆盖已安装的 delivery-mcp-server（不比较版本）
 node delivery-mcp-server/install.js --dashboard     # 安装后后台启动看板（detached，日志 .delivery/dashboard.log）
 node delivery-mcp-server/install.js --stop-dashboard # 停止看板进程（或 npm run dashboard:stop）
 node delivery-mcp-server/install.js --dry-run       # 只打印将要执行的操作，不改动文件

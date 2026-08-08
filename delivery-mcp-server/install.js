@@ -45,6 +45,7 @@ const targetArg = args.find((a) => !a.startsWith('--'));
 const targetDir = targetArg ?? process.cwd();
 const FLAG_DRY = args.includes('--dry-run');
 const FLAG_FORCE = args.includes('--force');
+const FLAG_FORCE_UPDATE = args.includes('--force-update'); // 强制覆盖已安装文件（不比较版本）
 const FLAG_RELEASE = args.includes('--release');
 const FLAG_DASH = args.includes('--dashboard'); // 显式开启才后台启动看板（默认不自动启动）
 const FLAG_STOP_DASH = args.includes('--stop-dashboard'); // 仅停止看板进程，不执行安装
@@ -70,6 +71,29 @@ function run(cmd, cwd) {
 async function readJsonSafe(file) {
   try {
     return JSON.parse(await readFile(file, 'utf-8'));
+  } catch {
+    return null;
+  }
+}
+
+/** 简单 semver 比较：按 '.' 分段数字比较。返回 >0 表示 a>b */
+function compareVersions(a, b) {
+  const pa = String(a).replace(/^v/i, '').split('.').map((n) => parseInt(n, 10) || 0);
+  const pb = String(b).replace(/^v/i, '').split('.').map((n) => parseInt(n, 10) || 0);
+  const len = Math.max(pa.length, pb.length);
+  for (let i = 0; i < len; i++) {
+    const x = pa[i] ?? 0;
+    const y = pb[i] ?? 0;
+    if (x !== y) return x - y;
+  }
+  return 0;
+}
+
+/** 读取目录下 package.json 的 version，失败返回 null */
+async function readPackageVersion(dir) {
+  try {
+    const pkg = JSON.parse(await readFile(join(dir, 'package.json'), 'utf-8'));
+    return typeof pkg.version === 'string' ? pkg.version : null;
   } catch {
     return null;
   }
@@ -391,15 +415,26 @@ async function downloadFromRelease() {
     }
   }
 
-  // GitHub 解压后目录名为 {repo}-{tag}
-  const extractedName = `${GITHUB_REPO}-${tag}`;
-  const extractedPath = join(extractDir, extractedName);
+  // GitHub 解压后目录名可能是 {repo}-{tag}（tag 带 v，如 v0.2.11），也可能是
+  // {repo}-{tag去掉v}（如 0.2.11）。两种都探测，避免路径不匹配。
+  const extractedCandidates = [
+    `${GITHUB_REPO}-${tag}`,
+    `${GITHUB_REPO}-${tag.replace(/^v/i, '')}`,
+  ];
   if (FLAG_DRY) {
-    log(`  - 解压目录：${extractedPath}`);
-    return extractedPath;
+    log(`  - 解压目录：${extractedCandidates[0]}（或 ${extractedCandidates[1]}）`);
+    return join(extractDir, extractedCandidates[0]);
   }
-  if (!existsSync(extractedPath)) {
-    warn(`解压后未找到目录 ${extractedName}`);
+  let extractedPath = null;
+  for (const name of extractedCandidates) {
+    const candidate = join(extractDir, name);
+    if (existsSync(candidate)) {
+      extractedPath = candidate;
+      break;
+    }
+  }
+  if (!extractedPath) {
+    warn(`解压后未找到目录 ${extractedCandidates.join(' / ')}`);
     return null;
   }
   ok(`源码路径：${extractedPath}`);
@@ -457,7 +492,19 @@ const srcServer = join(repoReal, 'delivery-mcp-server');
 const dstServer = join(targetReal, 'delivery-mcp-server');
 if (existsSync(srcServer)) {
   if (existsSync(dstServer)) {
-    if (FLAG_RELEASE) {
+    // 判断是否需要覆盖更新：--release 更新、--force-update 强制覆盖、
+    // 或本地版本低于源码版本（自动更新，解决"已存在则跳过"导致版本不更新）
+    let shouldUpdate = FLAG_RELEASE || FLAG_FORCE_UPDATE;
+    let versionNote = '';
+    if (!shouldUpdate) {
+      const localVer = await readPackageVersion(dstServer);
+      const srcVer = await readPackageVersion(srcServer);
+      if (localVer && srcVer && compareVersions(srcVer, localVer) > 0) {
+        shouldUpdate = true;
+        versionNote = `（本地 ${localVer} → ${srcVer}）`;
+      }
+    }
+    if (shouldUpdate) {
       // 更新模式：直接删除旧版后拷贝新版本（进程已在 1.5 停止，避免文件锁定）
       if (!FLAG_DRY) {
         await rm(dstServer, { recursive: true, force: true });
@@ -465,7 +512,7 @@ if (existsSync(srcServer)) {
         log(`  - 将删除旧版 ${dstServer} 并拷贝新版`);
       }
       await copyDirSafe(srcServer, dstServer);
-      ok('delivery-mcp-server 已更新');
+      ok('delivery-mcp-server 已更新' + versionNote);
     } else {
       skip('delivery-mcp-server');
       if (!existsSync(join(dstServer, 'package.json'))) {
