@@ -106,6 +106,115 @@ async function copyDirSafe(src, dest) {
   }
 }
 
+// ---------- 停止目标项目中运行中的进程 ----------
+async function stopTargetProcesses(targetDir) {
+  log('\n[1/5] 停止目标项目中运行中的进程');
+
+  // 读取 dashboard.port 获取端口
+  let dashboardPort = '8787';
+  try {
+    const portFile = join(targetDir, '.delivery', 'dashboard.port');
+    const portContent = await readFile(portFile, 'utf-8');
+    dashboardPort = portContent.trim() || '8787';
+  } catch {
+    // 使用默认端口
+  }
+
+  let stopped = false;
+
+  if (process.platform === 'win32') {
+    try {
+      const result = await new Promise((resolve, reject) => {
+        const child = spawn('netstat', ['-ano'], { shell: true });
+        let output = '';
+        child.stdout?.on('data', (d) => (output += d));
+        child.on('exit', () => resolve(output));
+        child.on('error', reject);
+      });
+
+      const lines = result.split('\n');
+      for (const line of lines) {
+        if (line.includes(`:${dashboardPort}`) && (line.includes('LISTENING') || line.includes('ESTABLISHED'))) {
+          const parts = line.trim().split(/\s+/);
+          const pid = parts[parts.length - 1];
+          if (pid && pid !== '0') {
+            log(`  停止 dashboard 进程 (PID: ${pid}, 端口: ${dashboardPort})`);
+            if (!FLAG_DRY) {
+              spawn('taskkill', ['/F', '/PID', pid], { shell: true, stdio: 'ignore' });
+              stopped = true;
+            }
+          }
+        }
+      }
+
+      // 停止 MCP server 进程
+      const result2 = await new Promise((resolve, reject) => {
+        const child = spawn('wmic', ['process', 'where', 'commandline like "%delivery-mcp-server%"', 'get', 'processid'], { shell: true });
+        let output = '';
+        child.stdout?.on('data', (d) => (output += d));
+        child.on('exit', () => resolve(output));
+        child.on('error', reject);
+      });
+
+      const lines2 = result2.split('\n').slice(1);
+      for (const line of lines2) {
+        const pid = line.trim();
+        if (pid && /^\d+$/.test(pid)) {
+          log(`  停止 MCP server 进程 (PID: ${pid})`);
+          if (!FLAG_DRY) {
+            spawn('taskkill', ['/F', '/PID', pid], { shell: true, stdio: 'ignore' });
+            stopped = true;
+          }
+        }
+      }
+    } catch {
+      // 忽略错误
+    }
+  } else {
+    try {
+      const result = await new Promise((resolve, reject) => {
+        const child = spawn('sh', ['-c', `lsof -ti:${dashboardPort}`], { stdio: ['ignore', 'pipe', 'ignore'] });
+        let output = '';
+        child.stdout?.on('data', (d) => (output += d));
+        child.on('exit', () => resolve(output));
+        child.on('error', reject);
+      });
+
+      const pids = result.trim().split('\n').filter(Boolean);
+      for (const pid of pids) {
+        log(`  停止 dashboard 进程 (PID: ${pid}, 端口: ${dashboardPort})`);
+        if (!FLAG_DRY) {
+          spawn('kill', ['-9', pid], { stdio: 'ignore' });
+          stopped = true;
+        }
+      }
+
+      // 停止 MCP server 进程
+      const result2 = await new Promise((resolve, reject) => {
+        const child = spawn('sh', ['-c', 'ps aux | grep "delivery-mcp-server/dist/server.js" | grep -v grep | awk \'{print $2}\''], { stdio: ['ignore', 'pipe', 'ignore'] });
+        let output = '';
+        child.stdout?.on('data', (d) => (output += d));
+        child.on('exit', () => resolve(output));
+        child.on('error', reject);
+      });
+
+      const pids2 = result2.trim().split('\n').filter(Boolean);
+      for (const pid of pids2) {
+        log(`  停止 MCP server 进程 (PID: ${pid})`);
+        if (!FLAG_DRY) {
+          spawn('kill', ['-9', pid], { stdio: 'ignore' });
+          stopped = true;
+        }
+      }
+    } catch {
+      // 忽略错误
+    }
+  }
+
+  if (stopped) ok('进程已停止');
+  else skip('未发现运行中的进程');
+}
+
 // ---------- 0. 从 GitHub Release 下载（可选） ----------
 async function downloadFromRelease() {
   const apiUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`;
@@ -226,6 +335,11 @@ const hasGit = existsSync(join(targetReal, '.git'));
 if (!hasGit && !FLAG_FORCE) {
   console.error(`\n错误：${targetReal} 不是 git 仓库。交付系统建议在 git 项目中安装（.gitignore 保护敏感配置）。\n如确实要在非 git 目录使用，请加 --force。\n`);
   process.exit(1);
+}
+
+// ---------- 1.5 停止运行中的进程（更新时避免文件锁定） ----------
+if (existsSync(join(targetReal, 'delivery-mcp-server'))) {
+  await stopTargetProcesses(targetReal);
 }
 
 // ---------- 2. 拷贝 delivery-mcp-server ----------
