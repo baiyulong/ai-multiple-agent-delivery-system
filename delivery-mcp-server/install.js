@@ -22,7 +22,7 @@
  *   - opencode.json 只合并新增 mcp.delivery，保留目标项目全部字段
   *   - .gitignore 幂等追加（忽略工具本体 delivery-mcp-server；email.json 是团队共享发件配置，随仓库提交）
  */
-import { cp, mkdir, readFile, realpath, writeFile, rm } from 'node:fs/promises';
+import { cp, mkdir, readFile, realpath, writeFile, rm, readdir, readlink } from 'node:fs/promises';
 import { existsSync, createWriteStream } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { dirname, join } from 'node:path';
@@ -131,6 +131,119 @@ async function copyDirSafe(src, dest) {
   }
 }
 
+/** 跨平台：按端口查找监听进程 PID 列表（Linux 优先 /proc 零依赖解析，再兜底 ss/lsof/fuser） */
+async function findPidsByPort(port) {
+  const pids = new Set();
+
+  if (process.platform === 'win32') {
+    try {
+      const result = await new Promise((resolve, reject) => {
+        const child = spawn('netstat', ['-ano'], { shell: true });
+        let output = '';
+        child.stdout?.on('data', (d) => (output += d));
+        child.on('exit', () => resolve(output));
+        child.on('error', reject);
+      });
+      for (const line of result.split('\n')) {
+        if (line.includes(`:${port}`) && (line.includes('LISTENING') || line.includes('ESTABLISHED'))) {
+          const parts = line.trim().split(/\s+/);
+          const pid = parts[parts.length - 1];
+          if (pid && pid !== '0') pids.add(pid);
+        }
+      }
+      return [...pids];
+    } catch {
+      return [];
+    }
+  }
+
+  // Linux：优先直接解析 /proc/net/tcp + /proc/*/fd 的 socket inode 映射，不依赖 lsof
+  if (process.platform === 'linux') {
+    try {
+      const hexPort = parseInt(port, 10).toString(16).toUpperCase();
+      const wantedInodes = new Set();
+      for (const f of ['/proc/net/tcp', '/proc/net/tcp6']) {
+        let text = '';
+        try {
+          text = await readFile(f, 'utf-8');
+        } catch {
+          continue;
+        }
+        for (const line of text.split('\n').slice(1)) {
+          // 列: sl local_address rem_address st ... inode
+          const cols = line.trim().split(/\s+/);
+          if (cols.length < 10) continue;
+          const local = cols[1]; // 形如 0100007F:2251 或 0000000000000000FFFF00000100007F:2251
+          const st = cols[3]; // 0A = LISTEN
+          if (st !== '0A') continue;
+          const portPart = local.split(':').pop();
+          if (portPart === hexPort) wantedInodes.add(cols[9]);
+        }
+      }
+      if (wantedInodes.size > 0) {
+        const procEntries = await readdir('/proc');
+        for (const pid of procEntries) {
+          if (!/^\d+$/.test(pid)) continue;
+          try {
+            const fdEntries = await readdir(`/proc/${pid}/fd`);
+            for (const fd of fdEntries) {
+              try {
+                const link = await readlink(`/proc/${pid}/fd/${fd}`);
+                const m = link.match(/^socket:\[(\d+)\]$/);
+                if (m && wantedInodes.has(m[1])) {
+                  pids.add(pid);
+                  break;
+                }
+              } catch {
+                // 忽略单 fd 读取失败
+              }
+            }
+          } catch {
+            // 忽略单进程 fd 目录读取失败（权限/已退出）
+          }
+        }
+      }
+    } catch {
+      // 忽略 /proc 解析失败
+    }
+    if (pids.size > 0) return [...pids];
+    // 兜底：ss / lsof / fuser
+    for (const cmd of [`ss -tlnp 'sport = :${port}'`, `lsof -ti:${port}`, `fuser ${port}/tcp`]) {
+      try {
+        const result = await new Promise((resolve, reject) => {
+          const child = spawn('sh', ['-c', cmd], { stdio: ['ignore', 'pipe', 'ignore'] });
+          let output = '';
+          child.stdout?.on('data', (d) => (output += d));
+          child.on('exit', () => resolve(output));
+          child.on('error', reject);
+        });
+        const found = result.trim().split('\n').filter(Boolean);
+        if (found.length > 0) {
+          found.forEach((p) => pids.add(String(p).trim()));
+          return [...pids];
+        }
+      } catch {
+        // 继续尝试下一个命令
+      }
+    }
+    return [];
+  }
+
+  // macOS 等 Unix：lsof 通常可用
+  try {
+    const result = await new Promise((resolve, reject) => {
+      const child = spawn('sh', ['-c', `lsof -ti:${port}`], { stdio: ['ignore', 'pipe', 'ignore'] });
+      let output = '';
+      child.stdout?.on('data', (d) => (output += d));
+      child.on('exit', () => resolve(output));
+      child.on('error', reject);
+    });
+    return result.trim().split('\n').filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
 // ---------- 停止目标项目中运行中的进程 ----------
 async function stopTargetProcesses(targetDir) {
   log('\n[1/5] 停止目标项目中运行中的进程');
@@ -197,16 +310,8 @@ async function stopTargetProcesses(targetDir) {
     }
   } else {
     try {
-      const result = await new Promise((resolve, reject) => {
-        const child = spawn('sh', ['-c', `lsof -ti:${dashboardPort}`], { stdio: ['ignore', 'pipe', 'ignore'] });
-        let output = '';
-        child.stdout?.on('data', (d) => (output += d));
-        child.on('exit', () => resolve(output));
-        child.on('error', reject);
-      });
-
-      const pids = result.trim().split('\n').filter(Boolean);
-      for (const pid of pids) {
+      const dashboardPids = await findPidsByPort(dashboardPort);
+      for (const pid of dashboardPids) {
         log(`  停止 dashboard 进程 (PID: ${pid}, 端口: ${dashboardPort})`);
         if (!FLAG_DRY) {
           spawn('kill', ['-9', pid], { stdio: 'ignore' });
@@ -324,15 +429,8 @@ async function stopDashboardProcess(targetDir) {
     }
   } else {
     try {
-      const result = await new Promise((resolve, reject) => {
-        const child = spawn('sh', ['-c', `lsof -ti:${dashboardPort}`], { stdio: ['ignore', 'pipe', 'ignore'] });
-        let output = '';
-        child.stdout?.on('data', (d) => (output += d));
-        child.on('exit', () => resolve(output));
-        child.on('error', reject);
-      });
-      const pids = result.trim().split('\n').filter(Boolean);
-      for (const pid of pids) {
+      const dashboardPids = await findPidsByPort(dashboardPort);
+      for (const pid of dashboardPids) {
         log(`  停止 dashboard 进程 (PID: ${pid}, 端口: ${dashboardPort})`);
         spawn('kill', ['-9', pid], { stdio: 'ignore' });
         stopped = true;
