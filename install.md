@@ -325,6 +325,15 @@ node delivery-mcp-server/install.js --release
 
 脚本会自动下载最新 Release → 覆盖 `delivery-mcp-server/` 工具本体 + `delivery-*.md` 角色配置 → 重新构建。**保留 `.delivery` 任务数据**与 `opencode.json` 中的自定义配置。
 
+> **版本对比自动更新**：已存在 `delivery-mcp-server` 时，`--release` / `--force-update` / **本地版本低于源码版本** 三种情况会自动删除旧版并覆盖，其余情况跳过。
+> **Windows 手动更新**（脚本不可用时）：
+> ```powershell
+> # 下载并解压最新 Release 后，在目标项目根目录执行
+> Copy-Item -Recurse -Force "$env:TEMP\ai-delivery-system\delivery-mcp-server" .\delivery-mcp-server
+> Copy-Item -Force "$env:TEMP\ai-delivery-system\.opencode\agent\delivery-*.md" .\.opencode\agent\
+> cd delivery-mcp-server; npm install; npm run build
+> ```
+
 ### 方式二：MCP 工具更新
 
 - **每次启动自动检测**：OpenCode 启动拉起 MCP server 时，server 自动异步检测新版本（基于 GitHub Releases），检测到新版本会在启动日志打印提示；无网络时静默跳过，不影响启动。

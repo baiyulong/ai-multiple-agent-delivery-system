@@ -416,27 +416,27 @@ async function downloadFromRelease() {
   }
 
   // GitHub 解压后目录名可能是 {repo}-{tag}（tag 带 v，如 v0.2.11），也可能是
-  // {repo}-{tag去掉v}（如 0.2.11）。两种都探测，避免路径不匹配。
-  const extractedCandidates = [
-    `${GITHUB_REPO}-${tag}`,
-    `${GITHUB_REPO}-${tag.replace(/^v/i, '')}`,
-  ];
+  // {repo}-{tag去掉v}（如 0.2.11）。不猜名字，直接扫描解压目录下
+  // 含 delivery-mcp-server/package.json 的子目录，兼容任意命名格式。
   if (FLAG_DRY) {
-    log(`  - 解压目录：${extractedCandidates[0]}（或 ${extractedCandidates[1]}）`);
-    return join(extractDir, extractedCandidates[0]);
+    log(`  - 解压目录：${extractDir} 下含 delivery-mcp-server 的子目录`);
+    return join(extractDir, `${GITHUB_REPO}-${tag.replace(/^v/i, '')}`);
   }
-  let extractedPath = null;
-  for (const name of extractedCandidates) {
-    const candidate = join(extractDir, name);
-    if (existsSync(candidate)) {
-      extractedPath = candidate;
-      break;
-    }
+  const { readdir } = await import('node:fs/promises');
+  let entries = [];
+  try {
+    entries = await readdir(extractDir, { withFileTypes: true });
+  } catch {
+    entries = [];
   }
-  if (!extractedPath) {
-    warn(`解压后未找到目录 ${extractedCandidates.join(' / ')}`);
+  const found = entries.find(
+    (e) => e.isDirectory() && existsSync(join(extractDir, e.name, 'delivery-mcp-server', 'package.json')),
+  );
+  if (!found) {
+    warn(`解压后未找到含 delivery-mcp-server 的目录（${extractDir}）。请手动下载 Release 包解压后用 --repo 指定路径。`);
     return null;
   }
+  const extractedPath = join(extractDir, found.name);
   ok(`源码路径：${extractedPath}`);
   return extractedPath;
 }
@@ -450,6 +450,19 @@ if (FLAG_DRY) log('（dry-run 模式：仅预览，不改动任何文件）\n');
 // --stop-dashboard：仅停止看板，不执行安装
 if (FLAG_STOP_DASH) {
   await stopDashboardProcess(targetDir);
+  process.exit(0);
+}
+
+// --dashboard 且当前项目已安装：原地后台启动看板，不重复安装
+// （区分"首次安装"与"更新/看板管理"场景，允许在当前目录执行）
+if (
+  FLAG_DASH &&
+  !FLAG_RELEASE &&
+  repoPath === SCRIPT_DIR &&
+  existsSync(join(targetDir, 'delivery-mcp-server', 'package.json'))
+) {
+  log('\n[看板] 当前项目已安装 delivery-mcp-server，直接后台启动看板');
+  await startDashboardDetached(join(targetDir, 'delivery-mcp-server'), targetDir);
   process.exit(0);
 }
 
