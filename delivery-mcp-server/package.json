@@ -18,6 +18,9 @@
     "dev": "tsx src/server.ts",
     "dashboard": "tsx src/dashboard.ts",
     "dashboard:stop": "node install.js --stop-dashboard",
+    "dev:web": "npm --prefix web run dev",
+    "build:web": "npm --prefix web run build",
+    "typecheck:web": "npm --prefix web run typecheck",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "example": "tsx scripts/run-example.ts"

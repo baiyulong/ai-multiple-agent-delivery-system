@@ -387,7 +387,16 @@ async function serveStatic(reqPath: string, res: ServerResponse): Promise<boolea
     const info = await stat(full);
     if (!info.isFile()) return false;
     const data = await readFile(full);
-    res.writeHead(200, { 'Content-Type': MIME[extname(full)] ?? 'application/octet-stream' });
+    // index.html（SPA 壳）no-cache：每次取最新壳，内容引用带 hash 的静态资源
+    // /assets/ 下的 hash 资源可长期缓存（hash 即版本，内容不变文件名不变）
+    const ext = extname(full).toLowerCase();
+    let cacheControl = 'public, max-age=3600';
+    if (ext === '.html') cacheControl = 'no-cache';
+    else if (normalized.startsWith('assets/')) cacheControl = 'public, max-age=31536000, immutable';
+    res.writeHead(200, {
+      'Content-Type': MIME[ext] ?? 'application/octet-stream',
+      'Cache-Control': cacheControl,
+    });
     res.end(data);
     return true;
   } catch {
