@@ -25,7 +25,7 @@
 import { cp, mkdir, readFile, realpath, writeFile, rm, readdir, readlink } from 'node:fs/promises';
 import { existsSync, createWriteStream } from 'node:fs';
 import { spawn } from 'node:child_process';
-import { dirname, join } from 'node:path';
+import { dirname, join, sep } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
@@ -127,7 +127,12 @@ async function copyDirSafe(src, dest) {
       log(`  - 将拷贝 ${ent.name}${ent.isDirectory() ? '/' : ''}`);
       continue;
     }
-    await cp(s, d, { recursive: true, force: false });
+    // 跳过任意层级下的 node_modules（如 web/node_modules），避免把依赖目录拷贝进目标
+    await cp(s, d, {
+      recursive: true,
+      force: false,
+      filter: (p) => !p.split(sep).includes('node_modules'),
+    });
   }
 }
 

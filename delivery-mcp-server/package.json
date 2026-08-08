@@ -7,6 +7,9 @@
     "delivery-mcp-server": "dist/server.js"
   },
   "main": "dist/server.js",
+  "workspaces": [
+    "web"
+  ],
   "files": [
     "dist",
     "config",
@@ -14,7 +17,7 @@
     "README.md"
   ],
   "scripts": {
-    "build": "tsup",
+    "build": "tsup && npm run build:web",
     "dev": "tsx src/server.ts",
     "dashboard": "tsx src/dashboard.ts",
     "dashboard:stop": "node install.js --stop-dashboard",
