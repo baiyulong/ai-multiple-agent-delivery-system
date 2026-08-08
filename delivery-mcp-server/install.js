@@ -1,26 +1,21 @@
 #!/usr/bin/env node
 /**
- * AI 交付任务系统 · 一键安装脚本（Windows / Linux / macOS 通用）
- *
- * 用法：
- *   # 从源码仓库安装（在仓库根目录执行）
- *   node delivery-mcp-server/install.js
+ * AI 交付任务系统 · 一键安装脚本（Windows / Linux / macOS 通用�? *
+ * 用法�? *   # 从源码仓库安装（在仓库根目录执行�? *   node delivery-mcp-server/install.js
  *   # 从源码仓库安装到指定项目
  *   node delivery-mcp-server/install.js /path/to/project
- *   # 从 GitHub Release 下载最新稳定版安装（推荐）
+ *   # �?GitHub Release 下载最新稳定版安装（推荐）
  *   node install.js --release
  *   # 已安装的项目更新到最新版
  *   cd delivery-mcp-server && node install.js --release
  *   node install.js --repo /path/to/source  # 指定本地源码路径
- *   node install.js --dashboard          # 安装后启动浏览器看板
+ *   node install.js --no-dashboard        # 安装后不启动看板
  *   node install.js --dry-run            # 只打印将要执行的操作，不改动文件
  *   node install.js --force              # 目标目录不是 git 仓库时也继续
  *
  * 安全性：
  *   - 拒绝把本仓库自身当作安装目标
- *   - agent 文件只新增 delivery-*.md，绝不覆盖目标项目已有文件
- *   - opencode.json 只合并新增 mcp.delivery，保留目标项目全部字段
-  *   - .gitignore 幂等追加（忽略工具本体 delivery-mcp-server；email.json 是团队共享发件配置，随仓库提交）
+ *   - agent 文件只新�?delivery-*.md，绝不覆盖目标项目已有文�? *   - opencode.json 只合并新�?mcp.delivery，保留目标项目全部字�?  *   - .gitignore 幂等追加（忽略工具本�?delivery-mcp-server；email.json 是团队共享发件配置，随仓库提交）
  */
 import { cp, mkdir, readFile, realpath, writeFile, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
@@ -29,7 +24,7 @@ import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
-const SCRIPT_DIR = dirname(dirname(fileURLToPath(import.meta.url))); // 仓库根目录（脚本在 delivery-mcp-server/ 中，取其父目录）
+const SCRIPT_DIR = dirname(dirname(fileURLToPath(import.meta.url))); // 仓库根目录（脚本�?delivery-mcp-server/ 中，取其父目录）
 const AGENT_PREFIX = 'delivery-';
 
 // ---------- 参数解析 ----------
@@ -45,21 +40,21 @@ const targetArg = args.find((a) => !a.startsWith('--'));
 const targetDir = targetArg ?? process.cwd();
 const FLAG_DRY = args.includes('--dry-run');
 const FLAG_FORCE = args.includes('--force');
-const FLAG_DASH = args.includes('--dashboard');
+const FLAG_NO_DASH = args.includes('--no-dashboard');
 const FLAG_RELEASE = args.includes('--release');
+const FLAG_DASH = !FLAG_NO_DASH; // 默认启动看板，加 --no-dashboard 禁用
 
 const GITHUB_OWNER = 'baiyulong';
 const GITHUB_REPO = 'ai-multiple-agent-delivery-system';
 
 // ---------- 工具 ----------
 const log = (msg) => console.log(msg);
-const ok = (msg) => console.log(`  ✓ ${msg}`);
+const ok = (msg) => console.log(`  �?${msg}`);
 const skip = (msg) => console.log(`  - ${msg}（已存在，跳过）`);
 const warn = (msg) => console.log(`  ! ${msg}`);
 
 function run(cmd, cwd) {
-  // 命令为脚本内固定字符串，拼成完整命令交给 shell 执行（Windows/Linux 通用，避免 DEP0190 警告）
-  return new Promise((resolve, reject) => {
+  // 命令为脚本内固定字符串，拼成完整命令交给 shell 执行（Windows/Linux 通用，避�?DEP0190 警告�?  return new Promise((resolve, reject) => {
     const child = spawn(`npm ${cmd}`, { cwd, stdio: 'inherit', shell: true });
     child.on('error', reject);
     child.on('exit', (code) => (code === 0 ? resolve() : reject(new Error(`npm ${cmd} 退出码 ${code}`))));
@@ -81,7 +76,7 @@ async function gitIgnoreAdd(file, lines) {
   const toAdd = lines.filter((l) => !existing.has(l));
   if (toAdd.length === 0) return false;
   if (FLAG_DRY) {
-    log(`  - 将追加到 .gitignore：${toAdd.join('、')}`);
+    log(`  - 将追加到 .gitignore�?{toAdd.join('�?)}`);
     return false;
   }
   const sep = content && !content.endsWith('\n') ? '\n' : '';
@@ -99,16 +94,16 @@ async function copyDirSafe(src, dest) {
     const s = join(src, ent.name);
     const d = join(dest, ent.name);
     if (FLAG_DRY) {
-      log(`  - 将拷贝 ${ent.name}${ent.isDirectory() ? '/' : ''}`);
+      log(`  - 将拷�?${ent.name}${ent.isDirectory() ? '/' : ''}`);
       continue;
     }
     await cp(s, d, { recursive: true, force: false });
   }
 }
 
-// ---------- 停止目标项目中运行中的进程 ----------
+// ---------- 停止目标项目中运行中的进�?----------
 async function stopTargetProcesses(targetDir) {
-  log('\n[1/5] 停止目标项目中运行中的进程');
+  log('\n[1/5] 停止目标项目中运行中的进�?);
 
   // 读取 dashboard.port 获取端口
   let dashboardPort = '8787';
@@ -211,15 +206,15 @@ async function stopTargetProcesses(targetDir) {
     }
   }
 
-  if (stopped) ok('进程已停止');
-  else skip('未发现运行中的进程');
+  if (stopped) ok('进程已停�?);
+  else skip('未发现运行中的进�?);
 }
 
-// ---------- 0. 从 GitHub Release 下载（可选） ----------
+// ---------- 0. �?GitHub Release 下载（可选） ----------
 async function downloadFromRelease() {
   const apiUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`;
-  log(`\n[0] 从 GitHub Release 下载最新稳定版`);
-  log(`    仓库：${GITHUB_OWNER}/${GITHUB_REPO}`);
+  log(`\n[0] �?GitHub Release 下载最新稳定版`);
+  log(`    仓库�?{GITHUB_OWNER}/${GITHUB_REPO}`);
 
   let tag;
   try {
@@ -228,7 +223,7 @@ async function downloadFromRelease() {
       signal: AbortSignal.timeout(10000),
     });
     if (res.status === 404) {
-      warn('尚无 Release，请稍后重试或改用 git clone 源码安装。');
+      warn('尚无 Release，请稍后重试或改�?git clone 源码安装�?);
       return null;
     }
     if (!res.ok) throw new Error(`GitHub API 响应 ${res.status}`);
@@ -237,7 +232,7 @@ async function downloadFromRelease() {
     tag = data.tag_name;
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    warn(`获取 Release 信息失败：${msg}。请检查网络或改用 --repo 指定本地路径。`);
+    warn(`获取 Release 信息失败�?{msg}。请检查网络或改用 --repo 指定本地路径。`);
     return null;
   }
 
@@ -248,8 +243,8 @@ async function downloadFromRelease() {
   if (!FLAG_DRY) await mkdir(tmpDir, { recursive: true });
 
   try {
-    log(`    版本：${tag}`);
-    log(`    下载：${archiveUrl}`);
+    log(`    版本�?{tag}`);
+    log(`    下载�?{archiveUrl}`);
     const res = await fetch(archiveUrl, {
       headers: { 'User-Agent': 'delivery-install' },
       signal: AbortSignal.timeout(60000),
@@ -258,13 +253,13 @@ async function downloadFromRelease() {
     if (!res.ok) throw new Error(`下载失败：HTTP ${res.status}`);
     const buf = Buffer.from(await res.arrayBuffer());
     if (FLAG_DRY) {
-      log(`  - 将下载 ${buf.length} 字节到 ${archiveFile}`);
+      log(`  - 将下�?${buf.length} 字节�?${archiveFile}`);
     } else {
       await writeFile(archiveFile, buf);
-      ok(`已下载 ${buf.length} 字节`);
+      ok(`已下�?${buf.length} 字节`);
     }
   } catch (e) {
-    warn(`下载失败：${e instanceof Error ? e.message : String(e)}`);
+    warn(`下载失败�?{e instanceof Error ? e.message : String(e)}`);
     return null;
   }
 
@@ -282,23 +277,23 @@ async function downloadFromRelease() {
       });
       ok('解压完成');
     } catch (e) {
-      warn(`解压失败：${e instanceof Error ? e.message : String(e)}。请手动下载 Release 包并解压后用 --repo 指定路径。`);
+      warn(`解压失败�?{e instanceof Error ? e.message : String(e)}。请手动下载 Release 包并解压后用 --repo 指定路径。`);
       return null;
     }
   }
 
-  // GitHub 解压后目录名为 {repo}-{tag}
+  // GitHub 解压后目录名�?{repo}-{tag}
   const extractedName = `${GITHUB_REPO}-${tag}`;
   const extractedPath = join(extractDir, extractedName);
   if (FLAG_DRY) {
-    log(`  - 解压目录：${extractedPath}`);
+    log(`  - 解压目录�?{extractedPath}`);
     return extractedPath;
   }
   if (!existsSync(extractedPath)) {
     warn(`解压后未找到目录 ${extractedName}`);
     return null;
   }
-  ok(`源码路径：${extractedPath}`);
+  ok(`源码路径�?{extractedPath}`);
   return extractedPath;
 }
 
@@ -308,7 +303,7 @@ log('====================');
 
 if (FLAG_DRY) log('（dry-run 模式：仅预览，不改动任何文件）\n');
 
-// 从 GitHub Release 下载（可选）
+// �?GitHub Release 下载（可选）
 if (FLAG_RELEASE) {
   const releasePath = await downloadFromRelease();
   if (releasePath) {
@@ -325,7 +320,7 @@ const [repoReal, targetReal] = await Promise.all([
   realpath(targetDir).catch(() => targetDir),
 ]);
 if (repoReal === targetReal) {
-  console.error('\n错误：目标目录就是当前项目自身。');
+  console.error('\n错误：目标目录就是当前项目自身�?);
   console.error('  若要从源码安装到其他项目，请指定目标目录：node delivery-mcp-server/install.js /path/to/project');
   console.error('  若要更新当前项目，请使用 --release：node delivery-mcp-server/install.js --release\n');
   process.exit(1);
@@ -333,34 +328,34 @@ if (repoReal === targetReal) {
 
 const hasGit = existsSync(join(targetReal, '.git'));
 if (!hasGit && !FLAG_FORCE) {
-  console.error(`\n错误：${targetReal} 不是 git 仓库。交付系统建议在 git 项目中安装（.gitignore 保护敏感配置）。\n如确实要在非 git 目录使用，请加 --force。\n`);
+  console.error(`\n错误�?{targetReal} 不是 git 仓库。交付系统建议在 git 项目中安装（.gitignore 保护敏感配置）。\n如确实要在非 git 目录使用，请�?--force。\n`);
   process.exit(1);
 }
 
-// ---------- 1.5 停止运行中的进程（更新时避免文件锁定） ----------
+// ---------- 1.5 停止运行中的进程（更新时避免文件锁定�?----------
 if (existsSync(join(targetReal, 'delivery-mcp-server'))) {
   await stopTargetProcesses(targetReal);
 }
 
 // ---------- 2. 拷贝 delivery-mcp-server ----------
-log(`\n[1/6] 拷贝 delivery-mcp-server → ${targetReal}`);
+log(`\n[1/6] 拷贝 delivery-mcp-server �?${targetReal}`);
 const srcServer = join(repoReal, 'delivery-mcp-server');
 const dstServer = join(targetReal, 'delivery-mcp-server');
 if (existsSync(srcServer)) {
   if (existsSync(dstServer)) {
     skip('delivery-mcp-server');
     if (!existsSync(join(dstServer, 'package.json'))) {
-      warn('目标目录的 delivery-mcp-server 不完整（缺少 package.json），建议删除后重装。');
+      warn('目标目录�?delivery-mcp-server 不完整（缺少 package.json），建议删除后重装�?);
     }
   } else {
     await copyDirSafe(srcServer, dstServer);
-    ok('delivery-mcp-server 已拷贝');
+    ok('delivery-mcp-server 已拷�?);
   }
 } else {
-  warn(`仓库路径下未找到 delivery-mcp-server（${srcServer}），请用 --repo 指定正确的仓库路径。`);
+  warn(`仓库路径下未找到 delivery-mcp-server�?{srcServer}），请用 --repo 指定正确的仓库路径。`);
 }
 
-// ---------- 3. 拷贝 agent 配置（只新增 delivery-*） ----------
+// ---------- 3. 拷贝 agent 配置（只新增 delivery-*�?----------
 log(`\n[2/6] 拷贝角色 Agent 配置（仅 delivery-* 前缀，不覆盖已有文件）`);
 const srcAgents = join(repoReal, '.opencode', 'agent');
 const dstAgents = join(targetReal, '.opencode', 'agent');
@@ -375,21 +370,21 @@ if (existsSync(srcAgents)) {
     if (existsSync(dst)) {
       skip(`agent/${f}`);
     } else if (FLAG_DRY) {
-      log(`  - 将拷贝 agent/${f}`);
+      log(`  - 将拷�?agent/${f}`);
     } else {
       await cp(join(srcAgents, f), dst);
       copied++;
     }
   }
-  if (FLAG_DRY) ok(`将拷贝 ${files.filter((f) => !existsSync(join(dstAgents, f))).length} 个角色 Agent（delivery-*.md）`);
-  else if (copied === 0) ok('已是最新（所有 delivery-*.md 均已存在）');
-  else ok(`已拷贝 ${copied} 个角色 Agent（delivery-*.md）`);
+  if (FLAG_DRY) ok(`将拷�?${files.filter((f) => !existsSync(join(dstAgents, f))).length} 个角�?Agent（delivery-*.md）`);
+  else if (copied === 0) ok('已是最新（所�?delivery-*.md 均已存在�?);
+  else ok(`已拷�?${copied} 个角�?Agent（delivery-*.md）`);
 } else {
-  warn(`仓库路径下未找到 .opencode/agent（${srcAgents}）`);
+  warn(`仓库路径下未找到 .opencode/agent�?{srcAgents}）`);
 }
 
 // ---------- 4. 合并 opencode.json ----------
-log(`\n[3/6] 注册 MCP 到 opencode.json（合并，保留已有配置）`);
+log(`\n[3/6] 注册 MCP �?opencode.json（合并，保留已有配置）`);
 const opencodeFile = join(targetReal, 'opencode.json');
 const opencodeConfig = (await readJsonSafe(opencodeFile)) ?? {};
 const hasDeliveryMcp = !!(opencodeConfig.mcp && opencodeConfig.mcp.delivery);
@@ -402,21 +397,21 @@ if (hasDeliveryMcp) {
     enabled: true,
   };
   if (FLAG_DRY) {
-    log('  - 将写入 mcp.delivery = ' + JSON.stringify(delivery));
+    log('  - 将写�?mcp.delivery = ' + JSON.stringify(delivery));
   } else {
     opencodeConfig.mcp = opencodeConfig.mcp ?? {};
     opencodeConfig.mcp.delivery = delivery;
     if (!opencodeConfig.$schema) opencodeConfig.$schema = 'https://opencode.ai/config.json';
     await writeFile(opencodeFile, JSON.stringify(opencodeConfig, null, 2) + '\n', 'utf-8');
-    ok('mcp.delivery 已合并写入 opencode.json');
+    ok('mcp.delivery 已合并写�?opencode.json');
   }
 }
 
 // ---------- 5. .gitignore ----------
-log(`\n[4/6] 追加 .gitignore（忽略工具本体 + 邮件授权码）`);
+log(`\n[4/6] 追加 .gitignore（忽略工具本�?+ 邮件授权码）`);
 const gitignoreFile = join(targetReal, '.gitignore');
 await gitIgnoreAdd(gitignoreFile, ['delivery-mcp-server']);
-ok('.gitignore 已处理（若此前无条目）');
+ok('.gitignore 已处理（若此前无条目�?);
 
 // ---------- 6. npm install + build ----------
 log(`\n[5/6] 安装依赖并构建（npm install && npm run build）`);
@@ -426,13 +421,13 @@ if (!FLAG_DRY && existsSync(dstServer)) {
     await run('run build', dstServer);
     ok('构建完成：delivery-mcp-server/dist/server.js');
   } catch (e) {
-    warn(`依赖安装/构建失败：${e.message}。可稍后在 ${dstServer} 手动执行 npm install && npm run build。`);
+    warn(`依赖安装/构建失败�?{e.message}。可稍后�?${dstServer} 手动执行 npm install && npm run build。`);
   }
 } else if (FLAG_DRY) {
-  log('  - 将执行 npm install && npm run build（delivery-mcp-server 目录）');
+  log('  - 将执�?npm install && npm run build（delivery-mcp-server 目录�?);
 }
 
-// ---------- 7. 可选启动看板 ----------
+// ---------- 7. 可选启动看�?----------
 if (FLAG_DASH && !FLAG_DRY && existsSync(dstServer)) {
   log(`\n[6/6] 启动浏览器任务看板（Ctrl+C 停止）`);
   const child = spawn(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['run', 'dashboard'], {
@@ -440,7 +435,7 @@ if (FLAG_DASH && !FLAG_DRY && existsSync(dstServer)) {
     stdio: 'inherit',
     shell: process.platform === 'win32',
   });
-  child.on('error', (e) => warn(`看板启动失败：${e.message}`));
+  child.on('error', (e) => warn(`看板启动失败�?{e.message}`));
 } else {
   log('\n[6/6] 完成');
 }
@@ -451,25 +446,21 @@ if (releaseTmpDir && !FLAG_DRY) {
     await rm(releaseTmpDir, { recursive: true, force: true });
     ok(`已清理临时文件：${releaseTmpDir}`);
   } catch {
-    // 清理失败不影响安装结果
-  }
+    // 清理失败不影响安装结�?  }
 }
 
 // ---------- 后续指引 ----------
 log(`
-安装完成。接下来：
-1. 重启 OpenCode（加载新 agent 与 MCP 配置，MCP server 会随之启动）
+安装完成。接下来�?1. 重启 OpenCode（加载新 agent �?MCP 配置，MCP server 会随之启动）
 2. 配置当前人：   user.set  { "name": "你的姓名", "email": "your@email.com" }
-3. 配置团队名册： team.set  { "name": "你的姓名", "email": "your@email.com", "roles": ["..."] }
-   （全部成员 roles 并集需覆盖 8 个角色）
-4. 可选配置邮件： email.set { "user": "your@qq.com", "pass": "SMTP 授权码" }  ← 只填邮箱+授权码即可
-5. 选择 delivery-orchestrator Agent 开始交付任务
-
-启动看板（可选）：
-  cd delivery-mcp-server && npm run dashboard
-  →  http://localhost:8787
+3. 配置团队名册�?team.set  { "name": "你的姓名", "email": "your@email.com", "roles": ["..."] }
+   （全部成�?roles 并集需覆盖 8 个角色）
+4. 可选配置邮件： email.set { "user": "your@qq.com", "pass": "SMTP 授权�? }  �?只填邮箱+授权码即�?5. 选择 delivery-orchestrator Agent 开始交付任�?
+启动看板（可选）�?  cd delivery-mcp-server && npm run dashboard
+  �? http://localhost:8787
 `);
 
 if (FLAG_DRY) {
   log('（dry-run 结束：以上为将要执行的操作，未改动任何文件）');
 }
+
