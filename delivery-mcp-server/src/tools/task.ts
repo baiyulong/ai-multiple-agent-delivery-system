@@ -13,7 +13,7 @@ import { resolveDeliveryRoot } from '../core/paths.js';
 import { dashboardUrl } from '../core/dashboard-url.js';
 import { MVP_TASK_TYPES, type TaskType } from '../core/types.js';
 import { FLOW_FILE_NAMES } from '../core/flow-engine.js';
-import { isTeamConfigured, validateAssignees } from '../core/store/team-store.js';
+import { isTeamConfigured, normalizeAssignees, normalizeAssigneeList, validateAssignees } from '../core/store/team-store.js';
 import { isUserConfigured } from '../core/store/user-store.js';
 import { setStageStatus } from '../core/store/stage-store.js';
 
@@ -36,9 +36,9 @@ export function registerTaskTools(server: McpServer, ctx: () => ToolContext) {
           .optional()
           .describe('任务类型（缺省自动识别）：crud / lightweight_ddd / full_ddd / analysis / bug_fix'),
         assignees: z
-          .record(z.string(), z.string().email())
+          .record(z.string(), z.union([z.string().email(), z.array(z.string().email())]))
           .optional()
-          .describe('任务级指派：role -> 成员邮箱，可选'),
+          .describe('任务级指派：role -> 成员邮箱（可单个或数组，一个角色可指派多人，可选）'),
         skip_stages: z
           .array(z.string())
           .optional()
@@ -72,7 +72,8 @@ export function registerTaskTools(server: McpServer, ctx: () => ToolContext) {
         const flow = await loadFlowTemplate(root, taskType);
         if (!flow) return fail('flow_not_found', `未找到流程模板: ${taskType}`);
 
-        const invalid = await validateAssignees(root, args.assignees ?? {});
+        const assignees = normalizeAssignees(args.assignees);
+        const invalid = await validateAssignees(root, assignees);
         if (invalid.length > 0) {
           return fail('invalid_assignee', `指派无效: ${invalid.map((i) => `${i.role}=${i.email}(${i.reason})`).join('、')}`, { invalid });
         }
@@ -83,7 +84,7 @@ export function registerTaskTools(server: McpServer, ctx: () => ToolContext) {
           createdBy: args.created_by ?? 'unknown',
           taskType,
           stages: buildStagesFromFlow(flow),
-          assignees: args.assignees,
+          assignees,
         });
 
         // skip_stages：校验每个阶段必须存在于流程模板，并将其标记为 skipped
@@ -120,7 +121,7 @@ export function registerTaskTools(server: McpServer, ctx: () => ToolContext) {
     'task.assign',
     {
       description:
-        '为任务指派某角色负责人（role -> 成员邮箱）。用于在后续流程中指定/改派，如 task.create 未指定时。',
+        '为任务某角色追加指派成员（role -> 成员邮箱，一个角色可指派多人；重复添加会去重）。用于在后续流程中指定/补派，如 task.create 未指定或需要多人时。',
       inputSchema: {
         task_id: z.string().describe('任务 ID'),
         role: z.string().describe('角色 key，如 engineer/qa/product-manager'),
@@ -138,13 +139,15 @@ export function registerTaskTools(server: McpServer, ctx: () => ToolContext) {
           return fail('invalid_assignee', `指派无效: ${invalid.map((i) => `${i.role}=${i.email}(${i.reason})`).join('、')}`, { invalid });
         }
 
-        task.assignees = { ...(task.assignees ?? {}), [args.role]: args.email };
+        const current = normalizeAssigneeList(task.assignees?.[args.role]);
+        const merged = [...new Set([...current, args.email])];
+        task.assignees = { ...(task.assignees ?? {}), [args.role]: merged };
         await saveTask(root, task);
 
         return ok({
           task_id: task.task_id,
           assignees: task.assignees,
-          assigned: { role: args.role, email: args.email },
+          assigned: { role: args.role, emails: merged },
         });
       } catch (e) {
         return fail('assign_failed', (e as Error).message);

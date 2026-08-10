@@ -4,6 +4,7 @@ import { sendEmail } from './mailer.js';
 
 /**
  * 角色通知：向指定角色的所有成员发送邮件。
+ * 提供 opts.assignees 时只通知这些指派成员（一个角色可指派多人）；否则通知该角色全部成员。
  * 绝不 throw —— 任何失败都返回结构化结果，由调用方附加到工具返回对象。
  */
 
@@ -18,7 +19,7 @@ export async function notifyRole(
   role: string,
   subject: string,
   text: string,
-  opts?: { assignee?: string }, // 指派成员 email，提供时只通知该成员
+  opts?: { assignees?: string[] }, // 指派成员邮箱列表，提供时只通知这些成员
 ): Promise<NotifyResult> {
   try {
     const config = await readEmailConfig();
@@ -26,23 +27,26 @@ export async function notifyRole(
       return { sent: false, to: [], reason: 'email_not_configured' };
     }
 
-    let to: string[];
-    if (opts?.assignee) {
-      const member = await findMemberByEmail(root, opts.assignee);
-      if (!member) {
+    const to: string[] = [];
+    if (opts?.assignees && opts.assignees.length > 0) {
+      for (const email of opts.assignees) {
+        const member = await findMemberByEmail(root, email);
+        if (member) to.push(member.email);
+      }
+      if (to.length === 0) {
         return { sent: false, to: [], reason: 'assignee_not_found' };
       }
-      to = [member.email];
     } else {
       const members = await findMembersByRole(root, role);
-      to = members.map((m) => m.email);
+      for (const m of members) to.push(m.email);
     }
-    if (to.length === 0) {
+    const unique = [...new Set(to)];
+    if (unique.length === 0) {
       return { sent: false, to: [], reason: 'no_recipients' };
     }
 
-    await sendEmail(config, { to, subject, text });
-    return { sent: true, to };
+    await sendEmail(config, { to: unique, subject, text });
+    return { sent: true, to: unique };
   } catch (e) {
     return { sent: false, to: [], reason: e instanceof Error ? e.message : String(e) };
   }

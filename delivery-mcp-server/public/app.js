@@ -592,8 +592,11 @@
     const email = user.email.toLowerCase();
     if (task.created_by && task.created_by.toLowerCase() === email) return true;
     const assignees = task.assignees || {};
-    for (const e of Object.values(assignees)) {
-      if (e && e.toLowerCase() === email) return true;
+    for (const raw of Object.values(assignees)) {
+      const list = Array.isArray(raw) ? raw : [raw];
+      for (const e of list) {
+        if (e && e.toLowerCase() === email) return true;
+      }
     }
     return false;
   }

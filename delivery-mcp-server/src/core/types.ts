@@ -54,8 +54,8 @@ export interface Task {
   created_by: string;
   created_at: string;
   updated_at: string;
-  /** 任务级指派：role -> 成员 email（多工程师时锁定本任务负责人） */
-  assignees?: Record<string, string>;
+  /** 任务级指派：role -> 成员邮箱数组（一个角色可指派多人，多工程师时锁定本任务负责人） */
+  assignees?: Record<string, string[]>;
 }
 
 /** 阶段（PRD 5.2 / 10.3） */
