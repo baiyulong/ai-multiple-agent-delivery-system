@@ -20,7 +20,7 @@
  *   - 拒绝把本仓库自身当作安装目标
  *   - agent 文件只新增 delivery-*.md，绝不覆盖目标项目已有文件
  *   - opencode.json 只合并新增 mcp.delivery，保留目标项目全部字段
-  *   - .gitignore 幂等追加（忽略工具本体 delivery-mcp-server；email.json 是团队共享发件配置，随仓库提交）
+ *   - .gitignore 幂等追加（忽略工具本体 delivery-mcp-server；邮件配置属当前用户个人，存于用户主目录，不进项目仓库）
  */
 import { cp, mkdir, readFile, realpath, writeFile, rm, readdir, readlink } from 'node:fs/promises';
 import { existsSync, createWriteStream } from 'node:fs';
@@ -700,7 +700,7 @@ if (hasDeliveryMcp) {
 }
 
 // ---------- 5. .gitignore ----------
-log(`\n[4/6] 追加 .gitignore（忽略工具本体 + 邮件授权码）`);
+log(`\n[4/6] 追加 .gitignore（忽略工具本体 delivery-mcp-server）`);
 const gitignoreFile = join(targetReal, '.gitignore');
 await gitIgnoreAdd(gitignoreFile, ['delivery-mcp-server']);
 ok('.gitignore 已处理（若此前无条目）');
@@ -748,7 +748,8 @@ log(`
 2. 配置当前人：   user.set  { "name": "你的姓名", "email": "your@email.com" }
 3. 配置团队名册： team.set  { "name": "你的姓名", "email": "your@email.com", "roles": ["..."] }
    （全部成员 roles 并集需覆盖 8 个角色）
-4. 可选配置邮件： email.set { "user": "your@qq.com", "pass": "SMTP 授权码" }  ← 只填邮箱+授权码即可
+4. 可选配置个人邮件： email.set { "user": "your@qq.com", "pass": "SMTP 授权码" }  ← 只填邮箱+授权码即可
+   （个人级，存于用户主目录，跨项目沿用，不进项目仓库）
 5. 选择 delivery-orchestrator Agent 开始交付任务
 
 启动看板：

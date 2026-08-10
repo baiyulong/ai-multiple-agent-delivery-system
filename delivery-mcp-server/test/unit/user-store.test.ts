@@ -7,6 +7,7 @@ import {
   readCurrentUser,
   userConfigPath,
   writeCurrentUser,
+  writeUserConfig,
 } from '../../src/core/store/user-store.js';
 
 describe('user-store 个人配置', () => {
@@ -47,6 +48,26 @@ describe('user-store 个人配置', () => {
     const updated = await writeCurrentUser({ name: 'Yulong 2', email: 'yulong@example.com' });
     expect(updated.name).toBe('Yulong 2');
     expect((await readCurrentUser())?.name).toBe('Yulong 2');
+  });
+
+  it('更新姓名/邮箱时保留已配置的 smtp 邮件配置', async () => {
+    await writeCurrentUser({ name: 'Yulong', email: 'yulong@example.com' });
+    await writeUserConfig({
+      name: 'Yulong',
+      email: 'yulong@example.com',
+      smtp: {
+        host: 'smtp.qq.com',
+        port: 465,
+        secure: true,
+        user: 'yulong@qq.com',
+        pass: 'auth-code',
+        from: 'yulong@qq.com',
+      },
+      updated_at: (await readCurrentUser())?.updated_at ?? '',
+    });
+    const updated = await writeCurrentUser({ name: 'Yulong 2', email: 'yulong@example.com' });
+    expect(updated.smtp?.host).toBe('smtp.qq.com');
+    expect(updated.smtp?.pass).toBe('auth-code');
   });
 
   it('清理临时目录', async () => {

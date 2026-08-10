@@ -21,7 +21,7 @@ export async function notifyRole(
   opts?: { assignee?: string }, // 指派成员 email，提供时只通知该成员
 ): Promise<NotifyResult> {
   try {
-    const config = await readEmailConfig(root);
+    const config = await readEmailConfig();
     if (!config) {
       return { sent: false, to: [], reason: 'email_not_configured' };
     }
