@@ -1,0 +1,11 @@
+{
+  "artifact_type": "bug_fix_card",
+  "required_sections": [
+    "修复方案",
+    "修改内容",
+    "验证结果",
+    "回归检查"
+  ],
+  "non_empty_sections": ["修复方案", "修改内容", "验证结果"],
+  "pass_threshold": 60
+}

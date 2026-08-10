@@ -1,28 +1,46 @@
 <script setup lang="ts">
 /**
- * 应用壳：header（品牌/团队/状态）+ 团队警告 banner + tab 导航 + 路由出口。
- * 行为与旧版 index.html + app.js renderTeamHeader/renderTeamBanner 保真一致。
+ * 应用壳：使用 makeit-admin-pro 的 Layout 组件。
+ * 配置菜单（任务列表 / 公共文档）、团队/用户信息、路由出口。
  */
-import { computed } from 'vue';
-import { useRoute } from 'vue-router';
+import { onMounted, computed, h } from 'vue';
+import { useStoreMenu } from '@miitvip/admin-pro';
+import { DashboardOutlined, FileTextOutlined } from '@ant-design/icons-vue';
 import { useTeamUser } from '@/composables/useTeamUser';
 
-const route = useRoute();
 const { team, user } = useTeamUser();
+const menuStore = useStoreMenu();
 
-/** 详情页隐藏 tab 栏（旧 showView：仅 list/documents 显示） */
-const showTabs = computed(() => route.name !== 'task-detail');
+// 配置菜单项
+onMounted(() => {
+  menuStore.updateMenus([
+    {
+      name: 'tasks',
+      path: '/',
+      meta: {
+        title: '任务列表',
+        icon: DashboardOutlined,
+      },
+    },
+    {
+      name: 'documents',
+      path: '/documents',
+      meta: {
+        title: '公共文档',
+        icon: FileTextOutlined,
+      },
+    },
+  ]);
+});
 
 const roleLabels = computed(() => team.value?.role_labels ?? user.value?.role_labels ?? {});
 
-/** 当前用户在团队名册中的记录（按邮箱精确匹配） */
 const currentMember = computed(() => {
   const email = user.value?.configured ? user.value.user?.email : null;
   if (!email) return null;
   return (team.value?.members ?? []).find((m) => m.email === email) ?? null;
 });
 
-/** 团队区渲染数据：当前人 + 其他成员 */
 const headerMembers = computed(() => {
   const members = team.value?.configured ? team.value.members : [];
   if (!currentMember.value) {
@@ -34,13 +52,11 @@ const headerMembers = computed(() => {
   };
 });
 
-/** 当前人角色：优先 user.roles，否则名册匹配成员的角色 */
 function currentRoles(): string[] {
   if (user.value?.configured && user.value.roles.length > 0) return user.value.roles;
   return currentMember.value?.roles ?? [];
 }
 
-/** 团队警告 banner 文案（renderTeamBanner） */
 const bannerMessage = computed(() => {
   const userOk = user.value?.configured;
   const teamOk = team.value?.configured;
@@ -50,104 +66,98 @@ const bannerMessage = computed(() => {
   if (!teamOk) parts.push('team.set（团队名册）');
   return '请通过 MCP 调用 ' + parts.join(' 与 ') + ' 后再创建任务。';
 });
+
+// 团队/用户信息渲染函数（用于 headerSetting.extra）
+const teamInfoExtra = computed(() => {
+  return h('div', { class: 'header-team-info' }, [
+    user.value?.configured
+      ? h('span', { class: 'team-member team-member-current' }, [
+          h('span', { class: 'team-current-badge' }, '当前'),
+          h('span', { class: 'team-member-name' }, user.value.user?.name || user.value.user?.email || '未知'),
+          user.value.user?.email ? h('span', { class: 'team-member-email' }, `<${user.value.user.email}>`) : null,
+          currentRoles().length > 0
+            ? h('span', { class: 'team-member-roles' }, currentRoles().map((r) => h('span', { class: 'team-role-tag' }, roleLabels.value[r] || r)))
+            : null,
+        ])
+      : null,
+    ...headerMembers.value.others.map((m) =>
+      h('span', { class: 'team-member', key: m.email }, [
+        h('span', { class: 'team-member-name' }, m.name),
+        m.email ? h('span', { class: 'team-member-email' }, `<${m.email}>`) : null,
+        (m.roles || []).length > 0
+          ? h('span', { class: 'team-member-roles' }, m.roles.map((r) => h('span', { class: 'team-role-tag' }, roleLabels.value[r] || r)))
+          : null,
+      ])
+    ),
+    user.value && !user.value.configured ? h('span', { class: 'team-user-hint' }, '尚未设置当前人（user.set）') : null,
+  ]);
+});
+
+const headerSetting = computed(() => ({
+  extra: teamInfoExtra.value,
+}));
 </script>
 
 <template>
-  <header class="app-header">
-    <div class="header-inner">
-      <div class="header-brand" @click="$router.push('/')">
-        <svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M12 2L2 7l10 5 10-5-10-5z" />
-          <path d="M2 17l10 5 10-5" />
-          <path d="M2 12l10 5 10-5" />
-        </svg>
-        <h1 class="brand-title">AI 交付任务看板</h1>
-      </div>
-      <div class="header-team">
-        <!-- 当前操作人 -->
-        <span v-if="user?.configured" class="team-member team-member-current">
-          <span class="team-current-badge">当前</span>
-          <span class="team-member-name">{{ user.user?.name || user.user?.email || '未知' }}</span>
-          <span v-if="user.user?.email" class="team-member-email">&lt;{{ user.user.email }}&gt;</span>
-          <span v-if="currentRoles().length > 0" class="team-member-roles">
-            <span
-              v-for="r in currentRoles()"
-              :key="r"
-              class="team-role-tag"
-            >{{ roleLabels[r] || r }}</span>
-          </span>
-        </span>
-        <!-- 其他团队成员 -->
-        <span
-          v-for="m in headerMembers.others"
-          :key="m.email"
-          class="team-member"
-        >
-          <span class="team-member-name">{{ m.name }}</span>
-          <span v-if="m.email" class="team-member-email">&lt;{{ m.email }}&gt;</span>
-          <span v-if="(m.roles || []).length > 0" class="team-member-roles">
-            <span
-              v-for="r in m.roles || []"
-              :key="r"
-              class="team-role-tag"
-            >{{ roleLabels[r] || r }}</span>
-          </span>
-        </span>
-        <!-- 未配置当前人的弱化提示 -->
-        <span v-if="user && !user.configured" class="team-user-hint">尚未设置当前人（user.set）</span>
-      </div>
-      <div class="header-status" v-if="user?.configured">
-        <span class="status-dot"></span>
-        {{ user.user?.name }}
-      </div>
-    </div>
-  </header>
+  <mi-layout :show-breadcrumbs="false" :header-setting="headerSetting">
+    <!-- 侧边栏 Logo -->
+    <template #sider>
+      <mi-layout-sider-logo />
+    </template>
 
-  <!-- 团队配置警告 banner -->
-  <div v-if="bannerMessage" class="team-banner">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
-      <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-      <line x1="12" y1="9" x2="12" y2="13" />
-      <line x1="12" y1="17" x2="12.01" y2="17" />
-    </svg>
-    <span>{{ bannerMessage }}</span>
-  </div>
-
-  <main class="app-main">
-    <nav v-if="showTabs" class="view-tabs">
-      <RouterLink class="tab-btn" to="/" active-class="active">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-          <line x1="8" y1="6" x2="21" y2="6" />
-          <line x1="8" y1="12" x2="21" y2="12" />
-          <line x1="8" y1="18" x2="21" y2="18" />
-          <line x1="3" y1="6" x2="3.01" y2="6" />
-          <line x1="3" y1="12" x2="3.01" y2="12" />
-          <line x1="3" y1="18" x2="3.01" y2="18" />
-        </svg>
-        任务列表
-      </RouterLink>
-      <RouterLink class="tab-btn" to="/documents" active-class="active">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
-          <polyline points="14 2 14 8 20 8" />
-          <line x1="8" y1="13" x2="16" y2="13" />
-          <line x1="8" y1="17" x2="16" y2="17" />
-        </svg>
-        公共文档
-      </RouterLink>
-    </nav>
-
-    <RouterView />
-  </main>
-
-  <footer class="app-footer">
-    <span>AI 交付任务看板</span>
-  </footer>
+    <!-- 主内容区 -->
+    <template #content>
+      <!-- 团队配置警告 banner -->
+      <a-alert
+        v-if="bannerMessage"
+        type="warning"
+        show-icon
+        :message="bannerMessage"
+        style="margin-bottom: 16px"
+      />
+      <router-view />
+    </template>
+  </mi-layout>
 </template>
 
 <style scoped>
-/* <a> 形态的 tab 按钮与旧版 <button> 视觉一致：去掉链接默认下划线 */
-.view-tabs :deep(.tab-btn) {
-  text-decoration: none;
+.header-team-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.team-member {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+}
+.team-member-current {
+  font-weight: 500;
+}
+.team-current-badge {
+  background: #1677ff;
+  color: #fff;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+}
+.team-member-name {
+  color: rgba(0, 0, 0, 0.88);
+}
+.team-member-email {
+  color: rgba(0, 0, 0, 0.45);
+}
+.team-role-tag {
+  background: #f0f0f0;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  margin-left: 4px;
+}
+.team-user-hint {
+  color: rgba(0, 0, 0, 0.45);
+  font-size: 12px;
 }
 </style>

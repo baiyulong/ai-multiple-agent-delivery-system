@@ -1,0 +1,14 @@
+{
+  "artifact_type": "acceptance_criteria",
+  "required_sections": ["验收标准列表", "关键场景说明"],
+  "aliases": {},
+  "non_empty_sections": ["验收标准列表"],
+  "min_list_items": [
+    {
+      "section": "验收标准列表",
+      "min": 3,
+      "message": "验收标准至少 3 条"
+    }
+  ],
+  "pass_threshold": 60
+}

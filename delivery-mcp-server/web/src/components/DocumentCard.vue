@@ -4,7 +4,7 @@
  * 与旧版 app.js 758-805 行 + loadPublicDocumentContent 813-839 行对应。
  */
 import { ref } from 'vue';
-import { api } from '@/api/client';
+import { api } from '@/api/api';
 import { statusBadgeClass, formatTime } from '@/utils/helpers';
 import MarkdownView from './MarkdownView.vue';
 import type { PublicDocEntry } from '@/api/types';

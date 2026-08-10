@@ -1,0 +1,14 @@
+{
+  "artifact_type": "state_action_matrix",
+  "required_sections": ["状态与按钮矩阵", "状态定义", "按钮行为说明"],
+  "aliases": {},
+  "non_empty_sections": ["状态与按钮矩阵"],
+  "min_list_items": [
+    {
+      "section": "状态与按钮矩阵",
+      "min": 2,
+      "message": "状态与按钮矩阵至少 2 行"
+    }
+  ],
+  "pass_threshold": 60
+}

@@ -4,7 +4,7 @@
  * 可展开/收起，展开时懒加载拉 api.getArtifact。
  */
 import { ref } from 'vue';
-import { api } from '@/api/client';
+import { api } from '@/api/api';
 import { statusBadgeClass, artifactTypeName } from '@/utils/helpers';
 import MarkdownView from './MarkdownView.vue';
 import type { ArtifactMeta } from '@/api/types';

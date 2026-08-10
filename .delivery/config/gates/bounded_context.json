@@ -1,0 +1,7 @@
+{
+  "artifact_type": "bounded_context",
+  "required_sections": ["子域划分", "边界上下文", "上下文关系"],
+  "aliases": {},
+  "non_empty_sections": ["边界上下文"],
+  "pass_threshold": 60
+}

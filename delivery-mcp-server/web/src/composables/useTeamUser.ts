@@ -4,7 +4,7 @@
  * 详情页 watch `loaded` 后根据团队成员补渲阶段负责人。
  */
 import { ref } from 'vue';
-import { api } from '@/api/client';
+import { api } from '@/api/api';
 import type { TeamResponse, UserResponse } from '@/api/types';
 
 const team = ref<TeamResponse | null>(null);

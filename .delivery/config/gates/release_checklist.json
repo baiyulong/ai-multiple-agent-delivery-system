@@ -1,0 +1,24 @@
+{
+  "artifact_type": "release_checklist",
+  "required_sections": [
+    "工程上下文",
+    "环境规划",
+    "CI/CD 流水线",
+    "质量门禁",
+    "自动化测试集成",
+    "部署策略",
+    "回滚策略",
+    "配置管理",
+    "日志规范",
+    "监控告警",
+    "安全检查",
+    "发布检查清单",
+    "AI 工具链建议",
+    "研发度量指标"
+  ],
+  "aliases": {
+    "CI/CD 流水线": ["CI CD 流水线", "流水线"]
+  },
+  "non_empty_sections": ["发布检查清单"],
+  "pass_threshold": 60
+}

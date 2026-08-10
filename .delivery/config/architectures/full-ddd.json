@@ -1,0 +1,51 @@
+{
+  "task_type": "full_ddd",
+  "name": "完整 DDD 推荐架构（预设）",
+  "description": "面向复杂业务领域：边界上下文、聚合、领域事件、防腐层。适用于业务规则复杂、多上下文协作、状态流转频繁的场景。",
+  "layers": [
+    {
+      "name": "表现层",
+      "responsibility": "Controller、页面、DTO；不承载业务逻辑",
+      "typical_files": ["Controller / View / Component"]
+    },
+    {
+      "name": "应用层",
+      "responsibility": "用例编排、命令/查询分离（CQRS 可选）、事务、权限",
+      "typical_files": ["ApplicationService / Command / Query / DTO"]
+    },
+    {
+      "name": "领域层",
+      "responsibility": "聚合根、实体、值对象、领域服务、领域事件、仓储接口、业务不变量",
+      "typical_files": ["AggregateRoot / Entity / ValueObject / DomainService / DomainEvent / RepositoryInterface"]
+    },
+    {
+      "name": "基础设施层",
+      "responsibility": "仓储实现、事件总线、外部系统适配、防腐层（ACL）",
+      "typical_files": ["RepositoryImpl / EventPublisher / AntiCorruptionLayer / Infrastructure"]
+    }
+  ],
+  "structure": {
+    "backend": [
+      "src/application/",
+      "src/domain/",
+      "src/infrastructure/",
+      "src/interfaces/",
+      "src/shared/"
+    ],
+    "frontend": [
+      "src/pages/",
+      "src/components/",
+      "src/api/",
+      "src/domain/"
+    ]
+  },
+  "code_requirements": [
+    "按边界上下文组织模块，上下文之间通过接口/事件协作，禁止直接依赖",
+    "聚合内通过聚合根访问，外部只能引用聚合根",
+    "领域事件用于跨上下文/跨模块联动，事件订阅方在基础设施层注册",
+    "业务不变量必须在领域层强制，禁止散落到应用层或 SQL",
+    "防腐层隔离外部系统，避免外部模型污染领域模型",
+    "与 bounded_context / aggregate_design / domain_events / api_contract 对齐"
+  ],
+  "source": "preset"
+}
