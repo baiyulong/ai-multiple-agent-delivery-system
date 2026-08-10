@@ -1,7 +1,0 @@
-{
-  "artifact_type": "lightweight_domain_model",
-  "required_sections": ["实体", "值对象", "业务行为", "不变量与约束", "状态流转"],
-  "aliases": {},
-  "non_empty_sections": ["实体", "业务行为"],
-  "pass_threshold": 60
-}

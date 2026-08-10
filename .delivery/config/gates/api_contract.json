@@ -1,7 +1,0 @@
-{
-  "artifact_type": "api_contract",
-  "required_sections": ["接口契约清单", "接口通用约定", "错误码约定"],
-  "aliases": {},
-  "non_empty_sections": ["接口契约清单"],
-  "pass_threshold": 60
-}

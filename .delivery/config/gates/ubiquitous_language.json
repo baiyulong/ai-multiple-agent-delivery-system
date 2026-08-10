@@ -1,7 +1,0 @@
-{
-  "artifact_type": "ubiquitous_language",
-  "required_sections": ["统一语言表", "术语冲突说明"],
-  "aliases": {},
-  "non_empty_sections": ["统一语言表"],
-  "pass_threshold": 60
-}
