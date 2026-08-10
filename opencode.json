@@ -6,5 +6,8 @@
       "command": ["node", "delivery-mcp-server/dist/server.js"],
       "enabled": true
     }
+  },
+  "permission": {
+    "delivery_stage.complete": "ask"
   }
 }

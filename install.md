@@ -318,7 +318,7 @@ npm run dashboard
 4. `artifact.submit` 提交 → `gate.check` 门禁 → `stage.complete` 推进
 5. 全部完成后 `task.export_delivery_package` 导出交付包
 
-> **用户确认**：每个角色完成阶段时，`stage.complete` 必须由**用户确认**（必填 `confirmed_by`，填用户姓名/邮箱）。AI 在完成阶段前应先向用户确认，得到确认后再调用 `stage.complete`。
+> **用户确认（强制）**：每个角色完成阶段时，`stage.complete` 必须由**用户本人**执行（必填 `confirmed_by`，填用户姓名/邮箱）。已配置 OpenCode 权限强制：编排 Agent 对 `delivery_stage.complete` 为 `deny`，其他调用为 `ask`（会弹窗征求用户批准）。因此即使门禁通过，AI 也无法自行推进阶段，必须由用户交互确认后才会发给下一角色。AI 只需汇报完成情况并引导用户调用 `stage.complete`。
 > **看板提示**：`task.create` / `stage.complete` 返回中附带 `dashboard_url` 与 `view_hint`，AI 应据此提示用户"新任务已创建 / 阶段已推进，可在浏览器查看：<dashboard_url>"。
 
 ---
