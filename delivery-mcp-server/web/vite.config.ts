@@ -10,6 +10,8 @@ export default defineConfig({
     alias: {
       '@': new URL('./src', import.meta.url).pathname,
     },
+    // 与 @miitvip/admin-pro 共享同一份 vue-router/pinia 实例（框架按 ^4.x / ^2.x 构建）
+    dedupe: ['vue', 'vue-router', 'pinia'],
   },
   server: {
     proxy: {

@@ -5,9 +5,9 @@
  */
 import { computed, onMounted, ref, h } from 'vue';
 import { useRouter } from 'vue-router';
-import { Table, Tag, Card, Select, Space, Button, message } from 'ant-design-vue';
+import { Table, Tag, Card, Select, Space, message } from 'ant-design-vue';
 import type { ColumnsType } from 'ant-design-vue/es/table';
-import { api, exportUrl } from '@/api/api';
+import { api } from '@/api/api';
 import { useTeamUser } from '@/composables/useTeamUser';
 import { STATUS_MAP, TASK_TYPE_MAP } from '@/utils/constants';
 import { formatTime, stageDisplayName } from '@/utils/helpers';
@@ -150,12 +150,9 @@ onMounted(load);
           {{ opt.label }}
         </Select.Option>
       </Select>
-      <span style="margin-left: 16px; color: rgba(0,0,0,0.45)">
+      <span style="margin-left: 16px; color: var(--color-text-muted)">
         {{ filteredTasks.length }} / {{ taskList.length }} 个任务
       </span>
-      <a :href="exportUrl.tasks" download="tasks.md" style="margin-left: auto">
-        <Button>导出 Markdown</Button>
-      </a>
     </Space>
 
     <Table

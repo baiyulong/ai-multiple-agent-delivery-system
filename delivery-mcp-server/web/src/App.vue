@@ -4,19 +4,28 @@
  * 配置菜单（任务列表 / 公共文档）、团队/用户信息、路由出口。
  */
 import { onMounted, computed, h } from 'vue';
+import { Alert } from 'ant-design-vue';
 import { useStoreMenu } from '@miitvip/admin-pro';
-import { DashboardOutlined, FileTextOutlined } from '@ant-design/icons-vue';
+import { HomeOutlined, DashboardOutlined, FileTextOutlined } from '@ant-design/icons-vue';
 import { useTeamUser } from '@/composables/useTeamUser';
 
 const { team, user } = useTeamUser();
 const menuStore = useStoreMenu();
 
-// 配置菜单项
+// 配置菜单项（Home 为默认落地页，排在首位）
 onMounted(() => {
   menuStore.updateMenus([
     {
-      name: 'tasks',
+      name: 'home',
       path: '/',
+      meta: {
+        title: 'Home',
+        icon: HomeOutlined,
+      },
+    },
+    {
+      name: 'tasks',
+      path: '/tasks',
       meta: {
         title: '任务列表',
         icon: DashboardOutlined,
@@ -95,20 +104,19 @@ const teamInfoExtra = computed(() => {
 
 const headerSetting = computed(() => ({
   extra: teamInfoExtra.value,
+  // 隐藏右上角搜索框与头像下拉（github/赞助/退出登录 等框架菜单）
+  search: false,
+  dropdown: false,
 }));
 </script>
 
 <template>
   <mi-layout :show-breadcrumbs="false" :header-setting="headerSetting">
-    <!-- 侧边栏 Logo -->
-    <template #sider>
-      <mi-layout-sider-logo />
-    </template>
-
+    <!-- 侧边栏：默认渲染（logo + 菜单），不覆写 sider slot -->
     <!-- 主内容区 -->
     <template #content>
       <!-- 团队配置警告 banner -->
-      <a-alert
+      <Alert
         v-if="bannerMessage"
         type="warning"
         show-icon
@@ -144,20 +152,21 @@ const headerSetting = computed(() => ({
   font-size: 10px;
 }
 .team-member-name {
-  color: rgba(0, 0, 0, 0.88);
+  color: var(--color-text);
 }
 .team-member-email {
-  color: rgba(0, 0, 0, 0.45);
+  color: var(--color-text-muted);
 }
 .team-role-tag {
-  background: #f0f0f0;
+  background: rgba(96, 165, 250, 0.2);
+  color: #93c5fd;
   padding: 1px 6px;
   border-radius: 3px;
   font-size: 10px;
   margin-left: 4px;
 }
 .team-user-hint {
-  color: rgba(0, 0, 0, 0.45);
+  color: var(--color-text-muted);
   font-size: 12px;
 }
 </style>

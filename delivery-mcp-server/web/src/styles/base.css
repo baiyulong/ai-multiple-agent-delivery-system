@@ -168,13 +168,16 @@ body {
   line-height: 1.5;
 }
 
+/* Uses theme variables instead of hardcoded light-on-dark values so
+   the text is readable in both light mode (dark text on light header)
+   and dark mode (light text on dark header). */
 .team-member-name {
   font-weight: 600;
-  color: #e2e8f0;
+  color: var(--color-text);
 }
 
 .team-member-email {
-  color: #94a3b8;
+  color: var(--color-text-muted);
 }
 
 .team-member-roles {
@@ -1393,4 +1396,311 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--color-text-muted);
+}
+
+/* ========================================
+   Dark-theme overrides
+   makeit-admin-pro provides a dark UI;
+   these overrides prevent base.css light
+   variables from clashing with the dark theme.
+
+   Scoped behind .mi-theme-dark (added by the
+   framework on the layout <section> element)
+   so they only apply in dark mode.
+   ======================================== */
+
+/* --- CSS variables (dark) --- */
+/* Defined on .mi-theme-dark (the layout section) rather than :root
+   so they only override light defaults when dark mode is active. */
+.mi-theme-dark {
+  --color-bg: #000000;
+  --color-surface: #141414;
+  --color-surface-hover: #1f1f1f;
+  --color-border: #303030;
+  --color-border-light: #1f1f1f;
+
+  --color-text: rgba(255, 255, 255, 0.85);
+  --color-text-secondary: rgba(255, 255, 255, 0.65);
+  --color-text-muted: rgba(255, 255, 255, 0.45);
+
+  --color-primary-bg: rgba(24, 144, 255, 0.15);
+  --color-primary-border: rgba(24, 144, 255, 0.3);
+
+  --color-success-bg: rgba(82, 196, 26, 0.15);
+  --color-success-border: rgba(82, 196, 26, 0.3);
+
+  --color-warning-bg: rgba(250, 173, 20, 0.15);
+  --color-warning-border: rgba(250, 173, 20, 0.3);
+
+  --color-danger-bg: rgba(245, 34, 45, 0.15);
+  --color-danger-border: rgba(245, 34, 45, 0.3);
+
+  --color-muted-bg: #1f1f1f;
+  --color-muted-border: #424242;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+
+/* NOTE: body { color/background } removed — the framework styles body
+   per theme directly; body is outside .mi-theme-dark so scoping
+   custom properties here is sufficient. */
+
+/* Override hard-coded light backgrounds */
+.mi-theme-dark .doc-body {
+  background: var(--color-surface);
+  border-color: var(--color-border);
+}
+
+.mi-theme-dark .artifact-body {
+  background: var(--color-surface);
+  border-color: var(--color-border);
+}
+
+.mi-theme-dark .badge-preset {
+  background: rgba(99, 102, 241, 0.15);
+  color: #a5b4fc;
+  border-color: rgba(99, 102, 241, 0.3);
+}
+
+/* --- Ant Design dark-theme overrides --- */
+/* These target antd component internals used on Home / TaskList / Documents pages
+   that inherit light-theme defaults (black text on dark bg). */
+
+/* Card */
+.mi-theme-dark .ant-card {
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.mi-theme-dark .ant-card-head {
+  border-bottom-color: var(--color-border);
+  color: var(--color-text);
+}
+
+.mi-theme-dark .ant-card-head-title {
+  color: var(--color-text) !important;
+}
+
+.mi-theme-dark .ant-card-extra {
+  color: var(--color-text-secondary);
+}
+
+.mi-theme-dark .ant-card-body {
+  color: var(--color-text);
+}
+
+/* Table */
+.mi-theme-dark .ant-table-wrapper .ant-table {
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.mi-theme-dark .ant-table-thead > tr > th,
+.mi-theme-dark .ant-table-thead > tr > td {
+  background: var(--color-surface-hover) !important;
+  color: var(--color-text-secondary) !important;
+  border-bottom-color: var(--color-border) !important;
+}
+
+.mi-theme-dark .ant-table-thead > tr > th::before,
+.mi-theme-dark .ant-table-thead > tr > td::before {
+  background: var(--color-border) !important;
+}
+
+.mi-theme-dark .ant-table-tbody > tr > td {
+  color: var(--color-text);
+  border-bottom-color: var(--color-border) !important;
+}
+
+.mi-theme-dark .ant-table-tbody > tr:hover > td {
+  background: var(--color-surface-hover) !important;
+}
+
+.mi-theme-dark .ant-table-tbody > tr.ant-table-row:hover > td {
+  background: var(--color-surface-hover) !important;
+}
+
+.mi-theme-dark .ant-table-cell-row-hover {
+  background: var(--color-surface-hover) !important;
+}
+
+/* Pagination */
+.mi-theme-dark .ant-pagination-item {
+  background: var(--color-surface) !important;
+  border-color: var(--color-border) !important;
+}
+
+.mi-theme-dark .ant-pagination-item a {
+  color: var(--color-text) !important;
+}
+
+.mi-theme-dark .ant-pagination-item-active {
+  background: var(--color-primary-bg) !important;
+  border-color: var(--color-primary-light) !important;
+}
+
+.mi-theme-dark .ant-pagination-item-active a {
+  color: var(--color-primary-light) !important;
+}
+
+.mi-theme-dark .ant-pagination-prev,
+.mi-theme-dark .ant-pagination-next {
+  color: var(--color-text) !important;
+}
+
+.mi-theme-dark .ant-pagination-prev .ant-pagination-item-link,
+.mi-theme-dark .ant-pagination-next .ant-pagination-item-link {
+  color: var(--color-text) !important;
+  background: var(--color-surface) !important;
+  border-color: var(--color-border) !important;
+}
+
+.mi-theme-dark .ant-pagination-disabled .ant-pagination-item-link {
+  color: var(--color-text-muted) !important;
+}
+
+.mi-theme-dark .ant-pagination-jump-prev,
+.mi-theme-dark .ant-pagination-jump-next {
+  color: var(--color-text-muted) !important;
+}
+
+.mi-theme-dark .ant-pagination-total-text {
+  color: var(--color-text-muted) !important;
+}
+
+/* Statistic */
+.mi-theme-dark .ant-statistic-title {
+  color: var(--color-text-muted);
+}
+
+.mi-theme-dark .ant-statistic-content {
+  color: var(--color-text);
+}
+
+/* Collapse */
+.mi-theme-dark .ant-collapse {
+  background: var(--color-surface);
+  border-color: var(--color-border);
+}
+
+.mi-theme-dark .ant-collapse-header {
+  color: var(--color-text) !important;
+}
+
+.mi-theme-dark .ant-collapse-content {
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.mi-theme-dark .ant-collapse-item {
+  border-bottom-color: var(--color-border) !important;
+}
+
+/* Empty */
+.mi-theme-dark .ant-empty-description {
+  color: var(--color-text-muted);
+}
+
+/* Spin */
+.mi-theme-dark .ant-spin-text {
+  color: var(--color-text-muted);
+}
+
+/* Tag default (no explicit color prop) */
+.mi-theme-dark .ant-tag-default {
+  background: var(--color-surface-hover);
+  border-color: var(--color-border);
+  color: var(--color-text-secondary);
+}
+
+/* Select dropdown */
+.mi-theme-dark .ant-select-dropdown {
+  background: var(--color-surface) !important;
+  border-color: var(--color-border) !important;
+}
+
+.mi-theme-dark .ant-select-item {
+  color: var(--color-text) !important;
+}
+
+.mi-theme-dark .ant-select-item-option-active {
+  background: var(--color-surface-hover) !important;
+}
+
+.mi-theme-dark .ant-select-item-option-selected {
+  background: var(--color-primary-bg) !important;
+  color: var(--color-text) !important;
+}
+
+/* Button */
+.mi-theme-dark .ant-btn-default {
+  background: var(--color-surface);
+  border-color: var(--color-border);
+  color: var(--color-text);
+}
+
+.mi-theme-dark .ant-btn-default:hover {
+  border-color: var(--color-primary-light);
+  color: var(--color-primary-light);
+}
+
+/* Fix light hover state for btn-toggle */
+.mi-theme-dark .btn-toggle:hover {
+  background: rgba(24, 144, 255, 0.15);
+}
+
+/* --- Sidebar active menu item --- */
+/* makeit-admin-pro applies a light-theme selected style (dark navy text)
+   via its own hashed classes inside .ant-menu-item-selected.
+   On dark bg the navy text is unreadable. Override the entire
+   .ant-menu-item-selected subtree to force light text. */
+.mi-theme-dark .ant-menu-item-selected,
+.mi-theme-dark .ant-menu-item-selected .ant-menu-title-content,
+.mi-theme-dark .ant-menu-item-selected .ant-menu-title-content span,
+.mi-theme-dark .ant-menu-item-selected a {
+  color: var(--color-text) !important;
+}
+
+/* Card extra area — makeit-admin-pro may override the inline style
+   on spans inside .ant-card-extra with its own link-like color.
+   Force light muted text. */
+.mi-theme-dark .ant-card-extra,
+.mi-theme-dark .ant-card-extra span {
+  color: var(--color-text-muted) !important;
+}
+
+/* ========================================
+   Light-theme overrides
+   Scoped behind .mi-theme-light (added by the
+   framework on the layout <section> element)
+   so they only apply in light mode.
+   ======================================== */
+
+/* --- Historical page-tabs (mi-historical-module) --- */
+/* In light mode the framework's --mi-historical-routing-text resolves to
+   white and --mi-historical-routing-bg to transparent, making tab labels
+   invisible. Override with our theme variables which are correct in both
+   themes. Selector hashes match the framework's current build; if the
+   framework is updated these may need refreshing. */
+
+/* Tab items (round nav buttons) */
+.mi-theme-light .mi-historical-module-B7DoRIi-,
+.mi-theme-light .mi-historical-module-yM20f6tn {
+  background-color: var(--color-surface-hover);
+  color: var(--color-text);
+}
+
+/* Tab items (pill nav items) */
+.mi-theme-light .mi-historical-module-MeGJkNFQ .mi-historical-module-LTHUQITj {
+  background-color: var(--color-surface-hover);
+  color: var(--color-text);
+}
+
+/* Active tab — primary-colored pill with white text */
+.mi-theme-light .mi-historical-module-MeGJkNFQ .mi-historical-module-XBe6zyHB {
+  background-color: var(--color-primary);
+  background-image: none;
+  color: #ffffff;
 }
