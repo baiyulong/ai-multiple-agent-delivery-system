@@ -130,39 +130,62 @@ export async function upsertMember(
   return { config: existing, created };
 }
 
-/** 校验 assignees：每个 role 必须是合法角色 key，且 email 是团队成员并担任该角色。返回非法项列表 */
+/** 归一化某角色指派值为邮箱数组（兼容旧格式的单邮箱字符串） */
+export function normalizeAssigneeList(value: string | string[] | undefined): string[] {
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'string' && value.length > 0) return [value];
+  return [];
+}
+
+/** 归一化 assignees：role -> 邮箱数组（兼容旧格式单邮箱字符串，空列表的 role 丢弃） */
+export function normalizeAssignees(
+  assignees: Record<string, string | string[]> | undefined,
+): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  for (const [role, raw] of Object.entries(assignees ?? {})) {
+    const emails = normalizeAssigneeList(raw);
+    if (emails.length > 0) out[role] = emails;
+  }
+  return out;
+}
+
+/** 校验 assignees：每个 role 必须是合法角色 key，且每个 email 是团队成员并担任该角色。返回非法项列表 */
 export async function validateAssignees(
   root: string,
-  assignees: Record<string, string>,
+  assignees: Record<string, string | string[]>,
 ): Promise<Array<{ role: string; email: string; reason: string }>> {
   const invalid: Array<{ role: string; email: string; reason: string }> = [];
-  for (const [role, email] of Object.entries(assignees)) {
+  for (const [role, raw] of Object.entries(assignees)) {
     const norm = normalizeRoleKey(role);
     if (!TEAM_ROLES.includes(norm as TeamRole)) {
-      invalid.push({ role, email, reason: 'unknown_role' });
+      invalid.push({ role, email: Array.isArray(raw) ? raw.join('、') : raw, reason: 'unknown_role' });
       continue;
     }
-    const member = await findMemberByEmail(root, email);
-    if (!member) {
-      invalid.push({ role, email, reason: 'not_member' });
-      continue;
-    }
-    if (!member.roles.includes(norm as TeamRole)) {
-      invalid.push({ role, email, reason: 'role_not_in_member_roles' });
+    for (const email of normalizeAssigneeList(raw)) {
+      const member = await findMemberByEmail(root, email);
+      if (!member) {
+        invalid.push({ role, email, reason: 'not_member' });
+        continue;
+      }
+      if (!member.roles.includes(norm as TeamRole)) {
+        invalid.push({ role, email, reason: 'role_not_in_member_roles' });
+      }
     }
   }
   return invalid;
 }
 
-/** 解析某角色在本任务的负责人成员（无指派返回 null） */
-export async function resolveAssignee(
+/** 解析某角色在本任务的全部负责人成员（无指派返回空数组） */
+export async function resolveAssignees(
   root: string,
-  assignees: Record<string, string> | undefined,
+  assignees: Record<string, string | string[]> | undefined,
   role: string,
-): Promise<{ name: string; email: string } | null> {
-  const email = assignees?.[role] ?? assignees?.[normalizeRoleKey(role)];
-  if (!email) return null;
-  const member = await findMemberByEmail(root, email);
-  if (!member) return null;
-  return { name: member.name, email: member.email };
+): Promise<Array<{ name: string; email: string }>> {
+  const raw = assignees?.[role] ?? assignees?.[normalizeRoleKey(role)];
+  const out: Array<{ name: string; email: string }> = [];
+  for (const email of normalizeAssigneeList(raw)) {
+    const member = await findMemberByEmail(root, email);
+    if (member) out.push({ name: member.name, email: member.email });
+  }
+  return out;
 }

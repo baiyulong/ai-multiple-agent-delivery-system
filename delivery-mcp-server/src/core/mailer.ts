@@ -17,7 +17,7 @@ export async function sendEmail(config: EmailConfig, opts: SendEmailOptions): Pr
     host: config.host,
     port: config.port,
     secure: config.secure,
-    auth: { user: config.user, pass: config.pass },
+    auth: config.pass ? { user: config.user, pass: config.pass } : undefined,
   });
 
   await transporter.sendMail({

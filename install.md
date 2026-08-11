@@ -48,7 +48,7 @@ node delivery-mcp-server/install.js --repo /tmp/ai-delivery-system
 3. 拷贝 `delivery-mcp-server/` 到目标项目（已存在时：`--release` / `--force-update` / **本地版本低于源码版本** 三种情况会直接删除旧版并拷贝新版，否则跳过）
 4. 拷贝 `.opencode/agent/` 角色配置到目标项目（**只新增 `delivery-*.md`，绝不覆盖目标项目已有 agent 文件**）
 5. 合并 `opencode.json`：**保留目标项目已有的全部字段**（mcp/plugin/permission/agent 等），只新增 `mcp.delivery`，若已存在同名 mcp 则跳过
-6. 追加 `.gitignore`：`delivery-mcp-server`（幂等）。注意 **`email.json` 不要排除**——它是团队共享的公共发件服务器配置，应随仓库提交，让所有成员复用同一个发件账号，无需各自配置授权码。
+6. 追加 `.gitignore`：`delivery-mcp-server`（幂等）。**邮件配置属于当前用户个人**（`email.set` 写入用户主目录 `~/.config/ai-delivery/user.json`），不会写入项目，无需考虑版本管理。
 7. 在 `delivery-mcp-server` 内执行 `npm install` + `npm run build`
 8. 默认**不**自动启动看板（加 `--dashboard` 后台启动；避免被有超时的命令行误杀）
 9. 打印后续配置指引（user.set / team.set / email.set）
@@ -190,7 +190,7 @@ grep -qxF 'delivery-mcp-server' .gitignore 2>/dev/null || echo 'delivery-mcp-ser
 ```
 
 > 注意：`.delivery/`（任务数据）**不要**整目录忽略——它是目标项目的交付记录，建议纳入版本管理。
-> **`email.json`（SMTP 发件配置）不要排除**——它是团队共享的**公共发件服务器**配置，应随仓库提交，让所有成员复用同一个发件账号，无需各自配置授权码。
+> **邮件配置（SMTP 服务器 + 授权码）属于当前用户个人**，`email.set` 写入用户主目录 `~/.config/ai-delivery/user.json`，不会出现在项目目录中，因此无需也不应提交到仓库。
 
 ---
 
@@ -237,9 +237,9 @@ grep -qxF 'delivery-mcp-server' .gitignore 2>/dev/null || echo 'delivery-mcp-ser
 
 > 所有角色 Agent 均以 `delivery-` 前缀命名，避免与目标项目已有的同名 agent（如 `engineer.md`）冲突。**角色 key（team.json 中的 roles 值）与 Agent 文件名是两个概念**：角色 key 不变，Agent 文件名带前缀。
 
-### 3. 配置邮件通知（可选）
+### 3. 配置邮件通知（可选，当前用户个人级）
 
-需要邮件通知时调用 `email.set`。**只需提供邮箱 + 授权码**，`host/port/secure` 会按邮箱域名自动填充（内置支持 QQ/163/126/yeah/Foxmail/Gmail/Outlook/iCloud）：
+需要邮件通知时调用 `email.set`（需先 `user.set` 配置当前人）。**只需提供邮箱 + 授权码**，`host/port/secure` 会按邮箱域名自动填充（内置支持 QQ/163/126/yeah/Foxmail/Gmail/Outlook/iCloud）：
 
 ```json
 {
@@ -272,6 +272,8 @@ grep -qxF 'delivery-mcp-server' .gitignore 2>/dev/null || echo 'delivery-mcp-ser
 ```
 
 > **授权码说明**：`pass` 是**服务商授权的 SMTP 授权码**，不是登录密码。需先在邮箱网页端开启「SMTP/IMAP 服务」并生成授权码（各服务商入口：QQ「设置→账户→开启服务」、163「设置→POP3/SMTP」、Gmail「Google 账户→两步验证→应用专用密码」）。未配置邮件不影响主流程（best-effort，发送失败静默跳过）。
+>
+> **配置归属**：邮件服务器与认证信息是**当前操作人个人**配置，`email.set` 写入用户主目录 `~/.config/ai-delivery/user.json`（与 `user.set` 的姓名/邮箱同文件），跨项目沿用，**不会写入项目仓库**——发件账号由每位成员用自己的邮箱/授权码各自配置，不使用共享的全局发件配置。`user.set` 更新姓名/邮箱不会覆盖已配置的邮件。
 
 ---
 
@@ -316,7 +318,7 @@ npm run dashboard
 4. `artifact.submit` 提交 → `gate.check` 门禁 → `stage.complete` 推进
 5. 全部完成后 `task.export_delivery_package` 导出交付包
 
-> **用户确认**：每个角色完成阶段时，`stage.complete` 必须由**用户确认**（必填 `confirmed_by`，填用户姓名/邮箱）。AI 在完成阶段前应先向用户确认，得到确认后再调用 `stage.complete`。
+> **用户确认（强制）**：每个角色完成阶段时，`stage.complete` 必须由**用户本人**执行（必填 `confirmed_by`，填用户姓名/邮箱）。已配置 OpenCode 权限强制：编排 Agent 对 `delivery_stage.complete` 为 `deny`，其他调用为 `ask`（会弹窗征求用户批准）。因此即使门禁通过，AI 也无法自行推进阶段，必须由用户交互确认后才会发给下一角色。AI 只需汇报完成情况并引导用户调用 `stage.complete`。
 > **看板提示**：`task.create` / `stage.complete` 返回中附带 `dashboard_url` 与 `view_hint`，AI 应据此提示用户"新任务已创建 / 阶段已推进，可在浏览器查看：<dashboard_url>"。
 
 ---

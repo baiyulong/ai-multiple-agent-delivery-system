@@ -5,13 +5,14 @@ import {
   readEmailConfig,
   writeEmailConfig,
 } from '../core/store/email-store.js';
+import { isUserConfigured } from '../core/store/user-store.js';
 import { PRESET_KEYS, SMTP_PRESETS, resolveEmailConfig } from '../core/smtp-presets.js';
-import { resolveDeliveryRoot } from '../core/paths.js';
 import { ok, fail, type ToolContext } from './common.js';
 
 /**
  * 邮件工具组：email.get / email.set / email.providers
- * 管理项目级 SMTP 邮件通知配置。pass 仅用于发送，绝不返回。
+ * 管理"当前操作人"的个人级 SMTP 邮件通知配置（存储于用户主目录 user.json，
+ * 跨项目沿用），不使用项目级/全局配置。pass 仅用于发送，绝不返回。
  * email.set 支持只提供邮箱+授权码，host/port/secure 按服务商预设自动填充。
  */
 
@@ -32,18 +33,17 @@ export function registerEmailTools(server: McpServer, ctx: () => ToolContext) {
     'email.get',
     {
       description:
-        '获取邮件通知配置（SMTP 服务器、端口、加密、账号、发件人）。出于安全考虑不返回密码。未配置时 configured=false。',
+        '获取当前操作人的邮件通知配置（SMTP 服务器、端口、加密、账号、发件人）。配置属于当前用户个人，存储于用户主目录，跨项目沿用。出于安全考虑不返回密码。未配置时 configured=false。',
       inputSchema: {},
     },
     async () => {
       try {
-        const root = resolveDeliveryRoot(ctx().root);
-        const configured = await isEmailConfigured(root);
-        const cfg = await readEmailConfig(root);
+        const configured = await isEmailConfigured();
+        const cfg = await readEmailConfig();
         return ok({
           configured,
           config: cfg ? publicConfig(cfg) : null,
-          updated_at: null,
+          updated_at: cfg?.updated_at ?? null,
         });
       } catch (e) {
         return fail('email_get_failed', (e as Error).message);
@@ -55,7 +55,7 @@ export function registerEmailTools(server: McpServer, ctx: () => ToolContext) {
     'email.set',
     {
       description:
-        '写入邮件通知配置（SMTP）。只需提供邮箱 user + 授权码 pass：host/port/secure/from 会自动按邮箱域名或 provider 填充（支持 QQ/163/126/yeah/Foxmail/Gmail/Outlook/iCloud）。也可显式覆盖 host/port。pass 仅用于发送，不会在返回中暴露。',
+        '写入当前操作人的邮件通知配置（SMTP，个人级，存储于用户主目录，跨项目沿用）。只需提供邮箱 user + 授权码 pass：host/port/secure/from 会自动按邮箱域名或 provider 填充（支持 QQ/163/126/yeah/Foxmail/Gmail/Outlook/iCloud）。也可显式覆盖 host/port。pass 仅用于发送，不会在返回中暴露。',
       inputSchema: {
         provider: z.string().optional().describe('邮件服务商 key（可选，如 qq/163/gmail）。省略时按 user 邮箱域名自动推断'),
         host: z.string().optional().describe('SMTP 服务器地址（可选，省略时按 provider 或域名填充）'),
@@ -68,6 +68,10 @@ export function registerEmailTools(server: McpServer, ctx: () => ToolContext) {
     },
     async (args) => {
       try {
+        if (!(await isUserConfigured())) {
+          return fail('user_not_configured', '请先用 user.set 配置当前操作人（姓名、邮箱），再配置个人邮件。');
+        }
+
         const resolved = resolveEmailConfig({
           provider: args.provider,
           host: args.host,
@@ -80,8 +84,7 @@ export function registerEmailTools(server: McpServer, ctx: () => ToolContext) {
           return fail(resolved.code, resolved.message, { providers: resolved.providers });
         }
 
-        const root = resolveDeliveryRoot(ctx().root);
-        const file = await writeEmailConfig(root, { ...resolved.config, pass: args.pass });
+        const file = await writeEmailConfig({ ...resolved.config, pass: args.pass });
         return ok({
           configured: true,
           provider: resolved.config.provider ?? null,
