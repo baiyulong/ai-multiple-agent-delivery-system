@@ -14,6 +14,17 @@ $g.logo = '/logo.svg';
 $g.copyright!.laptop = '© Copyright 2026 ~ Now';
 $g.copyright!.mobile = '© Copyright 2026 ~ Now';
 
+// 关闭框架 Historical（多标签）路由恢复：该组件会把访问过的路由以 route.name 为 key
+// 持久化到 localStorage（mi-historical-routing），task-detail 被记住后会覆盖/跳转到
+// 已删除的任务详情（如 #/task/TASK-20260811-001），导致打开 dashboard 反复跳到不存在的任务。
+// 此处关闭功能并清理残留存储，保持纯 hash 路由导航（/、/tasks、/task/:id、/documents）。
+$g.showHistoricalRouting = false;
+try {
+  localStorage.removeItem('mi-historical-routing');
+} catch {
+  // 忽略清理失败
+}
+
 // 配置 API 基础路径（框架请求层直接返回 res.data，后端裸 JSON 完全兼容）
 $request.setBaseUrl('/api');
 
