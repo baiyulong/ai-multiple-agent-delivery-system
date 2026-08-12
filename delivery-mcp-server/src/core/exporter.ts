@@ -3,6 +3,9 @@ import MarkdownIt from 'markdown-it';
 import { ensureDir, readText, writeTextAtomic } from './fsx.js';
 import { taskDir } from './paths.js';
 import { nowIso } from './time.js';
+import { getQuestions, getStages, getTask, readContext } from './store/task-store.js';
+import { listArtifacts } from './store/artifact-store.js';
+import { readGateStageFile } from './store/gate-store.js';
 import type { ArtifactMeta, GateCheckRecord, Question, StageRecord, Task } from './types.js';
 
 /**
@@ -193,6 +196,62 @@ ${body}
 export interface ExportResult {
   path: string;
   status: 'exported';
+}
+
+/**
+ * 汇总任务当前状态为 ExportInput（任务不存在返回 null）。
+ * 供关键节点（任务创建 / 阶段完成 / 创建待确认问题）自动生成文档快照复用，
+ * 也供 task.export_delivery_package 与 dashboard 下载端点使用。
+ */
+export async function collectExportInput(root: string, taskId: string): Promise<ExportInput | null> {
+  const task = await getTask(root, taskId);
+  if (!task) return null;
+  const [stages, artifacts, questions] = await Promise.all([
+    getStages(root, taskId),
+    listArtifacts(root, taskId),
+    getQuestions(root, taskId),
+  ]);
+  const gateRecords: Array<{ stage: string; record: GateCheckRecord }> = [];
+  for (const stage of stages ?? []) {
+    const file = await readGateStageFile(root, taskId, stage.stage);
+    for (const artifactId of Object.keys(file.checks)) {
+      gateRecords.push({ stage: stage.stage, record: file.checks[artifactId]! });
+    }
+  }
+  const contextMd = (await readContext(root, taskId)) ?? '';
+  return {
+    task,
+    stages: stages ?? [],
+    artifacts: artifacts ?? [],
+    gateRecords,
+    questions: questions ?? [],
+    contextMd,
+  };
+}
+
+export interface TaskDocuments {
+  /** 相对任务目录的文件名数组，如 ['delivery_package.md', 'delivery_package.html'] */
+  rel_paths: string[];
+  /** 完整绝对路径数组（含文件名），便于直接打开/传阅 */
+  abs_paths: string[];
+}
+
+/**
+ * 生成任务文档快照（md/html，不要求全部阶段完成），返回相对路径与完整绝对路径。
+ * 用于任务创建 / 阶段完成 / 创建待确认问题等节点自动生成、随结果与通知展示。
+ */
+export async function exportTaskDocuments(
+  root: string,
+  taskId: string,
+  opts: { formats?: ExportFormat[] } = {},
+): Promise<TaskDocuments | null> {
+  const input = await collectExportInput(root, taskId);
+  if (!input) return null;
+  const result = await exportDeliveryPackage(root, taskId, input, {
+    formats: opts.formats ?? ['md', 'html'],
+  });
+  const abs_paths = result.paths.map((p) => join(taskDir(root, taskId), p));
+  return { rel_paths: result.paths, abs_paths };
 }
 
 export async function exportDeliveryPackage(

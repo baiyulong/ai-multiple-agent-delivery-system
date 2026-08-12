@@ -2,7 +2,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { detectTaskType } from '../core/type-detector.js';
 import { buildStagesFromFlow, loadFlowTemplate } from '../core/flow-engine.js';
-import { exportDeliveryPackage } from '../core/exporter.js';
+import { exportDeliveryPackage, exportTaskDocuments } from '../core/exporter.js';
 import { getQuestions, getStages, getTask } from '../core/store/task-store.js';
 import { listArtifacts } from '../core/store/artifact-store.js';
 import { readGateStageFile } from '../core/store/gate-store.js';
@@ -100,6 +100,9 @@ export function registerTaskTools(server: McpServer, ctx: () => ToolContext) {
           }
         }
 
+        // 自动生成任务文档快照（md + html，best-effort），返回完整路径便于查看/传阅
+        const documents = await exportTaskDocuments(root, task.task_id).catch(() => null);
+
         return ok({
           task_id: task.task_id,
           status: task.status,
@@ -108,6 +111,7 @@ export function registerTaskTools(server: McpServer, ctx: () => ToolContext) {
           task_type: task.task_type,
           assignees: task.assignees ?? null,
           skipped_stages: skippedStages,
+          documents,
           dashboard_url: dashboardUrl(),
           view_hint: `新任务已创建，可在浏览器查看: ${dashboardUrl()}`,
         });

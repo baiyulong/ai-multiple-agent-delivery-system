@@ -6,6 +6,7 @@ import { setStageStatus } from '../core/store/stage-store.js';
 import { resolveDeliveryRoot } from '../core/paths.js';
 import { nowIso } from '../core/time.js';
 import { notifyPerson, notifyRole, nextStepsFooter } from '../core/notify.js';
+import { exportTaskDocuments } from '../core/exporter.js';
 import { normalizeAssigneeList } from '../core/store/team-store.js';
 import { fail, ok, type ToolContext } from './common.js';
 
@@ -75,11 +76,19 @@ export function registerQuestionTools(server: McpServer, ctx: () => ToolContext)
             return `[${i + 1}] ${x.question_id}：${x.question}${x.blocks_stage ? `（阻塞阶段：${x.blocks_stage}）` : ''}`;
           }),
         ];
+
+        // 等待补充问题时自动生成文档快照（best-effort），邮件正文附完整路径便于查看
+        const documents = await exportTaskDocuments(root, args.task_id).catch(() => null);
+        const docHint =
+          documents && documents.abs_paths.length > 0
+            ? `\n\n任务文档：${documents.abs_paths.join('\n          ')}`
+            : '';
+
         const email = await notifyRole(
           root,
           args.assigned_to_role,
           `【任务待确认】${task.title}（${openForRole.length} 个问题）`,
-          `${lines.join('\n')}${nextStepsFooter(args.task_id)}`,
+          `${lines.join('\n')}${docHint}${nextStepsFooter(args.task_id)}`,
           { assignees: normalizeAssigneeList(task.assignees?.[args.assigned_to_role]) },
         );
 
@@ -87,6 +96,7 @@ export function registerQuestionTools(server: McpServer, ctx: () => ToolContext)
           question_id: question.question_id,
           status: question.status,
           blocked_stage: args.blocks_stage ?? null,
+          documents,
           email,
         });
       } catch (e) {
