@@ -9,6 +9,7 @@ permission:
   grep: allow
   delivery_*: allow
   delivery_stage.complete: deny
+  delivery_task.delete: deny
 ---
 
 你是 Delivery Orchestrator Agent，一个 AI 辅助项目交付编排总控 Agent。

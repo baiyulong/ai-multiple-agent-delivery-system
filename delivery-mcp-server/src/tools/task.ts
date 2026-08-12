@@ -1,5 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import { rm } from 'node:fs/promises';
 import { detectTaskType } from '../core/type-detector.js';
 import { buildStagesFromFlow, loadFlowTemplate } from '../core/flow-engine.js';
 import { exportDeliveryPackage, exportTaskDocuments } from '../core/exporter.js';
@@ -9,7 +10,7 @@ import { readGateStageFile } from '../core/store/gate-store.js';
 import { readContext } from '../core/store/task-store.js';
 import { createTask, saveTask } from '../core/store/task-store.js';
 import { ok, fail, type ToolContext } from './common.js';
-import { resolveDeliveryRoot } from '../core/paths.js';
+import { resolveDeliveryRoot, taskDir } from '../core/paths.js';
 import { dashboardUrl } from '../core/dashboard-url.js';
 import { MVP_TASK_TYPES, type TaskType } from '../core/types.js';
 import { FLOW_FILE_NAMES } from '../core/flow-engine.js';
@@ -183,6 +184,41 @@ export function registerTaskTools(server: McpServer, ctx: () => ToolContext) {
         });
       } catch (e) {
         return fail('get_failed', (e as Error).message);
+      }
+    },
+  );
+
+  server.registerTool(
+    'task.delete',
+    {
+      description:
+        '删除任务（PRD 8.1.2 扩展）：永久删除 tasks/{task_id}/ 目录（task.json/stages.json/context.md/questions.json/artifacts/gates/delivery_package），不可恢复。必须显式确认 confirmed_by=true 才会删除，防止误删。',
+      inputSchema: {
+        task_id: z.string().describe('任务 ID'),
+        confirmed_by: z
+          .boolean()
+          .describe('确认删除（必须为 true，防止误删）。删除不可恢复，请先与用户确认。'),
+      },
+    },
+    async (args) => {
+      try {
+        const root = resolveDeliveryRoot(ctx().root);
+        const task = await getTask(root, args.task_id);
+        if (!task) return fail('task_not_found', `任务不存在: ${args.task_id}`);
+        if (args.confirmed_by !== true) {
+          return fail('confirmation_required', '删除任务必须显式确认：confirmed_by=true。删除不可恢复，请与用户确认后再执行。');
+        }
+
+        const dir = taskDir(root, args.task_id);
+        await rm(dir, { recursive: true, force: true });
+        return ok({
+          task_id: args.task_id,
+          status: 'deleted',
+          deleted_path: `tasks/${args.task_id}`,
+          hint: '任务已永久删除，不可恢复。',
+        });
+      } catch (e) {
+        return fail('delete_failed', (e as Error).message);
       }
     },
   );

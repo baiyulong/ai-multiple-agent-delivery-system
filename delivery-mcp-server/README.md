@@ -47,6 +47,7 @@ npm run dashboard # 启动浏览器任务看板 http://localhost:8787
 | `task.create` | 创建任务，自动识别类型并初始化流程；可指定 assignees（各角色负责人）、skip_stages（跳过不需要的阶段） |
 | `task.assign` | 为任务指定/改派某角色负责人（role -> 成员邮箱） |
 | `task.get` | 获取任务详情、阶段、交付物、门禁记录 |
+| `task.delete` | 删除任务（永久，不可恢复；须 confirmed_by=true 显式确认） |
 | `task.detect_type` | 仅做类型识别（不创建任务） |
 | `task.get_flow` | 查看任务流程模板 |
 | `task.export_delivery_package` | 导出交付包 |
