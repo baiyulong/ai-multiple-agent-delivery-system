@@ -6,11 +6,23 @@
 import { onMounted, computed, h } from 'vue';
 import { Alert } from 'ant-design-vue';
 import { useStoreMenu } from '@miitvip/admin-pro';
-import { HomeOutlined, DashboardOutlined, FileTextOutlined } from '@ant-design/icons-vue';
+import { HomeOutlined, DashboardOutlined, FileTextOutlined, UserOutlined } from '@ant-design/icons-vue';
 import { useTeamUser } from '@/composables/useTeamUser';
 
 const { team, user } = useTeamUser();
 const menuStore = useStoreMenu();
+
+// 头像下拉菜单：仅保留「个人设置」
+// 注意：必须在 setup 阶段设置（Header 组件的 dropdownData 在 setup 时一次性捕获
+// useMenu.dropdowns，onMounted 里设置太晚会回退到框架默认项）
+menuStore.updateDropdownMenus([
+  {
+    name: 'settings',
+    title: '个人设置',
+    path: '/settings',
+    icon: UserOutlined,
+  },
+]);
 
 // 配置菜单项（Home 为默认落地页，排在首位）
 onMounted(() => {
@@ -104,9 +116,8 @@ const teamInfoExtra = computed(() => {
 
 const headerSetting = computed(() => ({
   extra: teamInfoExtra.value,
-  // 隐藏右上角搜索框与头像下拉（github/赞助/退出登录 等框架菜单）
+  // 隐藏右上角搜索框（保留头像下拉菜单，通过 updateDropdownMenus 配置单项）
   search: false,
-  dropdown: false,
 }));
 </script>
 

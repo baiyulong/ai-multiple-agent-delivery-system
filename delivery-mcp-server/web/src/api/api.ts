@@ -8,9 +8,11 @@ import type {
   ArtifactResponse,
   ContentResponse,
   DocumentsResponse,
+  SmtpRequestBody,
   TaskDetailResponse,
   TaskListResponse,
   TeamResponse,
+  UpdateUserResponse,
   UserResponse,
 } from './types';
 
@@ -27,6 +29,8 @@ export const api = {
   listDocuments: (): Promise<DocumentsResponse> => $request.get('/documents') as Promise<DocumentsResponse>,
   getTeam: (): Promise<TeamResponse> => $request.get('/team') as Promise<TeamResponse>,
   getUser: (): Promise<UserResponse> => $request.get('/user') as Promise<UserResponse>,
+  updateUser: (data: { name: string; email: string; smtp?: SmtpRequestBody | null }): Promise<UpdateUserResponse> =>
+    $request.post('/user', data) as Promise<UpdateUserResponse>,
 };
 
 /** 下载类端点（导出 Markdown）直接作为 <a href> 使用 */

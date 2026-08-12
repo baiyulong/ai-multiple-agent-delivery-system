@@ -19,6 +19,7 @@ const router = createRouter({
     { path: '/task/:id', name: 'task-detail', component: TaskDetailView, props: true, meta: { title: '任务详情' } },
     { path: '/tasks/:id', redirect: (to) => ({ path: `/task/${to.params.id}` }) },
     { path: '/documents', name: 'documents', component: DocumentsView, meta: { title: '公共文档' } },
+    { path: '/settings', name: 'settings', component: () => import('@/views/SettingsView.vue'), meta: { title: '个人设置' } },
     { path: '/:pathMatch(.*)*', redirect: '/' },
   ],
 });

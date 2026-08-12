@@ -18,7 +18,8 @@ import { getQuestions, getStages, getTask, listTaskIds, readContext } from './co
 import { getArtifact, listArtifacts } from './core/store/artifact-store.js';
 import { readGateStageFile } from './core/store/gate-store.js';
 import { isTeamConfigured, readTeamConfig, TEAM_ROLE_LABELS } from './core/store/team-store.js';
-import { readCurrentUser } from './core/store/user-store.js';
+import { readCurrentUser, writeCurrentUser, type SmtpConfig } from './core/store/user-store.js';
+import { resolveEmailConfig, SMTP_PRESETS, PRESET_KEYS } from './core/smtp-presets.js';
 
 const CONFIGURED_PORT = Number(process.env.DELIVERY_DASHBOARD_PORT ?? process.env.PORT ?? 8787);
 
@@ -413,9 +414,143 @@ function parseUrlPath(req: IncomingMessage): string {
   return decodeURIComponent(idx >= 0 ? raw.slice(0, idx) : raw);
 }
 
+/** 读取请求体（用于 POST） */
+function readBody(req: IncomingMessage): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    req.on('data', (chunk: Buffer) => chunks.push(chunk));
+    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf-8')));
+    req.on('error', reject);
+  });
+}
+
+/** 简单邮箱格式校验 */
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** SMTP 配置公开视图（不含 pass） */
+function publicSmtpConfig(cfg: SmtpConfig): {
+  provider: string | null;
+  host: string;
+  port: number;
+  secure: boolean;
+  user: string;
+  from: string;
+} {
+  return {
+    provider: cfg.provider ?? null,
+    host: cfg.host,
+    port: cfg.port,
+    secure: cfg.secure,
+    user: cfg.user,
+    from: cfg.from,
+  };
+}
+
+/** 内置 SMTP 服务商列表 */
+function smtpProviders(): Array<{
+  key: string;
+  name: string;
+  host: string;
+  port: number;
+  secure: boolean;
+  note?: string;
+}> {
+  return PRESET_KEYS.map((key) => {
+    const p = SMTP_PRESETS[key];
+    return { key: p.key, name: p.name, host: p.host, port: p.port, secure: p.secure, note: p.note };
+  });
+}
+
+/** POST /api/user：保存个人设置（姓名、邮箱）及可选 SMTP 邮件配置 */
+async function handlePostUser(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  let body: string;
+  try {
+    body = await readBody(req);
+  } catch {
+    return sendJson(res, 400, { ok: false, error: 'invalid request body' });
+  }
+
+  let data: unknown;
+  try {
+    data = JSON.parse(body);
+  } catch {
+    return sendJson(res, 400, { ok: false, error: 'invalid JSON' });
+  }
+
+  const obj = (data ?? {}) as Record<string, unknown>;
+  const name = typeof obj.name === 'string' ? obj.name.trim() : '';
+  const email = typeof obj.email === 'string' ? obj.email.trim() : '';
+
+  if (!name) {
+    return sendJson(res, 400, { ok: false, error: 'name is required' });
+  }
+  if (!email) {
+    return sendJson(res, 400, { ok: false, error: 'email is required' });
+  }
+  if (!EMAIL_REGEX.test(email)) {
+    return sendJson(res, 400, { ok: false, error: 'invalid email format' });
+  }
+
+  // 处理可选 smtp 配置
+  const smtpField = obj.smtp;
+  let smtpPublic: ReturnType<typeof publicSmtpConfig> | null = null;
+
+  if (smtpField === null || smtpField === undefined) {
+    // 不更新 smtp，保留现有
+    const user = await writeCurrentUser({ name, email });
+    smtpPublic = user.smtp ? publicSmtpConfig(user.smtp) : null;
+  } else {
+    // smtp 为对象，需完整配置
+    const smtpObj = smtpField as Record<string, unknown>;
+    const smtpUser = typeof smtpObj.user === 'string' ? smtpObj.user.trim() : '';
+    if (!smtpUser) {
+      return sendJson(res, 400, { ok: false, error: 'smtp.user is required' });
+    }
+
+    const resolved = resolveEmailConfig({
+      provider: typeof smtpObj.provider === 'string' ? smtpObj.provider : undefined,
+      host: typeof smtpObj.host === 'string' ? smtpObj.host : undefined,
+      port: typeof smtpObj.port === 'number' ? smtpObj.port : undefined,
+      secure: typeof smtpObj.secure === 'boolean' ? smtpObj.secure : undefined,
+      user: smtpUser,
+      from: typeof smtpObj.from === 'string' && smtpObj.from.trim() ? smtpObj.from.trim() : undefined,
+    });
+
+    if (!resolved.ok) {
+      return sendJson(res, 400, { ok: false, error: resolved.message });
+    }
+
+    // pass 处理：新 pass 优先；空则保留已有 pass，无则报错
+    const passInput = typeof smtpObj.pass === 'string' ? smtpObj.pass.trim() : '';
+    let pass: string;
+    if (passInput) {
+      pass = passInput;
+    } else {
+      const existing = await readCurrentUser();
+      const existingPass = existing?.smtp?.pass;
+      if (!existingPass) {
+        return sendJson(res, 400, { ok: false, error: 'pass is required' });
+      }
+      pass = existingPass;
+    }
+
+    const smtpConfig: SmtpConfig = { ...resolved.config, pass };
+    const user = await writeCurrentUser({ name, email }, smtpConfig);
+    smtpPublic = publicSmtpConfig(user.smtp!);
+  }
+
+  return sendJson(res, 200, { ok: true, user: { name, email }, smtp: smtpPublic });
+}
+
 const server = createServer(async (req, res) => {
   try {
     const path = parseUrlPath(req);
+
+    // POST API
+    if (req.method === 'POST' && path === '/api/user') {
+      return handlePostUser(req, res);
+    }
+
     if (req.method !== 'GET') {
       return sendJson(res, 405, { error: 'method not allowed' });
     }
@@ -464,6 +599,7 @@ const server = createServer(async (req, res) => {
             (m) => m.email.toLowerCase() === user.email.toLowerCase(),
           ) ?? null
         : null;
+      const smtp = user?.smtp ? publicSmtpConfig(user.smtp) : null;
       return sendJson(res, 200, {
         configured: !!user,
         user: user ? { name: user.name, email: user.email } : null,
@@ -471,6 +607,9 @@ const server = createServer(async (req, res) => {
         role_labels: TEAM_ROLE_LABELS,
         in_team: !!member,
         updated_at: user?.updated_at ?? null,
+        smtp,
+        smtp_configured: !!(user?.smtp?.host && user?.smtp?.user && user?.smtp?.from),
+        smtp_providers: smtpProviders(),
       });
     }
     const detailMatch = path.match(/^\/api\/tasks\/([^/]+)$/);

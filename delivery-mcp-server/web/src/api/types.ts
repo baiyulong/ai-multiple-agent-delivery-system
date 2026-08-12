@@ -144,6 +144,41 @@ export interface TeamResponse {
   updated_at: string | null;
 }
 
+// ---------- SMTP ----------
+
+/** SMTP 公开配置（GET /api/user 返回，不含 pass） */
+export interface SmtpPublicConfig {
+  provider: string | null;
+  host: string;
+  port: number;
+  secure: boolean;
+  user: string;
+  from: string;
+}
+
+/** SMTP 服务商预设 */
+export interface SmtpProvider {
+  key: string;
+  name: string;
+  host: string;
+  port: number;
+  secure: boolean;
+  note?: string;
+}
+
+/** POST /api/user 请求体中 smtp 字段（可选 pass，空串表示保留） */
+export interface SmtpRequestBody {
+  provider?: string | null;
+  host?: string;
+  port?: number | null;
+  secure?: boolean;
+  user: string;
+  pass?: string;
+  from?: string;
+}
+
+// ---------- 用户 ----------
+
 /** /api/user */
 export interface UserResponse {
   configured: boolean;
@@ -152,7 +187,27 @@ export interface UserResponse {
   role_labels: Record<string, string>;
   in_team: boolean;
   updated_at: string | null;
+  smtp: SmtpPublicConfig | null;
+  smtp_configured: boolean;
+  smtp_providers: SmtpProvider[];
 }
+
+// ---------- 用户更新 ----------
+
+/** POST /api/user 成功响应 */
+export interface UpdateUserSuccess {
+  ok: true;
+  user: { name: string; email: string };
+  smtp: SmtpPublicConfig | null;
+}
+
+/** POST /api/user 失败响应 */
+export interface UpdateUserError {
+  ok: false;
+  error: string;
+}
+
+export type UpdateUserResponse = UpdateUserSuccess | UpdateUserError;
 
 // ---------- 公共文档 ----------
 

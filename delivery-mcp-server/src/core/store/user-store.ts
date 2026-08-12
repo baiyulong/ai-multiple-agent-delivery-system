@@ -50,13 +50,21 @@ export async function writeUserConfig(user: CurrentUser): Promise<CurrentUser> {
   return user;
 }
 
-/** 更新姓名/邮箱（覆盖更新，保留已有的 smtp 邮件配置） */
-export async function writeCurrentUser(user: Pick<CurrentUser, 'name' | 'email'>): Promise<CurrentUser> {
+/**
+ * 更新姓名/邮箱（覆盖更新）。
+ * smtpOverride 语义：undefined 保留已有 smtp；null 清空 smtp；
+ * 传入 SmtpConfig 则覆盖为新值。
+ * 保证现有调用方（如 tools/user.ts）不传第二参数时行为不变。
+ */
+export async function writeCurrentUser(
+  user: Pick<CurrentUser, 'name' | 'email'>,
+  smtpOverride?: SmtpConfig | null,
+): Promise<CurrentUser> {
   const existing = await readCurrentUser();
   const full: CurrentUser = {
     name: user.name,
     email: user.email,
-    smtp: existing?.smtp,
+    smtp: smtpOverride === undefined ? existing?.smtp : smtpOverride ?? undefined,
     updated_at: nowIso(),
   };
   return writeUserConfig(full);
