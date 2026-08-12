@@ -33,8 +33,10 @@ export const api = {
     $request.post('/user', data) as Promise<UpdateUserResponse>,
 };
 
-/** 下载类端点（导出 Markdown）直接作为 <a href> 使用 */
+/** 下载类端点（导出 Markdown / 交付包）直接作为 <a href> 使用 */
 export const exportUrl = {
   tasks: '/api/export/tasks',
   documents: '/api/export/documents',
+  deliveryPackageMd: (taskId: string) => `/api/export/tasks/${encodeURIComponent(taskId)}/delivery_package.md`,
+  deliveryPackageHtml: (taskId: string) => `/api/export/tasks/${encodeURIComponent(taskId)}/delivery_package.html`,
 };

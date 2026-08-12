@@ -20,6 +20,7 @@ import { readGateStageFile } from './core/store/gate-store.js';
 import { isTeamConfigured, readTeamConfig, TEAM_ROLE_LABELS } from './core/store/team-store.js';
 import { readCurrentUser, writeCurrentUser, type SmtpConfig } from './core/store/user-store.js';
 import { resolveEmailConfig, SMTP_PRESETS, PRESET_KEYS } from './core/smtp-presets.js';
+import { buildDeliveryPackageHtml, buildDeliveryPackageMarkdown } from './core/exporter.js';
 
 const CONFIGURED_PORT = Number(process.env.DELIVERY_DASHBOARD_PORT ?? process.env.PORT ?? 8787);
 
@@ -381,6 +382,41 @@ async function buildTaskDetail(taskId: string) {
   };
 }
 
+/** 组装交付包导出输入（含全部门禁记录与共享上下文） */
+async function buildDeliveryPackageInput(taskId: string) {
+  const task = await getTask(root, taskId);
+  if (!task) return null;
+  const [stages, artifacts, questions] = await Promise.all([
+    getStages(root, taskId),
+    listArtifacts(root, taskId),
+    getQuestions(root, taskId),
+  ]);
+  const gateRecords: Array<{ stage: string; record: NonNullable<Awaited<ReturnType<typeof readGateStageFile>>['checks'][string]> }> = [];
+  for (const stage of stages ?? []) {
+    const file = await readGateStageFile(root, taskId, stage.stage);
+    for (const artifactId of Object.keys(file.checks)) {
+      gateRecords.push({ stage: stage.stage, record: file.checks[artifactId]! });
+    }
+  }
+  const contextMd = (await readContext(root, taskId)) ?? '';
+  const contents = new Map<string, string>();
+  for (const a of artifacts ?? []) {
+    const text = await readFile(join(root, 'tasks', taskId, a.path), 'utf-8');
+    contents.set(a.artifact_id, text);
+  }
+  return {
+    input: {
+      task,
+      stages: stages ?? [],
+      artifacts: artifacts ?? [],
+      gateRecords,
+      questions: questions ?? [],
+      contextMd,
+    },
+    contents,
+  };
+}
+
 /** 静态资源服务（public/ 目录） */
 async function serveStatic(reqPath: string, res: ServerResponse): Promise<boolean> {
   const filePath = reqPath === '/' ? '/index.html' : reqPath;
@@ -638,6 +674,20 @@ const server = createServer(async (req, res) => {
       } catch {
         return sendJson(res, 404, { error: 'delivery package not exported yet' });
       }
+    }
+    // 导出：交付包 Markdown / HTML（按需生成，方便传阅）
+    const exportPkgMatch = path.match(/^\/api\/export\/tasks\/([^/]+)\/delivery_package\.(md|html)$/);
+    if (exportPkgMatch) {
+      const built = await buildDeliveryPackageInput(exportPkgMatch[1]);
+      if (!built) return sendJson(res, 404, { error: 'task not found' });
+      const md = buildDeliveryPackageMarkdown(built.input, built.contents);
+      const isHtml = exportPkgMatch[2] === 'html';
+      const taskId = exportPkgMatch[1];
+      res.writeHead(200, {
+        'Content-Type': isHtml ? 'text/html; charset=utf-8' : 'text/markdown; charset=utf-8',
+        'Content-Disposition': `attachment; filename="delivery_package_${taskId}.${exportPkgMatch[2]}"`,
+      });
+      return res.end(isHtml ? buildDeliveryPackageHtml(md) : md);
     }
 
     // 静态资源

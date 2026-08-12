@@ -220,12 +220,18 @@ export function registerTaskTools(server: McpServer, ctx: () => ToolContext) {
       }
     },
   );
-
   server.registerTool(
     'task.export_delivery_package',
     {
-      description: '导出完整交付包 delivery_package.md（PRD 7.10 / 8.9 / 9.15）。所有必需阶段完成后可导出。',
-      inputSchema: { task_id: z.string().describe('任务 ID') },
+      description:
+        '导出完整交付包 delivery_package.md（PRD 7.10 / 8.9 / 9.15）。所有必需阶段完成后可导出。可选 format：md / html / both（默认 md），html 为自包含单文件，便于传阅。',
+      inputSchema: {
+        task_id: z.string().describe('任务 ID'),
+        format: z
+          .enum(['md', 'html', 'both'])
+          .optional()
+          .describe('导出格式（缺省 md）：md / html / both'),
+      },
     },
     async (args) => {
       try {
@@ -254,6 +260,7 @@ export function registerTaskTools(server: McpServer, ctx: () => ToolContext) {
         const questions = await getQuestions(root, args.task_id);
         const contextMd = await readContext(root, args.task_id);
 
+        const formats = args.format === 'both' ? ['md', 'html'] : [args.format ?? 'md'];
         const result = await exportDeliveryPackage(root, args.task_id, {
           task,
           stages,
@@ -261,8 +268,13 @@ export function registerTaskTools(server: McpServer, ctx: () => ToolContext) {
           gateRecords,
           questions,
           contextMd,
+        }, { formats: formats as Array<'md' | 'html'> });
+
+        return ok({
+          paths: result.paths.map((p) => `tasks/${args.task_id}/${p}`),
+          path: result.paths[0] ? `tasks/${args.task_id}/${result.paths[0]}` : null,
+          status: result.status,
         });
-        return ok({ path: `tasks/${args.task_id}/${result.path}`, status: result.status });
       } catch (e) {
         return fail('export_failed', (e as Error).message);
       }

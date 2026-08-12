@@ -5,7 +5,7 @@
 import { ref, watch, onMounted, computed } from 'vue';
 import { useRoute } from 'vue-router';
 import { Card, Descriptions, Tag, Button, Collapse, Space, message } from 'ant-design-vue';
-import { api } from '@/api/api';
+import { api, exportUrl } from '@/api/api';
 import { useTeamUser } from '@/composables/useTeamUser';
 import { formatTime } from '@/utils/helpers';
 import { STATUS_MAP, TASK_TYPE_MAP } from '@/utils/constants';
@@ -112,6 +112,17 @@ async function loadDeliveryPackage() {
   }
 }
 
+/** 下载交付包（md / html，走 <a download> 触发浏览器下载） */
+function downloadPackage(format: 'md' | 'html') {
+  const url = format === 'html' ? exportUrl.deliveryPackageHtml(taskId.value) : exportUrl.deliveryPackageMd(taskId.value);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `delivery_package_${taskId.value}.${format}`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
 </script>
 
 <template>
@@ -187,9 +198,13 @@ async function loadDeliveryPackage() {
 
     <!-- 交付包 -->
     <Card v-if="deliveryVisible" title="交付包" :bordered="false">
-      <Button type="primary" :loading="deliveryLoading" @click="loadDeliveryPackage">
-        {{ deliveryShown ? '已加载' : '查看交付包' }}
-      </Button>
+      <Space>
+        <Button type="primary" :loading="deliveryLoading" @click="loadDeliveryPackage">
+          {{ deliveryShown ? '已加载' : '查看交付包' }}
+        </Button>
+        <Button @click="downloadPackage('md')">下载 Markdown</Button>
+        <Button @click="downloadPackage('html')">下载 HTML</Button>
+      </Space>
       <div v-if="deliveryError" style="color: #ff4d4f; margin-top: 8px">{{ deliveryError }}</div>
       <div v-if="deliveryShown" style="margin-top: 16px">
         <MarkdownView :source="deliveryContent" />

@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" width="40" height="40" fill="none">
+  <!-- 多 Agent 协作网络：中心节点 + 六个周边节点 -->
+  <circle cx="20" cy="20" r="4.5" fill="#1677ff" />
+  <circle cx="20" cy="6" r="3" fill="#63ACFF" opacity="0.8" />
+  <circle cx="32" cy="13" r="3" fill="#63ACFF" opacity="0.7" />
+  <circle cx="32" cy="27" r="3" fill="#63ACFF" opacity="0.8" />
+  <circle cx="20" cy="34" r="3" fill="#63ACFF" opacity="0.7" />
+  <circle cx="8" cy="27" r="3" fill="#63ACFF" opacity="0.8" />
+  <circle cx="8" cy="13" r="3" fill="#63ACFF" opacity="0.7" />
+  <line x1="20" y1="20" x2="20" y2="9" stroke="#63ACFF" stroke-width="1.2" opacity="0.5" />
+  <line x1="20" y1="20" x2="30" y2="14" stroke="#63ACFF" stroke-width="1.2" opacity="0.5" />
+  <line x1="20" y1="20" x2="30" y2="26" stroke="#63ACFF" stroke-width="1.2" opacity="0.5" />
+  <line x1="20" y1="20" x2="20" y2="31" stroke="#63ACFF" stroke-width="1.2" opacity="0.5" />
+  <line x1="20" y1="20" x2="10" y2="26" stroke="#63ACFF" stroke-width="1.2" opacity="0.5" />
+  <line x1="20" y1="20" x2="10" y2="14" stroke="#63ACFF" stroke-width="1.2" opacity="0.5" />
+</svg>
