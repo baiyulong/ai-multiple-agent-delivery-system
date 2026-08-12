@@ -38,6 +38,59 @@ const ok = (msg) => console.log(`  ✓ ${msg}`);
 const skip = (msg) => console.log(`  - ${msg}`);
 const warn = (msg) => console.log(`  ! ${msg}`);
 
+/** 执行命令并返回 stdout（shell:false，避免 DEP0190 弃用警告与参数展开问题） */
+function runCapture(cmd, args, opts = {}) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(cmd, args, { shell: false, stdio: ['ignore', 'pipe', 'ignore'], ...opts });
+    let output = '';
+    child.stdout?.on('data', (d) => (output += d));
+    child.on('exit', () => resolve(output));
+    child.on('error', reject);
+  });
+}
+
+/** Windows：按命令行关键字查找进程 PID（PowerShell Get-CimInstance，避免 wmic 的 % 通配符问题） */
+async function findPidsByCommandLineWin(keyword) {
+  try {
+    const script = `Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*${keyword}*' } | Select-Object -ExpandProperty ProcessId`;
+    const out = await runCapture('powershell', ['-NoProfile', '-NonInteractive', '-Command', script]);
+    return out
+      .split('\n')
+      .map((s) => s.trim())
+      .filter((s) => /^\d+$/.test(s));
+  } catch {
+    return [];
+  }
+}
+
+/** Windows：按端口查找占用进程 PID（netstat 输出去重，避免同一 PID 重复 kill） */
+async function findPidsByPortWin(port) {
+  try {
+    const out = await runCapture('netstat', ['-ano']);
+    const pids = new Set();
+    for (const line of out.split('\n')) {
+      if (line.includes(`:${port}`) && (line.includes('LISTENING') || line.includes('ESTABLISHED'))) {
+        const parts = line.trim().split(/\s+/);
+        const pid = parts[parts.length - 1];
+        if (pid && pid !== '0') pids.add(pid);
+      }
+    }
+    return [...pids];
+  } catch {
+    return [];
+  }
+}
+
+/** 按 PID 杀进程（Windows taskkill / 其他 kill -9） */
+function killPid(pid) {
+  if (FLAG_DRY) return;
+  if (process.platform === 'win32') {
+    spawn('taskkill', ['/F', '/PID', pid], { shell: false, stdio: 'ignore' });
+  } else {
+    spawn('kill', ['-9', pid], { stdio: 'ignore' });
+  }
+}
+
 async function readJsonSafe(file) {
   try {
     return JSON.parse(await readFile(file, 'utf-8'));
@@ -62,28 +115,11 @@ async function stopProcesses() {
 
   // 查找并停止占用端口的进程
   if (process.platform === 'win32') {
-    // Windows: 使用 netstat + taskkill
     try {
-      const result = await new Promise((resolve, reject) => {
-        const child = spawn('netstat', ['-ano'], { shell: true });
-        let output = '';
-        child.stdout?.on('data', (d) => (output += d));
-        child.on('exit', () => resolve(output));
-        child.on('error', reject);
-      });
-
-      const lines = result.split('\n');
-      for (const line of lines) {
-        if (line.includes(`:${dashboardPort}`) && (line.includes('LISTENING') || line.includes('ESTABLISHED'))) {
-          const parts = line.trim().split(/\s+/);
-          const pid = parts[parts.length - 1];
-          if (pid && pid !== '0') {
-            log(`  停止 dashboard 进程 (PID: ${pid}, 端口: ${dashboardPort})`);
-            if (!FLAG_DRY) {
-              spawn('taskkill', ['/F', '/PID', pid], { shell: true, stdio: 'ignore' });
-            }
-          }
-        }
+      const dashPids = await findPidsByPortWin(dashboardPort);
+      for (const pid of dashPids) {
+        log(`  停止 dashboard 进程 (PID: ${pid}, 端口: ${dashboardPort})`);
+        killPid(pid);
       }
     } catch {
       // 忽略错误
@@ -102,9 +138,7 @@ async function stopProcesses() {
       const pids = result.trim().split('\n').filter(Boolean);
       for (const pid of pids) {
         log(`  停止 dashboard 进程 (PID: ${pid}, 端口: ${dashboardPort})`);
-        if (!FLAG_DRY) {
-          spawn('kill', ['-9', pid], { stdio: 'ignore' });
-        }
+        killPid(pid);
       }
     } catch {
       // 忽略错误
@@ -114,23 +148,10 @@ async function stopProcesses() {
   // 停止 MCP server 进程（通过查找 node 进程命令行包含 delivery-mcp-server/dist/server.js）
   if (process.platform === 'win32') {
     try {
-      const result = await new Promise((resolve, reject) => {
-        const child = spawn('wmic', ['process', 'where', 'commandline like "%delivery-mcp-server%"', 'get', 'processid'], { shell: true });
-        let output = '';
-        child.stdout?.on('data', (d) => (output += d));
-        child.on('exit', () => resolve(output));
-        child.on('error', reject);
-      });
-
-      const lines = result.split('\n').slice(1); // 跳过标题行
-      for (const line of lines) {
-        const pid = line.trim();
-        if (pid && /^\d+$/.test(pid)) {
-          log(`  停止 MCP server 进程 (PID: ${pid})`);
-          if (!FLAG_DRY) {
-            spawn('taskkill', ['/F', '/PID', pid], { shell: true, stdio: 'ignore' });
-          }
-        }
+      const pids = await findPidsByCommandLineWin('delivery-mcp-server/dist/server.js');
+      for (const pid of pids) {
+        log(`  停止 MCP server 进程 (PID: ${pid})`);
+        killPid(pid);
       }
     } catch {
       // 忽略错误
@@ -148,9 +169,7 @@ async function stopProcesses() {
       const pids = result.trim().split('\n').filter(Boolean);
       for (const pid of pids) {
         log(`  停止 MCP server 进程 (PID: ${pid})`);
-        if (!FLAG_DRY) {
-          spawn('kill', ['-9', pid], { stdio: 'ignore' });
-        }
+        killPid(pid);
       }
     } catch {
       // 忽略错误

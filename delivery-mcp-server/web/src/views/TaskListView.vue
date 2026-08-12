@@ -160,7 +160,7 @@ onMounted(load);
       :data-source="filteredTasks"
       :loading="loading"
       row-key="task_id"
-      :pagination="{ pageSize: 20, showTotal: (total) => `共 ${total} 条` }"
+      :pagination="{ pageSize: 20, showTotal: (total: number) => `共 ${total} 条` }"
     >
       <template #emptyText>
         <span v-if="errorMsg">{{ errorMsg }}</span>

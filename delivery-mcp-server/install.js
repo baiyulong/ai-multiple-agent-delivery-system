@@ -49,6 +49,7 @@ const FLAG_FORCE_UPDATE = args.includes('--force-update'); // 强制覆盖已安
 const FLAG_RELEASE = args.includes('--release');
 const FLAG_DASH = args.includes('--dashboard'); // 显式开启才后台启动看板（默认不自动启动）
 const FLAG_STOP_DASH = args.includes('--stop-dashboard'); // 仅停止看板进程，不执行安装
+const FLAG_SKIP_BUILD = args.includes('--skip-build'); // 跳过 npm run build（断点续跑：拷贝/依赖完成但构建中断后重跑）
 
 const GITHUB_OWNER = 'baiyulong';
 const GITHUB_REPO = 'ai-multiple-agent-delivery-system';
@@ -250,6 +251,63 @@ async function findPidsByPort(port) {
 }
 
 // ---------- 停止目标项目中运行中的进程 ----------
+/** 执行命令并返回 stdout（shell:false，避免 DEP0190 弃用警告与参数展开问题） */
+function runCapture(cmd, args, opts = {}) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(cmd, args, { shell: false, stdio: ['ignore', 'pipe', 'ignore'], ...opts });
+    let output = '';
+    child.stdout?.on('data', (d) => (output += d));
+    child.on('exit', () => resolve(output));
+    child.on('error', reject);
+  });
+}
+
+/**
+ * Windows：按命令行关键字查找进程 PID（PowerShell Get-CimInstance，避免 wmic 的
+ * `%` 通配符被 cmd 环境变量展开为空、以及 wmic 在新版 Windows 废弃的问题）。
+ */
+async function findPidsByCommandLineWin(keyword) {
+  try {
+    // 命令行含引号时按普通字符匹配，关键字为脚本内固定串，无注入风险
+    const script = `Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*${keyword}*' } | Select-Object -ExpandProperty ProcessId`;
+    const out = await runCapture('powershell', ['-NoProfile', '-NonInteractive', '-Command', script]);
+    return out
+      .split('\n')
+      .map((s) => s.trim())
+      .filter((s) => /^\d+$/.test(s));
+  } catch {
+    return [];
+  }
+}
+
+/** Windows：按端口查找占用进程 PID（netstat 输出去重，避免同一 PID 重复 kill） */
+async function findPidsByPortWin(port) {
+  try {
+    const out = await runCapture('netstat', ['-ano']);
+    const pids = new Set();
+    for (const line of out.split('\n')) {
+      if (line.includes(`:${port}`) && (line.includes('LISTENING') || line.includes('ESTABLISHED'))) {
+        const parts = line.trim().split(/\s+/);
+        const pid = parts[parts.length - 1];
+        if (pid && pid !== '0') pids.add(pid);
+      }
+    }
+    return [...pids];
+  } catch {
+    return [];
+  }
+}
+
+/** 按 PID 杀进程（Windows taskkill / 其他 kill -9） */
+function killPid(pid) {
+  if (FLAG_DRY) return;
+  if (process.platform === 'win32') {
+    spawn('taskkill', ['/F', '/PID', pid], { shell: false, stdio: 'ignore' });
+  } else {
+    spawn('kill', ['-9', pid], { stdio: 'ignore' });
+  }
+}
+
 async function stopTargetProcesses(targetDir) {
   log('\n[1/5] 停止目标项目中运行中的进程');
 
@@ -267,48 +325,20 @@ async function stopTargetProcesses(targetDir) {
 
   if (process.platform === 'win32') {
     try {
-      const result = await new Promise((resolve, reject) => {
-        const child = spawn('netstat', ['-ano'], { shell: true });
-        let output = '';
-        child.stdout?.on('data', (d) => (output += d));
-        child.on('exit', () => resolve(output));
-        child.on('error', reject);
-      });
-
-      const lines = result.split('\n');
-      for (const line of lines) {
-        if (line.includes(`:${dashboardPort}`) && (line.includes('LISTENING') || line.includes('ESTABLISHED'))) {
-          const parts = line.trim().split(/\s+/);
-          const pid = parts[parts.length - 1];
-          if (pid && pid !== '0') {
-            log(`  停止 dashboard 进程 (PID: ${pid}, 端口: ${dashboardPort})`);
-            if (!FLAG_DRY) {
-              spawn('taskkill', ['/F', '/PID', pid], { shell: true, stdio: 'ignore' });
-              stopped = true;
-            }
-          }
-        }
+      // 停止 dashboard 进程（按端口，PID 去重）
+      const dashPids = await findPidsByPortWin(dashboardPort);
+      for (const pid of dashPids) {
+        log(`  停止 dashboard 进程 (PID: ${pid}, 端口: ${dashboardPort})`);
+        killPid(pid);
+        stopped = true;
       }
 
-      // 停止 MCP server 进程
-      const result2 = await new Promise((resolve, reject) => {
-        const child = spawn('wmic', ['process', 'where', 'commandline like "%delivery-mcp-server%"', 'get', 'processid'], { shell: true });
-        let output = '';
-        child.stdout?.on('data', (d) => (output += d));
-        child.on('exit', () => resolve(output));
-        child.on('error', reject);
-      });
-
-      const lines2 = result2.split('\n').slice(1);
-      for (const line of lines2) {
-        const pid = line.trim();
-        if (pid && /^\d+$/.test(pid)) {
-          log(`  停止 MCP server 进程 (PID: ${pid})`);
-          if (!FLAG_DRY) {
-            spawn('taskkill', ['/F', '/PID', pid], { shell: true, stdio: 'ignore' });
-            stopped = true;
-          }
-        }
+      // 停止 MCP server 进程（按命令行关键字，PowerShell 精确匹配避免误杀安装脚本）
+      const mcpPids = await findPidsByCommandLineWin('delivery-mcp-server/dist/server.js');
+      for (const pid of mcpPids) {
+        log(`  停止 MCP server 进程 (PID: ${pid})`);
+        killPid(pid);
+        stopped = true;
       }
     } catch {
       // 忽略错误
@@ -318,10 +348,8 @@ async function stopTargetProcesses(targetDir) {
       const dashboardPids = await findPidsByPort(dashboardPort);
       for (const pid of dashboardPids) {
         log(`  停止 dashboard 进程 (PID: ${pid}, 端口: ${dashboardPort})`);
-        if (!FLAG_DRY) {
-          spawn('kill', ['-9', pid], { stdio: 'ignore' });
-          stopped = true;
-        }
+        killPid(pid);
+        stopped = true;
       }
 
       // 停止 MCP server 进程
@@ -336,10 +364,8 @@ async function stopTargetProcesses(targetDir) {
       const pids2 = result2.trim().split('\n').filter(Boolean);
       for (const pid of pids2) {
         log(`  停止 MCP server 进程 (PID: ${pid})`);
-        if (!FLAG_DRY) {
-          spawn('kill', ['-9', pid], { stdio: 'ignore' });
-          stopped = true;
-        }
+        killPid(pid);
+        stopped = true;
       }
     } catch {
       // 忽略错误
@@ -411,23 +437,11 @@ async function stopDashboardProcess(targetDir) {
   let stopped = false;
   if (process.platform === 'win32') {
     try {
-      const result = await new Promise((resolve, reject) => {
-        const child = spawn('netstat', ['-ano'], { shell: true });
-        let output = '';
-        child.stdout?.on('data', (d) => (output += d));
-        child.on('exit', () => resolve(output));
-        child.on('error', reject);
-      });
-      for (const line of result.split('\n')) {
-        if (line.includes(`:${dashboardPort}`) && line.includes('LISTENING')) {
-          const parts = line.trim().split(/\s+/);
-          const pid = parts[parts.length - 1];
-          if (pid && pid !== '0') {
-            log(`  停止 dashboard 进程 (PID: ${pid}, 端口: ${dashboardPort})`);
-            spawn('taskkill', ['/F', '/PID', pid], { shell: true, stdio: 'ignore' });
-            stopped = true;
-          }
-        }
+      const dashPids = await findPidsByPortWin(dashboardPort);
+      for (const pid of dashPids) {
+        log(`  停止 dashboard 进程 (PID: ${pid}, 端口: ${dashboardPort})`);
+        killPid(pid);
+        stopped = true;
       }
     } catch {
       // 忽略错误
@@ -437,7 +451,7 @@ async function stopDashboardProcess(targetDir) {
       const dashboardPids = await findPidsByPort(dashboardPort);
       for (const pid of dashboardPids) {
         log(`  停止 dashboard 进程 (PID: ${pid}, 端口: ${dashboardPort})`);
-        spawn('kill', ['-9', pid], { stdio: 'ignore' });
+        killPid(pid);
         stopped = true;
       }
     } catch {
@@ -714,9 +728,15 @@ ok('.gitignore 已处理（若此前无条目）');
 log(`\n[5/6] 安装依赖并构建（npm install && npm run build）`);
 if (!FLAG_DRY && existsSync(dstServer)) {
   try {
+    log('  - npm install（依赖安装通常需 1–3 分钟，请勿中断）...');
     await run('install', dstServer);
-    await run('run build', dstServer);
-    ok('构建完成：delivery-mcp-server/dist/server.js');
+    if (FLAG_SKIP_BUILD) {
+      log('  - 已跳过构建（--skip-build）。请稍后手动执行 npm run build，或再次运行 install.js 完成构建。');
+    } else {
+      log('  - npm run build（首次构建可能需 1–2 分钟，请勿中断）...');
+      await run('run build', dstServer);
+      ok('构建完成：delivery-mcp-server/dist/server.js');
+    }
   } catch (e) {
     warn(`依赖安装/构建失败：${e.message}。可稍后在 ${dstServer} 手动执行 npm install && npm run build。`);
   }
@@ -749,7 +769,7 @@ if (!FLAG_DRY) {
 // ---------- 后续指引 ----------
 log(`
 安装完成。接下来：
-1. 重启 OpenCode（加载新 agent 与 MCP 配置，MCP server 会随之启动）
+${FLAG_RELEASE ? '0. 本次为 --release 更新：旧 MCP server 进程已停止，新版本需重启 OpenCode 后才会以新代码启动（不会自动重启，请务必重启 OpenCode）\n' : ''}1. 重启 OpenCode（加载新 agent 与 MCP 配置，MCP server 会随之启动）
 2. 配置当前人：   user.set  { "name": "你的姓名", "email": "your@email.com" }
 3. 配置团队名册： team.set  { "name": "你的姓名", "email": "your@email.com", "roles": ["..."] }
    （全部成员 roles 并集需覆盖 8 个角色）
