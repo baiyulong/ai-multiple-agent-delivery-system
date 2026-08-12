@@ -44,11 +44,29 @@ export async function createTask(root: string, input: CreateTaskInput): Promise<
   await writeJsonAtomic(join(dir, 'task.json'), task);
   await writeJsonAtomic(join(dir, 'stages.json'), input.stages);
   const context = (await readText(contextTemplateFile())) ?? CONTEXT_SKELETON;
-  await writeTextAtomic(join(dir, 'context.md'), context);
+  await writeTextAtomic(join(dir, 'context.md'), injectOriginalRequirement(context, input.title, input.description));
   await writeJsonAtomic(join(dir, 'questions.json'), []);
   await writeJsonAtomic(join(dir, 'artifacts', 'index.json'), []);
 
   return task;
+}
+
+/**
+ * 把用户首次输入的原始需求写入 context.md 的「1. 项目背景」章节，
+ * 保证等待业务专家澄清期间，原始需求在共享上下文/看板中可见（PRD 9.11）。
+ */
+function injectOriginalRequirement(context: string, title: string, description: string): string {
+  const block = [
+    '> **任务标题**：' + title,
+    '>',
+    '> **原始需求（用户首次输入）**：',
+    '> ' + description.replace(/\r?\n/g, '\n> '),
+  ].join('\n');
+  const marker = '## 1. 项目背景';
+  const idx = context.indexOf(marker);
+  if (idx < 0) return context; // 模板缺失该章节时保持原样
+  const headEnd = idx + marker.length;
+  return `${context.slice(0, headEnd)}\n\n${block}${context.slice(headEnd)}`;
 }
 
 /** 读取任务，不存在返回 null */

@@ -13,7 +13,7 @@ import { normalizeAssigneeList, resolveAssignees } from '../core/store/team-stor
 import { getLatestGateRecord } from '../core/store/gate-store.js';
 import { resolveDeliveryRoot } from '../core/paths.js';
 import { dashboardUrl } from '../core/dashboard-url.js';
-import { notifyRole } from '../core/notify.js';
+import { notifyRole, nextStepsFooter } from '../core/notify.js';
 import { fail, ok, type ToolContext } from './common.js';
 import type { StageRecord } from '../core/types.js';
 
@@ -165,7 +165,7 @@ export function registerStageTools(server: McpServer, ctx: () => ToolContext) {
               `已完成阶段：${args.stage}`,
               `下一阶段：${next?.stage ?? '（无）'}`,
               `下一阶段角色：${nextDef.role}`,
-            ].join('\n'),
+            ].join('\n') + nextStepsFooter(args.task_id),
             { assignees: normalizeAssigneeList(task.assignees?.[nextDef.role]) },
           );
         }

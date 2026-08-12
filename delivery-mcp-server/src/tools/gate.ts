@@ -7,7 +7,7 @@ import { appendGateRecord } from '../core/store/gate-store.js';
 import { setStageStatus } from '../core/store/stage-store.js';
 import { generateGateId } from '../core/ids.js';
 import { resolveDeliveryRoot } from '../core/paths.js';
-import { notifyRole } from '../core/notify.js';
+import { notifyRole, nextStepsFooter } from '../core/notify.js';
 import { fail, ok, type ToolContext } from './common.js';
 
 /**
@@ -69,7 +69,7 @@ export function registerGateTools(server: McpServer, ctx: () => ToolContext) {
               `结果：manual_review_required`,
               `分数：0`,
               `问题：未找到门禁规则: ${got.metadata.artifact_type}`,
-            ].join('\n'),
+            ].join('\n') + nextStepsFooter(args.task_id),
           );
           return ok({
             result: 'manual_review_required',
@@ -118,7 +118,7 @@ export function registerGateTools(server: McpServer, ctx: () => ToolContext) {
               `结果：${outcome.result}`,
               `分数：${outcome.score}`,
               `问题：${outcome.issues.join('；') || '无'}`,
-            ].join('\n'),
+            ].join('\n') + nextStepsFooter(args.task_id),
           );
         }
 

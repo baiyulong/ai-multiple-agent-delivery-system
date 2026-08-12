@@ -5,7 +5,7 @@ import { getQuestions, getStages, getTask, saveQuestions } from '../core/store/t
 import { setStageStatus } from '../core/store/stage-store.js';
 import { resolveDeliveryRoot } from '../core/paths.js';
 import { nowIso } from '../core/time.js';
-import { notifyRole } from '../core/notify.js';
+import { notifyPerson, notifyRole, nextStepsFooter } from '../core/notify.js';
 import { normalizeAssigneeList } from '../core/store/team-store.js';
 import { fail, ok, type ToolContext } from './common.js';
 
@@ -61,17 +61,25 @@ export function registerQuestionTools(server: McpServer, ctx: () => ToolContext)
         }
 
         // 通知负责确认的角色（best-effort，不影响主逻辑）
+        // 合并该任务下指派给同一角色的全部 open 问题为一封邮件，避免一个问题一封
+        const openForRole = questions.filter(
+          (x) => x.assigned_to_role === args.assigned_to_role && (x.status === 'open' || x.status === 'answered'),
+        );
+        const lines = [
+          `任务：${task.title}`,
+          `任务ID：${args.task_id}`,
+          `需确认角色：${args.assigned_to_role}`,
+          `待确认问题（${openForRole.length} 个）：`,
+          '',
+          ...openForRole.map((x, i) => {
+            return `[${i + 1}] ${x.question_id}：${x.question}${x.blocks_stage ? `（阻塞阶段：${x.blocks_stage}）` : ''}`;
+          }),
+        ];
         const email = await notifyRole(
           root,
           args.assigned_to_role,
-          `【任务待确认】${task.title}`,
-          [
-            `任务：${task.title}`,
-            `任务ID：${args.task_id}`,
-            `问题ID：${question.question_id}`,
-            `问题：${args.question}`,
-            `阻塞阶段：${args.blocks_stage ?? '无'}`,
-          ].join('\n'),
+          `【任务待确认】${task.title}（${openForRole.length} 个问题）`,
+          `${lines.join('\n')}${nextStepsFooter(args.task_id)}`,
           { assignees: normalizeAssigneeList(task.assignees?.[args.assigned_to_role]) },
         );
 
@@ -136,11 +144,36 @@ export function registerQuestionTools(server: McpServer, ctx: () => ToolContext)
           root,
           q.raised_by,
           `【问题已解决】${task.title}`,
-          [`任务：${task.title}`, `任务ID：${args.task_id}`, `问题ID：${q.question_id}`, `答复：${args.answer}`].join('\n'),
+          [
+            `任务：${task.title}`,
+            `任务ID：${args.task_id}`,
+            `问题ID：${q.question_id}`,
+            `问题：${q.question}`,
+            `答复：${args.answer}`,
+            `解决人：${args.resolved_by ?? '未知'}`,
+          ].join('\n') + nextStepsFooter(args.task_id),
           { assignees: normalizeAssigneeList(task.assignees?.[q.raised_by]) },
         );
 
-        return ok({ question_id: q.question_id, status: q.status, email });
+        // 额外通知解决人本人（resolved_by 为邮箱/姓名/角色时解析；best-effort）
+        const resolverEmail = args.resolved_by
+          ? await notifyPerson(
+              root,
+              args.resolved_by,
+              `【问题已解决确认】${task.title}`,
+              [
+                `您确认的问题已记录：`,
+                `任务：${task.title}`,
+                `任务ID：${args.task_id}`,
+                `问题ID：${q.question_id}`,
+                `问题：${q.question}`,
+                `您的答复：${args.answer}`,
+                `阻塞阶段：${q.blocks_stage ?? '无'}`,
+              ].join('\n') + nextStepsFooter(args.task_id),
+            )
+          : undefined;
+
+        return ok({ question_id: q.question_id, status: q.status, email, resolver_email: resolverEmail });
       } catch (e) {
         return fail('question_resolve_failed', (e as Error).message);
       }

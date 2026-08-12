@@ -1,6 +1,7 @@
 import { readEmailConfig } from './store/email-store.js';
-import { findMemberByEmail, findMembersByRole } from './store/team-store.js';
+import { findMemberByEmail, findMembersByRole, findMemberByName } from './store/team-store.js';
 import { sendEmail } from './mailer.js';
+import { dashboardUrl } from './dashboard-url.js';
 
 /**
  * 角色通知：向指定角色的所有成员发送邮件。
@@ -50,4 +51,42 @@ export async function notifyRole(
   } catch (e) {
     return { sent: false, to: [], reason: e instanceof Error ? e.message : String(e) };
   }
+}
+
+/**
+ * 按"具体人"通知：支持三种标识方式，取第一个能解析到成员的结果。
+ * 1) 邮箱精确匹配 2) 姓名匹配 3) 角色 key（回退 notifyRole）。
+ * 用于解决问题后通知解决人（resolved_by 可能是邮箱/姓名/角色）。
+ */
+export async function notifyPerson(
+  root: string,
+  person: string,
+  subject: string,
+  text: string,
+): Promise<NotifyResult> {
+  const member = (await findMemberByEmail(root, person)) ?? (await findMemberByName(root, person));
+  if (member) {
+    try {
+      const config = await readEmailConfig();
+      if (!config) return { sent: false, to: [], reason: 'email_not_configured' };
+      await sendEmail(config, { to: [member.email], subject, text });
+      return { sent: true, to: [member.email] };
+    } catch (e) {
+      return { sent: false, to: [], reason: e instanceof Error ? e.message : String(e) };
+    }
+  }
+  // 角色 key 回退
+  return notifyRole(root, person, subject, text);
+}
+
+/** 邮件正文页脚：下一步如何操作（如何查看任务、启动看板、让 AI 查看） */
+export function nextStepsFooter(taskId: string): string {
+  const url = dashboardUrl(taskId);
+  return [
+    '',
+    '— 下一步如何操作 —',
+    `1. 在浏览器打开任务看板查看任务：${url}`,
+    '2. 若看板尚未启动，在 delivery-mcp-server 目录运行：npm run dashboard（默认 http://localhost:8787）',
+    `3. 也可以直接让 AI 助手查看任务：调用 task.get（task_id=${taskId}）`,
+  ].join('\n');
 }

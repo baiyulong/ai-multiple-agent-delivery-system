@@ -113,6 +113,13 @@ export async function findMemberByEmail(root: string, email: string): Promise<Te
   return config.members.find((m) => m.email.toLowerCase() === email.toLowerCase()) ?? null;
 }
 
+/** 按姓名查找成员（不区分大小写） */
+export async function findMemberByName(root: string, name: string): Promise<TeamMember | null> {
+  const config = await readTeamConfig(root);
+  if (!config) return null;
+  return config.members.find((m) => m.name.toLowerCase() === name.toLowerCase()) ?? null;
+}
+
 /** 新增或更新成员（按邮箱匹配；roles 覆盖为传入值） */
 export async function upsertMember(
   root: string,

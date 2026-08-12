@@ -22,7 +22,7 @@ describe('task-store', () => {
       stages,
     });
 
-    expect(task.task_id).toMatch(/^TASK-\d{8}-\d{3}$/);
+    expect(task.task_id).toMatch(/^TASK-\d{8}-\d{3}-[a-f0-9]{4}$/);
     expect(task.status).toBe('in_progress');
     expect(task.current_stage).toBe('product_requirement');
 

@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { readJson } from './fsx.js';
@@ -7,8 +8,11 @@ import type { ArtifactMeta, GateStageFile, Question } from './types.js';
 
 /**
  * ID 生成（PRD 8.1.1 / 14.3）：
- * TASK-YYYYMMDD-NNN / ART-YYYYMMDD-NNN / Q-YYYYMMDD-NNN / GATE-YYYYMMDD-NNN
+ * ART-YYYYMMDD-NNN / Q-YYYYMMDD-NNN / GATE-YYYYMMDD-NNN
  * NNN = 同日期已有最大序号 + 1（三位补零）。
+ *
+ * 任务 ID 增加 4 位随机后缀（crypto）：TASK-YYYYMMDD-NNN-XXXX，
+ * 保证多台电脑各自生成任务时也不会冲突（日期+序号在多机间会重复）。
  */
 
 export interface IdScan {
@@ -17,7 +21,8 @@ export interface IdScan {
   existing: string[];
 }
 
-const ID_RE = (prefix: string, date: string): RegExp => new RegExp(`^${prefix}-${date}-(\\d+)$`);
+const ID_RE = (prefix: string, date: string): RegExp =>
+  new RegExp(`^${prefix}-${date}-(\\d+)(?:-[a-z0-9]+)?$`);
 
 export function nextSequence(scan: IdScan): string {
   const re = ID_RE(scan.prefix, scan.date);
@@ -32,7 +37,12 @@ export function nextSequence(scan: IdScan): string {
   return String(max + 1).padStart(3, '0');
 }
 
-/** 扫描 tasks/ 目录名中的任务 ID */
+/** 任务 ID 随机后缀：4 位小写十六进制（65536 种组合，足以避免多机冲突） */
+export function taskIdSuffix(): string {
+  return randomBytes(2).toString('hex');
+}
+
+/** 扫描 tasks/ 目录名中的任务 ID（兼容旧格式 TASK-YYYYMMDD-NNN 与新格式 TASK-YYYYMMDD-NNN-XXXX） */
 export async function scanTaskIds(root: string): Promise<string[]> {
   let names: string[] = [];
   try {
@@ -40,7 +50,7 @@ export async function scanTaskIds(root: string): Promise<string[]> {
   } catch {
     names = [];
   }
-  return names.filter((n) => /^TASK-\d{8}-\d{3}$/.test(n));
+  return names.filter((n) => /^TASK-\d{8}-\d{3}(?:-[a-z0-9]{4})?$/.test(n));
 }
 
 /** 扫描全部任务的交付物 ID */
@@ -95,7 +105,7 @@ async function scanGateIds(root: string): Promise<string[]> {
 export async function generateTaskId(root: string, date: Date = new Date()): Promise<string> {
   const d = todayStamp(date);
   const seq = nextSequence({ prefix: 'TASK', date: d, existing: await scanTaskIds(root) });
-  return `TASK-${d}-${seq}`;
+  return `TASK-${d}-${seq}-${taskIdSuffix()}`;
 }
 
 export async function generateArtifactId(root: string, date: Date = new Date()): Promise<string> {

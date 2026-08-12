@@ -107,7 +107,7 @@ npm run dashboard # 启动浏览器任务看板 http://localhost:8787
 │   ├── gates/            # 门禁规则（19 个交付物类型）
 │   └── architectures/    # 预设架构模板（crud / lightweight-ddd / full-ddd）
 └── tasks/
-    └── TASK-YYYYMMDD-NNN/
+    └── TASK-YYYYMMDD-NNN-XXXX/   # XXXX 随机后缀，保证多台电脑生成不冲突
         ├── task.json             # 任务元数据
         ├── stages.json           # 阶段状态
         ├── context.md            # 共享上下文（17 节）
