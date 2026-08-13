@@ -77,11 +77,11 @@ export function registerQuestionTools(server: McpServer, ctx: () => ToolContext)
           }),
         ];
 
-        // 等待补充问题时自动生成文档快照（best-effort），邮件正文附完整路径便于查看
+        // 等待补充问题时自动生成文档快照（best-effort），邮件正文附相对路径便于查看
         const documents = await exportTaskDocuments(root, args.task_id).catch(() => null);
         const docHint =
-          documents && documents.abs_paths.length > 0
-            ? `\n\n任务文档：${documents.abs_paths.join('\n          ')}`
+          documents && documents.rel_paths.length > 0
+            ? `\n\n任务文档：${documents.rel_paths.join('\n          ')}`
             : '';
 
         const email = await notifyRole(
@@ -97,6 +97,7 @@ export function registerQuestionTools(server: McpServer, ctx: () => ToolContext)
           status: question.status,
           blocked_stage: args.blocks_stage ?? null,
           documents,
+          document_hint: documents?.hint ?? null,
           email,
         });
       } catch (e) {

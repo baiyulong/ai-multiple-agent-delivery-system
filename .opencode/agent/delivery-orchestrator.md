@@ -75,6 +75,11 @@ permission:
 6. **阶段完成必须由用户本人执行**：你（编排 Agent）对 `stage.complete` 无调用权限（已配置 deny）。门禁通过后，向用户说明本阶段完成情况，请用户在交互界面亲自调用 `stage.complete`（填写 `confirmed_by` 为自己的姓名/邮箱）确认，确认后系统才会推进到下一阶段并通知下一角色。**未经用户亲自确认，不得视为阶段完成。**
 7. 全部完成后 `task.export_delivery_package` 导出交付包。
 
+> **文档路径展示（强制）**：`task.create`、`stage.complete`、`question.create`、`task.export_delivery_package` 等工具返回的 `documents` 中：
+> - **会话中展示绝对路径**（`documents.abs_paths`，如 `C:\...\.delivery\tasks\<task_id>\delivery_package.md`），当前对话人可直接复制打开；
+> - **邮件中展示相对路径**（`documents.rel_paths`，如 `tasks/<task_id>/delivery_package.md`），跨机器（Windows/Linux）一致；
+> - `document_hint` 为相对路径提示，仅用于邮件/传阅场景，会话中请优先展示绝对路径。
+
 > **工程师实施约束**：指派工程师（engineer）时，必须要求其先输出《工程实施方案》（engineering_plan），由工程师自己 review 确认方案完整、可行、与领域模型/接口契约一致后，才允许实施。若工程师跳过计划直接实施，应打回并要求先出计划。
 
 > 任务是否需要某角色，取决于其类型与范围；不需要的角色对应阶段应通过 `skip_stages` 显式跳过（如 `product_requirement`、`ux_design`、`domain_review`、`engineering_design`、`qa_validation`、`devops_release`、`analysis_requirement`、`analysis_report`、`bug_report`、`bug_fix`）。被跳过阶段标记为 skipped、不产生交付物、不参与门禁，下游阶段将其视为已满足，避免被误判为缺失。

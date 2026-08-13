@@ -153,11 +153,11 @@ export function registerStageTools(server: McpServer, ctx: () => ToolContext) {
         if (!next) task.status = 'completed';
         await (await import('../core/store/task-store.js')).saveTask(root, task);
 
-        // 阶段完成（需下一角色处理）时自动生成文档快照，返回完整路径便于查看/传阅
+        // 阶段完成（需下一角色处理）时自动生成文档快照，返回相对路径便于查看/传阅
         const documents = await exportTaskDocuments(root, args.task_id).catch(() => null);
         const docHint =
-          documents && documents.abs_paths.length > 0
-            ? `\n\n任务文档：${documents.abs_paths.join('\n          ')}`
+          documents && documents.rel_paths.length > 0
+            ? `\n\n任务文档：${documents.rel_paths.join('\n          ')}`
             : '';
 
         // 通知下一阶段角色（best-effort，不影响主逻辑）
@@ -187,6 +187,7 @@ export function registerStageTools(server: McpServer, ctx: () => ToolContext) {
           completed_by: args.completed_by ?? null,
           confirmed_by: args.confirmed_by,
           documents,
+          document_hint: documents?.hint ?? null,
           dashboard_url: dashboardUrl(args.task_id),
           view_hint: `阶段已推进，可在浏览器查看任务: ${dashboardUrl(args.task_id)}`,
           email,

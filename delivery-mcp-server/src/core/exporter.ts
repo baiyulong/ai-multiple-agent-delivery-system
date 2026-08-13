@@ -230,10 +230,12 @@ export async function collectExportInput(root: string, taskId: string): Promise<
 }
 
 export interface TaskDocuments {
-  /** 相对任务目录的文件名数组，如 ['delivery_package.md', 'delivery_package.html'] */
+  /** 相对 .delivery 根目录的可移植路径数组，如 ['tasks/<id>/delivery_package.md']。跨机器一致（Windows/Linux），用于邮件与会话展示 */
   rel_paths: string[];
-  /** 完整绝对路径数组（含文件名），便于直接打开/传阅 */
+  /** 当前机器完整绝对路径数组（仅本机直接打开用，不建议跨机器传阅） */
   abs_paths: string[];
+  /** 可读提示（含相对路径），便于在邮件/会话中直接展示 */
+  hint: string;
 }
 
 /**
@@ -251,7 +253,12 @@ export async function exportTaskDocuments(
     formats: opts.formats ?? ['md', 'html'],
   });
   const abs_paths = result.paths.map((p) => join(taskDir(root, taskId), p));
-  return { rel_paths: result.paths, abs_paths };
+  const rel_paths = result.paths.map((p) => `tasks/${taskId}/${p}`);
+  const hint =
+    rel_paths.length > 0
+      ? `任务文档（相对 .delivery 根目录）：${rel_paths.join('、')}`
+      : '';
+  return { rel_paths, abs_paths, hint };
 }
 
 export async function exportDeliveryPackage(

@@ -113,6 +113,7 @@ export function registerTaskTools(server: McpServer, ctx: () => ToolContext) {
           assignees: task.assignees ?? null,
           skipped_stages: skippedStages,
           documents,
+          document_hint: documents?.hint ?? null,
           dashboard_url: dashboardUrl(),
           view_hint: `新任务已创建，可在浏览器查看: ${dashboardUrl()}`,
         });
@@ -314,6 +315,10 @@ export function registerTaskTools(server: McpServer, ctx: () => ToolContext) {
           paths: result.paths.map((p) => `tasks/${args.task_id}/${p}`),
           path: result.paths[0] ? `tasks/${args.task_id}/${result.paths[0]}` : null,
           status: result.status,
+          document_hint:
+            result.paths.length > 0
+              ? `任务文档（相对 .delivery 根目录）：${result.paths.map((p) => `tasks/${args.task_id}/${p}`).join('、')}`
+              : null,
         });
       } catch (e) {
         return fail('export_failed', (e as Error).message);
