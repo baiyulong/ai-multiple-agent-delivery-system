@@ -1,0 +1,22 @@
+{
+  "artifact_type": "engineering_plan",
+  "required_sections": [
+    "Scope and Constraints",
+    "Recommended Module Structure",
+    "Frontend Implementation Plan",
+    "Backend Implementation Plan",
+    "API Design",
+    "Data Model Design",
+    "Core Business Logic Implementation Notes",
+    "Unit Test Plan",
+    "Integration Test Plan",
+    "Performance Considerations",
+    "Handoff Notes for QA",
+    "Handoff Notes for Platform/DevOps"
+  ],
+  "aliases": {
+    "Handoff Notes for Platform/DevOps": ["Handoff Notes for PlatformDevOps", "Handoff Notes for Platform / DevOps"]
+  },
+  "non_empty_sections": ["Recommended Module Structure", "API Design"],
+  "pass_threshold": 60
+}

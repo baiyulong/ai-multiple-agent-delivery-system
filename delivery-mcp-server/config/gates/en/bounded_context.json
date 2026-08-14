@@ -1,0 +1,7 @@
+{
+  "artifact_type": "bounded_context",
+  "required_sections": ["Context Partitioning", "Bounded Contexts", "Relationships Between Contexts"],
+  "aliases": {},
+  "non_empty_sections": ["Bounded Contexts"],
+  "pass_threshold": 60
+}

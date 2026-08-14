@@ -1,0 +1,7 @@
+{
+  "artifact_type": "api_contract",
+  "required_sections": ["API Contract List", "API General Conventions", "Error Conventions"],
+  "aliases": {},
+  "non_empty_sections": ["API Contract List"],
+  "pass_threshold": 60
+}

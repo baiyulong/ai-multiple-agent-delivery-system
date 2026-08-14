@@ -3,6 +3,7 @@ import { ensureDir, readJson, readText, writeJsonAtomic, writeTextAtomic } from 
 import { generateArtifactId } from '../ids.js';
 import { artifactFile, artifactHistoryFile, assertInside, taskDir } from '../paths.js';
 import { nowIso } from '../time.js';
+import { t } from '../i18n.js';
 import type { ArtifactMeta, ArtifactStatus } from '../types.js';
 
 /**
@@ -111,8 +112,8 @@ export async function updateArtifact(
   opts?: { summary?: string; status?: ArtifactStatus },
 ): Promise<ArtifactMeta> {
   const meta = await findArtifact(root, taskId, artifactId);
-  if (!meta) throw new Error(`交付物不存在: ${artifactId}`);
-  if (meta.status === 'deprecated') throw new Error(`已废弃交付物不可更新: ${artifactId}`);
+  if (!meta) throw new Error(`${t('tool.artifact.get.not_found', { id: artifactId })}`);
+  if (meta.status === 'deprecated') throw new Error(`${t('artifact.deprecated_not_update', { id: artifactId })}`);
 
   // 旧版存档：先读当前文件内容写入历史，再覆盖新内容
   await ensureDir(join(taskDir(root, taskId), 'artifacts', meta.stage, 'history'));

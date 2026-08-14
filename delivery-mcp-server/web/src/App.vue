@@ -8,6 +8,7 @@ import { Alert, Popover } from 'ant-design-vue';
 import { useStoreMenu } from '@miitvip/admin-pro';
 import { HomeOutlined, DashboardOutlined, FileTextOutlined, UserOutlined, TeamOutlined } from '@ant-design/icons-vue';
 import { useTeamUser } from '@/composables/useTeamUser';
+import { t } from '@/utils/i18n';
 
 const { team, user } = useTeamUser();
 const menuStore = useStoreMenu();
@@ -18,7 +19,7 @@ const menuStore = useStoreMenu();
 menuStore.updateDropdownMenus([
   {
     name: 'settings',
-    title: '个人设置',
+    title: t('menu.settings'),
     path: '/settings',
     icon: UserOutlined,
   },
@@ -31,7 +32,7 @@ onMounted(() => {
       name: 'home',
       path: '/',
       meta: {
-        title: 'Home',
+        title: t('menu.home'),
         icon: HomeOutlined,
       },
     },
@@ -39,7 +40,7 @@ onMounted(() => {
       name: 'tasks',
       path: '/tasks',
       meta: {
-        title: '任务列表',
+        title: t('menu.tasks'),
         icon: DashboardOutlined,
       },
     },
@@ -47,7 +48,7 @@ onMounted(() => {
       name: 'documents',
       path: '/documents',
       meta: {
-        title: '公共文档',
+        title: t('menu.documents'),
         icon: FileTextOutlined,
       },
     },
@@ -72,9 +73,9 @@ const bannerMessage = computed(() => {
   const teamOk = team.value?.configured;
   if (userOk && teamOk) return '';
   const parts: string[] = [];
-  if (!userOk) parts.push('user.set（当前人姓名/邮箱）');
-  if (!teamOk) parts.push('team.set（团队名册）');
-  return '请通过 MCP 调用 ' + parts.join(' 与 ') + ' 后再创建任务。';
+  if (!userOk) parts.push(t('app.userSetHint'));
+  if (!teamOk) parts.push(t('app.teamSetHint'));
+  return t('app.banner', { parts: parts.join(t('app.and')) });
 });
 
 /** 团队成员弹层内容：全部成员（姓名 / 邮箱 / 角色标签），标记当前人 */
@@ -82,7 +83,7 @@ function renderTeamRoster() {
   const members = team.value?.configured ? team.value.members : [];
   const currentEmail = currentMember.value?.email;
   if (!team.value?.configured) {
-    return h('div', { class: 'team-roster-empty' }, '尚未配置团队名册（team.set）');
+    return h('div', { class: 'team-roster-empty' }, t('app.rosterEmpty'));
   }
   return h(
     'div',
@@ -92,7 +93,7 @@ function renderTeamRoster() {
         h('div', { class: 'team-roster-item-head' }, [
           h('span', { class: 'team-member-name' }, m.name),
           m.email ? h('span', { class: 'team-member-email' }, `<${m.email}>`) : null,
-          m.email && m.email === currentEmail ? h('span', { class: 'team-current-badge' }, '当前') : null,
+          m.email && m.email === currentEmail ? h('span', { class: 'team-current-badge' }, t('app.currentBadge')) : null,
         ]),
         (m.roles || []).length > 0
           ? h('div', { class: 'team-roster-item-roles' }, m.roles.map((r) => h('span', { class: 'team-role-tag' }, roleLabels.value[r] || r)))
@@ -107,20 +108,20 @@ const teamInfoExtra = computed(() => {
   return h('div', { class: 'header-team-info' }, [
     user.value?.configured
       ? h('span', { class: 'team-member team-member-current' }, [
-          h('span', { class: 'team-member-name' }, user.value.user?.name || user.value.user?.email || '未知'),
+          h('span', { class: 'team-member-name' }, user.value.user?.name || user.value.user?.email || t('unknown')),
           user.value.user?.email ? h('span', { class: 'team-member-email' }, `<${user.value.user.email}>`) : null,
           currentRoles().length > 0
             ? h('span', { class: 'team-member-roles' }, currentRoles().map((r) => h('span', { class: 'team-role-tag' }, roleLabels.value[r] || r)))
             : null,
         ])
-      : h('span', { class: 'team-user-hint' }, '尚未设置当前人（user.set）'),
+      : h('span', { class: 'team-user-hint' }, t('app.userNotSet')),
     h(
       Popover,
       {
         placement: 'bottomRight',
         trigger: 'click',
         overlayClassName: 'team-roster-popover',
-        title: '团队成员',
+        title: t('app.teamTitle'),
         content: renderTeamRoster(),
         // 默认挂到 body 会脱离 .mi-theme-dark 容器，导致主题 CSS 变量不级联；
         // 让弹层渲染进带主题类的布局容器内，深/浅色文字颜色均正确。
@@ -131,7 +132,7 @@ const teamInfoExtra = computed(() => {
         default: () =>
           h(
             'button',
-            { class: 'team-icon-btn', type: 'button', 'aria-label': '团队成员' },
+            { class: 'team-icon-btn', type: 'button', 'aria-label': t('app.teamTitle') },
             [h(TeamOutlined)],
           ),
       },

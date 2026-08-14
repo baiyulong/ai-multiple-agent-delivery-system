@@ -1,0 +1,7 @@
+{
+  "artifact_type": "domain_events",
+  "required_sections": ["Domain Event List", "Event Handling Notes"],
+  "aliases": {},
+  "non_empty_sections": ["Domain Event List"],
+  "pass_threshold": 60
+}

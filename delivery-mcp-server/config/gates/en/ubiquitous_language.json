@@ -1,0 +1,7 @@
+{
+  "artifact_type": "ubiquitous_language",
+  "required_sections": ["Ubiquitous Language Table", "Context and Module Notes"],
+  "aliases": {},
+  "non_empty_sections": ["Ubiquitous Language Table"],
+  "pass_threshold": 60
+}

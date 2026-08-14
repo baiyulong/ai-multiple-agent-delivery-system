@@ -1,0 +1,13 @@
+{
+  "artifact_type": "bug_report_card",
+  "required_sections": [
+    "Bug Description",
+    "Reproduction Steps",
+    "Expected Behavior",
+    "Actual Behavior",
+    "Environment Info",
+    "Impact Scope"
+  ],
+  "non_empty_sections": ["Bug Description", "Reproduction Steps", "Environment Info"],
+  "pass_threshold": 60
+}

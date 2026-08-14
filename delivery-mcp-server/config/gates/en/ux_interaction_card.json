@@ -1,0 +1,25 @@
+{
+  "artifact_type": "ux_interaction_card",
+  "required_sections": [
+    "Page List",
+    "Target User Roles",
+    "User Goals",
+    "Navigation Paths",
+    "Preconditions",
+    "Page Structure",
+    "Interaction Notes",
+    "Exception Handling",
+    "Page Fields",
+    "Button and Action List",
+    "State and Button Matrix",
+    "Permission Rules",
+    "Loading States",
+    "Empty States",
+    "Error States",
+    "Implementation Suggestions for Engineer",
+    "Test Suggestions for QA"
+  ],
+  "aliases": {},
+  "non_empty_sections": ["Interaction Notes", "State and Button Matrix"],
+  "pass_threshold": 60
+}

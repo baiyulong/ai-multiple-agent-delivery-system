@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import MarkdownIt from 'markdown-it';
 import DOMPurify from 'dompurify';
+import { t } from '@/utils/i18n';
 
 const props = withDefaults(defineProps<{ source?: string }>(), {
   source: '',
@@ -13,7 +14,7 @@ const md = new MarkdownIt({
 });
 
 function render(source: string): string {
-  if (!source) return '<p style="color:var(--color-text-muted)">暂无内容</p>';
+  if (!source) return `<p style="color:var(--color-text-muted)">${t('noContent')}</p>`;
   const raw = md.render(source);
   return DOMPurify.sanitize(raw) as string;
 }

@@ -1,0 +1,12 @@
+{
+  "artifact_type": "analysis_requirement_card",
+  "required_sections": [
+    "Analysis Goal",
+    "Analysis Scope",
+    "Analysis Approach",
+    "Key Questions",
+    "Constraints and Assumptions"
+  ],
+  "non_empty_sections": ["Analysis Goal", "Analysis Scope", "Analysis Approach"],
+  "pass_threshold": 60
+}

@@ -12,6 +12,7 @@ import {
   currentUserOwnsRole,
 } from '@/utils/helpers';
 import { STAGE_STATUS_MAP } from '@/utils/constants';
+import { t } from '@/utils/i18n';
 
 const props = defineProps<{
   stages: StageRecord[];
@@ -52,9 +53,9 @@ const steps = computed<StepInfo[]>(() =>
         props.user.user
       ) {
         const me = props.user.user;
-        assigneesHtml = `stage-assignee-me|当前|${me.name || me.email}`;
+        assigneesHtml = `stage-assignee-me|${t('stage.me')}|${me.name || me.email}`;
       } else {
-        assigneesHtml = 'empty|未指派';
+        assigneesHtml = `empty|${t('stage.unassigned')}`;
       }
     } else {
       const currentUserEmail =
@@ -67,7 +68,7 @@ const steps = computed<StepInfo[]>(() =>
             currentUserEmail &&
             m.email &&
             m.email.toLowerCase() === String(currentUserEmail).toLowerCase();
-          return `${isMe ? 'stage-assignee-me' : ''}|${isMe ? '当前|' : ''}${m.name || m.email}`;
+          return `${isMe ? 'stage-assignee-me' : ''}|${isMe ? `${t('stage.me')}|` : ''}${m.name || m.email}`;
         })
         .join(';');
     }
@@ -84,7 +85,8 @@ const steps = computed<StepInfo[]>(() =>
 );
 
 function parseAssignees(raw: string) {
-  if (raw === 'empty|未指派') return [{ isMe: false, badge: '', name: '未指派', empty: true }];
+  if (raw === `empty|${t('stage.unassigned')}`)
+    return [{ isMe: false, badge: '', name: t('stage.unassigned'), empty: true }];
   return raw.split(';').map((item) => {
     const [classes, badge, name] = item.split('|');
     return {
@@ -99,7 +101,7 @@ function parseAssignees(raw: string) {
 
 <template>
   <div v-if="steps.length === 0" style="color: var(--color-text-muted)">
-    暂无阶段数据
+    {{ t('stage.noData') }}
   </div>
   <div v-else class="stage-progress">
     <div
@@ -126,7 +128,7 @@ function parseAssignees(raw: string) {
               class="stage-assignee"
               :class="{ 'stage-assignee-me': a.isMe }"
             >
-              <span v-if="a.isMe" class="stage-assignee-badge">当前</span>
+              <span v-if="a.isMe" class="stage-assignee-badge">{{ t('stage.me') }}</span>
               {{ a.name }}
             </span>
           </template>

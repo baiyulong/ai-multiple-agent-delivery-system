@@ -1,0 +1,12 @@
+{
+  "artifact_type": "technical_architecture",
+  "required_sections": ["Architecture Overview", "Module Structure", "Code Structure Requirements", "Tech Stack"],
+  "aliases": {
+    "Architecture Overview": ["Architecture Overview and Layers", "Architecture Pattern"],
+    "Module Structure": ["Module/Directory Structure", "Directory Structure"],
+    "Code Structure Requirements": ["Code Organization Requirements", "Code Structure"],
+    "Tech Stack": ["Technology Selection", "Tech Stack Notes"]
+  },
+  "non_empty_sections": ["Architecture Overview", "Module Structure", "Code Structure Requirements", "Tech Stack"],
+  "pass_threshold": 60
+}

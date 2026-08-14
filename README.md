@@ -1,5 +1,7 @@
 # AI 交付任务系统（AI Delivery Task System）
 
+> **Language / 语言**: [中文](README.md) · [English](README.en.md)
+
 基于 **MCP (Model Context Protocol)** 的多角色 Agent 项目交付编排系统。它把项目交付拆成**七角色接力工作流**（产品经理 → UI/UX → 领域架构 → 工程实现 → QA → DevOps），通过**阶段门禁**保证每个交付物达标后才进入下一阶段，所有任务状态以纯文本文件保存在本地 `.delivery` 目录，无数据库。
 
 适用于 OpenCode 等支持 MCP 的 AI 编程工具。
@@ -362,7 +364,7 @@ node delivery-mcp-server/install.js --release
 
 ```bash
 cd delivery-mcp-server
-npm test          # 32 个测试（26 单测 + 6 E2E）
+npm test          # 156 个测试（26 个测试文件，含 E2E 验收）
 npm run typecheck # TypeScript 类型检查
 npm run build     # 构建
 ```

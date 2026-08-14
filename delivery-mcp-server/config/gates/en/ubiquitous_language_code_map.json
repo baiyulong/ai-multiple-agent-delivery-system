@@ -1,0 +1,11 @@
+{
+  "artifact_type": "ubiquitous_language_code_map",
+  "required_sections": ["Business Terminology", "Code Mapping", "Context and Module Notes"],
+  "aliases": {
+    "Business Terminology": ["Ubiquitous Language Table", "Terminology"],
+    "Code Mapping": ["Code-Business Mapping", "Code Location Mapping"],
+    "Context and Module Notes": ["Context Notes", "Bounded Context"]
+  },
+  "non_empty_sections": ["Business Terminology", "Code Mapping"],
+  "pass_threshold": 60
+}

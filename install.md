@@ -1,5 +1,7 @@
 # AI 交付任务系统 · 安装指南（install.md）
 
+> **Language / 语言**: [中文](install.md) · [English](install.en.md)
+>
 > 本文件是**给 AI 看的安装说明书**。用户只需把本文件的链接（或内容）交给 AI，AI 即可按步骤自动完成安装、注册与首次配置。
 >
 > 仓库：`https://github.com/baiyulong/ai-multiple-agent-delivery-system.git`
@@ -65,6 +67,15 @@ node delivery-mcp-server/install.js --dashboard     # 安装后后台启动看�
 node delivery-mcp-server/install.js --stop-dashboard # 停止看板进程（或 npm run dashboard:stop）
 node delivery-mcp-server/install.js --dry-run       # 只打印将要执行的操作，不改动文件
 ```
+
+**安装语言（双语）**：系统内置中文（`zh`）与英文（`en`）两个版本。安装脚本会交互式询问语言（默认 `zh`），也可显式指定：
+
+```bash
+node delivery-mcp-server/install.js --lang en       # 安装英文版（web 界面 + 角色 Agent + 模板）
+node delivery-mcp-server/install.js --lang zh       # 安装中文版（默认）
+```
+
+只安装所选语言。选择会记录到目标项目的 `.install-lang`，后续更新时沿用；`--lang` 优先于记忆的选择。
 
 ### 方式二：手动安装
 
@@ -334,7 +345,7 @@ npm run dashboard
 node delivery-mcp-server/install.js --release
 ```
 
-脚本会自动下载最新 Release → 覆盖 `delivery-mcp-server/` 工具本体 + `delivery-*.md` 角色配置 → 重新构建。**保留 `.delivery` 任务数据**与 `opencode.json` 中的自定义配置。
+脚本会自动下载最新 Release → 覆盖 `delivery-mcp-server/` 工具本体 + `delivery-*.md` 角色配置 → 重新构建。**保留 `.delivery` 任务数据**与 `opencode.json` 中的自定义配置。加 `--lang zh|en` 可切换安装语言（否则沿用 `.install-lang` 记忆的语言）。
 
 > **版本对比自动更新**：已存在 `delivery-mcp-server` 时，`--release` / `--force-update` / **本地版本低于源码版本** 三种情况会自动删除旧版并覆盖，其余情况跳过。
 > **Windows 手动更新**（脚本不可用时）：

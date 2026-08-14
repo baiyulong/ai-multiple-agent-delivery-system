@@ -9,6 +9,7 @@ import { DownloadOutlined } from '@ant-design/icons-vue';
 import { api } from '@/api/api';
 import { PUBLIC_DOCUMENT_TYPES } from '@/utils/constants';
 import { artifactTypeName, formatTime } from '@/utils/helpers';
+import { t } from '@/utils/i18n';
 import type { PublicDocEntry } from '@/api/types';
 import DocumentCard from '@/components/DocumentCard.vue';
 
@@ -86,7 +87,7 @@ async function loadDocContent(groupType: string, idx: number) {
 
   // Non-preset docs without task/artifact ids have no content
   if (!doc.task_id || !doc.artifact_id) {
-    state.error = '暂无内容';
+    state.error = t('noContent');
     state.loaded = true;
     return;
   }
@@ -97,7 +98,7 @@ async function loadDocContent(groupType: string, idx: number) {
     state.content = data.content || '';
     state.loaded = true;
   } catch (err: unknown) {
-    state.error = '加载失败：' + (err instanceof Error ? err.message : String(err));
+    state.error = t('loadFailed') + (err instanceof Error ? err.message : String(err));
     state.loaded = true;
   } finally {
     state.loading = false;
@@ -154,13 +155,13 @@ async function exportDoc(groupType: string, idx: number) {
 
   // Loading in progress — ask user to wait
   if (state.loading) {
-    message.info('文档内容加载中，请稍后再试');
+    message.info(t('doc.loadingHint'));
     return;
   }
 
   // Previous load errored — ask user to expand first
   if (state.error) {
-    message.warning('请先展开文档查看内容后再导出');
+    message.warning(t('doc.expandFirst'));
     return;
   }
 
@@ -169,7 +170,7 @@ async function exportDoc(groupType: string, idx: number) {
   const after = getContent(groupType, idx);
 
   if (after.error || !after.content) {
-    message.warning('该文档暂无内容可导出');
+    message.warning(t('doc.noExport'));
     return;
   }
 
@@ -185,7 +186,7 @@ async function fetchDocs() {
     const data = await api.listDocuments();
     docs.value = data.documents || [];
   } catch (err: unknown) {
-    errorMsg.value = '加载公共文档失败：' + (err instanceof Error ? err.message : String(err));
+    errorMsg.value = t('doc.loadFailed') + (err instanceof Error ? err.message : String(err));
     message.error(errorMsg.value);
   } finally {
     loading.value = false;
@@ -198,12 +199,12 @@ onMounted(() => {
 </script>
 
 <template>
-  <Card title="公共文档" :bordered="false">
+  <Card :title="t('doc.title')" :bordered="false">
     <template #extra>
-      <span style="color: var(--color-text-muted)">{{ docCount }} 篇文档</span>
+      <span style="color: var(--color-text-muted)">{{ t('doc.count', { count: docCount }) }}</span>
     </template>
 
-    <div v-if="loading" style="text-align: center; padding: 40px">加载公共文档...</div>
+    <div v-if="loading" style="text-align: center; padding: 40px">{{ t('doc.loading') }}</div>
 
     <div v-else-if="errorMsg" style="color: #ff4d4f">{{ errorMsg }}</div>
 
@@ -211,7 +212,7 @@ onMounted(() => {
       v-else-if="docs.length === 0"
       style="text-align: center; padding: 40px; color: var(--color-text-muted)"
     >
-      暂无公共文档
+      {{ t('doc.empty') }}
     </div>
 
     <div v-else>
@@ -224,7 +225,7 @@ onMounted(() => {
         <template #title>
           <Space>
             <span>{{ group.typeName }}</span>
-            <Tag color="blue">{{ group.items.length }} 篇</Tag>
+            <Tag color="blue">{{ t('doc.pieces', { count: group.items.length }) }}</Tag>
           </Space>
         </template>
         <Collapse @change="(keys) => onGroupExpand(group.type, keys)">
@@ -235,7 +236,7 @@ onMounted(() => {
             <template #header>
               <div class="doc-header-row">
                 <Space class="doc-header-info">
-                  <span>{{ doc.title || '无标题' }}</span>
+                  <span>{{ doc.title || t('doc.noTitle') }}</span>
                   <Tag v-if="doc.status">{{ doc.status }}</Tag>
                   <span v-if="doc.version" style="color: var(--color-text-muted)">
                     v{{ doc.version }}

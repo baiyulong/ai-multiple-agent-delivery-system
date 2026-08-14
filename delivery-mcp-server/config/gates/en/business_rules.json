@@ -1,0 +1,25 @@
+{
+  "artifact_type": "business_rules",
+  "required_sections": [
+    "Business Goals",
+    "Business Roles",
+    "Current Business Process",
+    "Business Rules List",
+    "Business Terminology",
+    "Exception Scenarios",
+    "Boundary Conditions",
+    "Questions Requiring Confirmation",
+    "Inputs and Suggestions for Product Manager",
+    "Inputs and Suggestions for Architect"
+  ],
+  "aliases": {},
+  "non_empty_sections": ["Business Rules List", "Exception Scenarios"],
+  "min_list_items": [
+    {
+      "section": "Business Rules List",
+      "min": 3,
+      "message": "Business rules list must contain at least 3 items"
+    }
+  ],
+  "pass_threshold": 60
+}

@@ -1,0 +1,12 @@
+{
+  "artifact_type": "analysis_report_card",
+  "required_sections": [
+    "Analysis Conclusion",
+    "Key Findings",
+    "Root Cause Analysis",
+    "Improvement Suggestions",
+    "Risks"
+  ],
+  "non_empty_sections": ["Analysis Conclusion", "Key Findings", "Improvement Suggestions"],
+  "pass_threshold": 60
+}

@@ -13,6 +13,7 @@
  *   cd delivery-mcp-server && node install.js --release
  *   node install.js --repo /path/to/source  # 指定本地源码路径
  *   node install.js --no-dashboard       # 安装后不启动浏览器看板（默认启动）
+ *   node install.js --lang en            # 指定安装语言 zh/en（默认 zh；更新时自动沿用原语言）
  *   node install.js --dry-run            # 只打印将要执行的操作，不改动文件
  *   node install.js --force              # 目标目录不是 git 仓库时也继续
  *
@@ -41,6 +42,7 @@ function takeValue(flag) {
 }
 let repoPath = takeValue('--repo') ?? SCRIPT_DIR;
 const tempDirs = []; // 本次运行创建的临时目录，安装成功后统一清理
+const FLAG_LANG = takeValue('--lang'); // 安装语言：zh | en（省略时交互询问或沿用已安装语言）——必须在 targetArg 之前解析，避免 en 被当作目标目录
 const targetArg = args.find((a) => !a.startsWith('--'));
 const targetDir = targetArg ?? process.cwd();
 const FLAG_DRY = args.includes('--dry-run');
@@ -53,6 +55,67 @@ const FLAG_SKIP_BUILD = args.includes('--skip-build'); // 跳过 npm run build�
 
 const GITHUB_OWNER = 'baiyulong';
 const GITHUB_REPO = 'ai-multiple-agent-delivery-system';
+const VALID_LANGS = ['zh', 'en'];
+
+// ---------- 语言选择 ----------
+/** 解析安装语言：--lang 参数 > 已安装语言（.install-lang 或 active.json）> 交互询问 > 默认 zh */
+async function resolveInstallLang() {
+  if (FLAG_LANG) {
+    if (VALID_LANGS.includes(FLAG_LANG)) return FLAG_LANG;
+    warn(`无效的 --lang 值 "${FLAG_LANG}"（仅支持 zh/en），回退到 zh。`);
+    return 'zh';
+  }
+  // 更新场景：沿用目标项目已安装的语言
+  try {
+    const stored = (await readFile(join(targetReal, '.install-lang'), 'utf-8')).trim();
+    if (VALID_LANGS.includes(stored)) return stored;
+  } catch {
+    // 首次安装，无记忆文件
+  }
+  try {
+    const active = await readJsonSafe(join(targetReal, 'delivery-mcp-server', 'config', 'lang', 'active.json'));
+    if (active && VALID_LANGS.includes(active.lang)) return active.lang;
+  } catch {
+    // 无 active.json，继续
+  }
+  // 首次安装且非 dry-run：交互询问（非 TTY 或 dry-run 时用默认 zh）
+  if (!FLAG_DRY && process.stdin.isTTY) {
+    const { createInterface } = await import('node:readline/promises');
+    const rl = createInterface({ input: process.stdin, output: process.stdout });
+    try {
+      const ans = (await rl.question('安装语言 / Install language（zh / en，回车默认 zh）：')).trim().toLowerCase();
+      if (VALID_LANGS.includes(ans)) return ans;
+    } catch {
+      // 输入中断，用默认
+    } finally {
+      rl.close();
+    }
+  }
+  return 'zh';
+}
+
+/** 在已拷贝的 delivery-mcp-server 中写入 active.json，并删除另一语言的内置资源（单语言安装） */
+async function applyLanguage(serverDir, lang) {
+  const other = lang === 'zh' ? 'en' : 'zh';
+  const activeFile = join(serverDir, 'config', 'lang', 'active.json');
+  const removeTargets = [
+    join(serverDir, 'config', 'gates', other),
+    join(serverDir, 'config', 'architectures', other),
+    join(serverDir, 'templates', other),
+    join(serverDir, 'config', 'lang', `${other}.json`),
+  ];
+  if (FLAG_DRY) {
+    log(`  - 将写入 ${activeFile}（{"lang": "${lang}"}）`);
+    for (const t of removeTargets) log(`  - 将删除另一语言资源：${t}`);
+    return;
+  }
+  await mkdir(dirname(activeFile), { recursive: true });
+  await writeFile(activeFile, JSON.stringify({ lang }, null, 2) + '\n', 'utf-8');
+  for (const t of removeTargets) {
+    await rm(t, { recursive: true, force: true }).catch(() => {});
+  }
+  ok(`已写入安装语言 active.json（${lang}）并清理另一语言内置资源`);
+}
 
 // ---------- 工具 ----------
 const log = (msg) => console.log(msg);
@@ -60,10 +123,10 @@ const ok = (msg) => console.log(`  ✓ ${msg}`);
 const skip = (msg) => console.log(`  - ${msg}（已存在，跳过）`);
 const warn = (msg) => console.log(`  ! ${msg}`);
 
-function run(cmd, cwd) {
+function run(cmd, cwd, env = {}) {
   // 命令为脚本内固定字符串，拼成完整命令交给 shell 执行（Windows/Linux 通用，避免 DEP0190 警告）
   return new Promise((resolve, reject) => {
-    const child = spawn(`npm ${cmd}`, { cwd, stdio: 'inherit', shell: true });
+    const child = spawn(`npm ${cmd}`, { cwd, stdio: 'inherit', shell: true, env: { ...process.env, ...env } });
     child.on('error', reject);
     child.on('exit', (code) => (code === 0 ? resolve() : reject(new Error(`npm ${cmd} 退出码 ${code}`))));
   });
@@ -620,6 +683,10 @@ if (!hasGit && !FLAG_FORCE) {
   process.exit(1);
 }
 
+// ---------- 1.4 确定安装语言 ----------
+const installLang = await resolveInstallLang();
+log(`\n安装语言 / Language：${installLang === 'zh' ? '中文 (zh)' : 'English (en)'}`);
+
 // ---------- 1.5 停止运行中的进程（更新时避免文件锁定） ----------
 if (existsSync(join(targetReal, 'delivery-mcp-server'))) {
   await stopTargetProcesses(targetReal);
@@ -666,22 +733,37 @@ if (existsSync(srcServer)) {
   warn(`仓库路径下未找到 delivery-mcp-server（${srcServer}），请用 --repo 指定正确的仓库路径。`);
 }
 
+// ---------- 2.5 应用安装语言（单语言安装） ----------
+log(`\n[语言] 应用安装语言：${installLang}`);
+if (FLAG_DRY) {
+  log(`  - 将在 ${dstServer} 写入 config/lang/active.json（{"lang": "${installLang}"}）`);
+  log(`  - 将删除另一语言内置资源：config/gates/${installLang === 'zh' ? 'en' : 'zh'}/、config/architectures/${installLang === 'zh' ? 'en' : 'zh'}/、templates/${installLang === 'zh' ? 'en' : 'zh'}/、config/lang/${installLang === 'zh' ? 'en' : 'zh'}.json`);
+  log(`  - 将写入语言记忆文件 ${join(targetReal, '.install-lang')}`);
+} else if (existsSync(dstServer)) {
+  await applyLanguage(dstServer, installLang);
+  await writeFile(join(targetReal, '.install-lang'), installLang + '\n', 'utf-8').catch(() => {});
+} else {
+  warn(`未找到 ${dstServer}，跳过语言配置。`);
+}
+
 // ---------- 3. 拷贝 agent 配置（只新增 delivery-*） ----------
-log(`\n[2/6] 拷贝角色 Agent 配置（仅 delivery-* 前缀${FLAG_RELEASE ? '，更新模式覆盖已有文件' : '，不覆盖已有文件'}）`);
+log(`\n[2/6] 拷贝角色 Agent 配置（delivery-*.${installLang}.md → delivery-*.md${FLAG_RELEASE ? '，更新模式覆盖已有文件' : '，不覆盖已有文件'}）`);
 const srcAgents = join(repoReal, '.opencode', 'agent');
 const dstAgents = join(targetReal, '.opencode', 'agent');
 if (existsSync(srcAgents)) {
   if (!FLAG_DRY) await mkdir(dstAgents, { recursive: true });
   const { readdir } = await import('node:fs/promises');
   let files = await readdir(srcAgents);
-  files = files.filter((f) => f.endsWith('.md') && f.startsWith(AGENT_PREFIX));
+  files = files.filter((f) => f.endsWith('.md') && f.startsWith(AGENT_PREFIX) && f.includes(`.${installLang}.md`));
   let copied = 0;
   for (const f of files) {
-    const dst = join(dstAgents, f);
+    // 去掉语言后缀：delivery-orchestrator.zh.md → delivery-orchestrator.md
+    const dstName = f.replace(`.${installLang}.md`, '.md');
+    const dst = join(dstAgents, dstName);
     if (existsSync(dst) && !FLAG_RELEASE) {
-      skip(`agent/${f}`);
+      skip(`agent/${dstName}`);
     } else if (FLAG_DRY) {
-      log(`  - 将拷贝 agent/${f}${existsSync(dst) ? '（覆盖）' : ''}`);
+      log(`  - 将拷贝 agent/${dstName}${existsSync(dst) ? '（覆盖）' : ''}`);
     } else {
       await cp(join(srcAgents, f), dst, { force: true });
       copied++;
@@ -719,9 +801,9 @@ if (hasDeliveryMcp) {
 }
 
 // ---------- 5. .gitignore ----------
-log(`\n[4/6] 追加 .gitignore（忽略工具本体 delivery-mcp-server）`);
+log(`\n[4/6] 追加 .gitignore（忽略工具本体 delivery-mcp-server 与安装语言记忆文件）`);
 const gitignoreFile = join(targetReal, '.gitignore');
-await gitIgnoreAdd(gitignoreFile, ['delivery-mcp-server']);
+await gitIgnoreAdd(gitignoreFile, ['delivery-mcp-server', '.install-lang']);
 ok('.gitignore 已处理（若此前无条目）');
 
 // ---------- 6. npm install + build ----------
@@ -734,7 +816,8 @@ if (!FLAG_DRY && existsSync(dstServer)) {
       log('  - 已跳过构建（--skip-build）。请稍后手动执行 npm run build，或再次运行 install.js 完成构建。');
     } else {
       log('  - npm run build（首次构建可能需 1–2 分钟，请勿中断）...');
-      await run('run build', dstServer);
+      // VITE_LANG 注入 web 构建：构建期单语言（web 端 import.meta.env.VITE_LANG）
+      await run('run build', dstServer, { VITE_LANG: installLang });
       ok('构建完成：delivery-mcp-server/dist/server.js');
     }
   } catch (e) {

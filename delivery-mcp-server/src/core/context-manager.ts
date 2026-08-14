@@ -1,5 +1,6 @@
 import { normalizeSectionName, parseSections } from './gate-engine.js';
 import { readContext, writeContext } from './store/task-store.js';
+import { t } from './i18n.js';
 
 /**
  * 共享上下文管理（PRD 8.7 / 9.11 / 9.12）：
@@ -26,7 +27,7 @@ export async function updateContextSection(
   const idx = sections.findIndex((s) => s.name === target);
   if (idx < 0) {
     throw new Error(
-      `章节「${section}」不存在。可用章节：${sections.map((s) => s.name).join('、')}`,
+      t('context.section_not_found', { section, available: sections.map((s) => s.name).join('、') }),
     );
   }
 
@@ -40,7 +41,7 @@ export async function updateContextSection(
       break;
     }
   }
-  if (headingLine < 0) throw new Error(`未找到章节标题「${section}」`);
+  if (headingLine < 0) throw new Error(t('context.heading_not_found', { section }));
 
   // 找下一个同级或更高级标题作为结束
   const level = (lines[headingLine]!.match(/^#{1,6}/)?.[0] ?? '').length;

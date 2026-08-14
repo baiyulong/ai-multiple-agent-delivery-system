@@ -1,0 +1,28 @@
+{
+  "artifact_type": "qa_test_plan",
+  "required_sections": [
+    "Test Scope",
+    "Out of Test Scope",
+    "Test Strategy",
+    "Functional Test Cases",
+    "Business Rule Tests",
+    "State Transition Tests",
+    "Permission Tests",
+    "API Tests",
+    "Exception and Boundary Tests",
+    "Regression Checklist",
+    "Automation Test Plan",
+    "Test Data",
+    "Acceptance Criteria Coverage"
+  ],
+  "aliases": {},
+  "non_empty_sections": ["Test Scope", "Test Strategy"],
+  "min_list_items": [
+    {
+      "section": "Functional Test Cases",
+      "min": 3,
+      "message": "Functional test cases must contain at least 3 items"
+    }
+  ],
+  "pass_threshold": 60
+}

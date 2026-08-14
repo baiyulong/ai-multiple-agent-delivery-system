@@ -11,6 +11,7 @@ import { api } from '@/api/api';
 import { useTeamUser } from '@/composables/useTeamUser';
 import { STATUS_MAP, TASK_TYPE_MAP } from '@/utils/constants';
 import { formatTime, stageDisplayName } from '@/utils/helpers';
+import { t } from '@/utils/i18n';
 import type { TaskListItem, TaskStatus } from '@/api/types';
 
 const router = useRouter();
@@ -23,13 +24,13 @@ const taskScope = ref<'all' | 'mine'>('all');
 const taskStatus = ref<string>('all');
 
 const statusOptions = [
-  { value: 'all', label: '全部状态' },
-  { value: 'draft', label: '草稿' },
-  { value: 'in_progress', label: '进行中' },
-  { value: 'blocked', label: '已阻塞' },
-  { value: 'completed', label: '已完成' },
-  { value: 'cancelled', label: '已取消' },
-  { value: 'archived', label: '已归档' },
+  { value: 'all', label: t('taskList.allStatuses') },
+  { value: 'draft', label: t('status.draft') },
+  { value: 'in_progress', label: t('status.in_progress') },
+  { value: 'blocked', label: t('status.blocked') },
+  { value: 'completed', label: t('status.completed') },
+  { value: 'cancelled', label: t('status.cancelled') },
+  { value: 'archived', label: t('status.archived') },
 ];
 
 function isMyTask(task: TaskListItem): boolean {
@@ -68,14 +69,14 @@ const statusColor = (status: TaskStatus): string => {
 
 const columns: ColumnsType<TaskListItem> = [
   {
-    title: '任务标题',
+    title: t('col.title'),
     dataIndex: 'title',
     key: 'title',
     customRender: ({ record }: { record: TaskListItem }) =>
       h('a', { onClick: () => openDetail(record.task_id) }, record.title),
   },
   {
-    title: '状态',
+    title: t('col.status'),
     dataIndex: 'status',
     key: 'status',
     width: 100,
@@ -83,21 +84,21 @@ const columns: ColumnsType<TaskListItem> = [
       h(Tag, { color: statusColor(record.status) }, () => STATUS_MAP[record.status] || record.status),
   },
   {
-    title: '类型',
+    title: t('col.type'),
     dataIndex: 'task_type',
     key: 'task_type',
     width: 120,
     customRender: ({ record }: { record: TaskListItem }) => TASK_TYPE_MAP[record.task_type] || record.task_type,
   },
   {
-    title: '当前阶段',
+    title: t('col.currentStage'),
     dataIndex: 'current_stage',
     key: 'current_stage',
     width: 120,
     customRender: ({ record }: { record: TaskListItem }) => stageDisplayName(record.current_stage ?? ''),
   },
   {
-    title: '进度',
+    title: t('col.progress'),
     key: 'progress',
     width: 120,
     customRender: ({ record }: { record: TaskListItem }) => {
@@ -107,7 +108,7 @@ const columns: ColumnsType<TaskListItem> = [
     },
   },
   {
-    title: '更新时间',
+    title: t('col.updatedAt'),
     dataIndex: 'updated_at',
     key: 'updated_at',
     width: 160,
@@ -122,7 +123,7 @@ async function load() {
     const data = await api.listTasks();
     taskList.value = data.tasks ?? [];
   } catch (err: unknown) {
-    errorMsg.value = '加载任务列表失败：' + (err instanceof Error ? err.message : String(err));
+    errorMsg.value = t('taskList.loadFailed') + (err instanceof Error ? err.message : String(err));
     message.error(errorMsg.value);
   } finally {
     loading.value = false;
@@ -137,21 +138,21 @@ onMounted(load);
 </script>
 
 <template>
-  <Card title="任务列表" :bordered="false">
+  <Card :title="t('taskList.title')" :bordered="false">
     <Space style="margin-bottom: 16px">
-      <span>范围：</span>
+      <span>{{ t('taskList.scope') }}</span>
       <Select v-model:value="taskScope" style="width: 120px">
-        <Select.Option value="all">全部任务</Select.Option>
-        <Select.Option value="mine">我的任务</Select.Option>
+        <Select.Option value="all">{{ t('taskList.scopeAll') }}</Select.Option>
+        <Select.Option value="mine">{{ t('taskList.scopeMine') }}</Select.Option>
       </Select>
-      <span>状态：</span>
+      <span>{{ t('taskList.status') }}</span>
       <Select v-model:value="taskStatus" style="width: 120px">
         <Select.Option v-for="opt in statusOptions" :key="opt.value" :value="opt.value">
           {{ opt.label }}
         </Select.Option>
       </Select>
       <span style="margin-left: 16px; color: var(--color-text-muted)">
-        {{ filteredTasks.length }} / {{ taskList.length }} 个任务
+        {{ t('taskList.count', { shown: filteredTasks.length, total: taskList.length }) }}
       </span>
     </Space>
 
@@ -160,11 +161,11 @@ onMounted(load);
       :data-source="filteredTasks"
       :loading="loading"
       row-key="task_id"
-      :pagination="{ pageSize: 20, showTotal: (total: number) => `共 ${total} 条` }"
+      :pagination="{ pageSize: 20, showTotal: (total: number) => t('taskList.total', { total }) }"
     >
       <template #emptyText>
         <span v-if="errorMsg">{{ errorMsg }}</span>
-        <span v-else>暂无任务</span>
+        <span v-else>{{ t('taskList.empty') }}</span>
       </template>
     </Table>
   </Card>

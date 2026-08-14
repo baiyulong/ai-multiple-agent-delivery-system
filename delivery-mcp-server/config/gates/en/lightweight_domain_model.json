@@ -1,0 +1,7 @@
+{
+  "artifact_type": "lightweight_domain_model",
+  "required_sections": ["Entities", "Value Objects", "Business Behaviors", "Invariants and Constraints", "State Transitions"],
+  "aliases": {},
+  "non_empty_sections": ["Entities", "Business Behaviors"],
+  "pass_threshold": 60
+}

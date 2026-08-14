@@ -1,75 +1,77 @@
 /**
  * 与旧版 app.js 完全一致的映射表，不做任何视觉重设计。
+ * 文案取自构建期语言字典（VITE_LANG）。
  */
+import { t } from './i18n';
 
 export const TASK_TYPE_MAP: Record<string, string> = {
-  crud: 'CRUD',
-  lightweight_ddd: '轻量 DDD',
-  full_ddd: '完整 DDD',
-  ui_only: 'UI',
-  tech_refactor: '技术重构',
-  qa_only: '仅测试',
-  release_only: '仅发布',
+  crud: t('taskType.crud'),
+  lightweight_ddd: t('taskType.lightweight_ddd'),
+  full_ddd: t('taskType.full_ddd'),
+  ui_only: t('taskType.ui_only'),
+  tech_refactor: t('taskType.tech_refactor'),
+  qa_only: t('taskType.qa_only'),
+  release_only: t('taskType.release_only'),
 };
 
 export const STATUS_MAP: Record<string, string> = {
-  draft: '草稿',
-  in_progress: '进行中',
-  blocked: '已阻塞',
-  completed: '已完成',
-  cancelled: '已取消',
-  archived: '已归档',
+  draft: t('status.draft'),
+  in_progress: t('status.in_progress'),
+  blocked: t('status.blocked'),
+  completed: t('status.completed'),
+  cancelled: t('status.cancelled'),
+  archived: t('status.archived'),
 };
 
 export const STAGE_STATUS_MAP: Record<string, string> = {
-  not_started: '未开始',
-  in_progress: '进行中',
-  submitted: '已提交',
-  validated: '已验证',
-  completed: '已完成',
-  blocked: '已阻塞',
-  needs_revision: '需修改',
-  skipped: '已跳过',
+  not_started: t('stageStatus.not_started'),
+  in_progress: t('stageStatus.in_progress'),
+  submitted: t('stageStatus.submitted'),
+  validated: t('stageStatus.validated'),
+  completed: t('stageStatus.completed'),
+  blocked: t('stageStatus.blocked'),
+  needs_revision: t('stageStatus.needs_revision'),
+  skipped: t('stageStatus.skipped'),
 };
 
 export const STAGE_NAME_MAP: Record<string, string> = {
-  product_requirement: '产品需求',
-  ux_design: '交互设计',
-  domain_review: '领域评审',
-  engineering_design: '工程设计',
-  qa_validation: 'QA 验证',
+  product_requirement: t('stage.name.product_requirement'),
+  ux_design: t('stage.name.ux_design'),
+  domain_review: t('stage.name.domain_review'),
+  engineering_design: t('stage.name.engineering_design'),
+  qa_validation: t('stage.name.qa_validation'),
 };
 
 export const ROLE_NAME_MAP: Record<string, string> = {
-  'product-manager': '产品经理',
-  'ux-designer': 'UX 设计师',
-  'domain-architect': '领域架构师',
-  engineer: '工程师',
-  qa: 'QA',
-  'platform-devops': '平台运维',
-  'domain-expert': '领域专家',
+  'product-manager': t('role.product-manager'),
+  'ux-designer': t('role.ux-designer'),
+  'domain-architect': t('role.domain-architect'),
+  engineer: t('role.engineer'),
+  qa: t('role.qa'),
+  'platform-devops': t('role.platform-devops'),
+  'domain-expert': t('role.domain-expert'),
 };
 
 export const ARTIFACT_TYPE_MAP: Record<string, string> = {
-  crud_spec_card: 'CRUD 规格卡',
-  product_requirement_card: '产品需求卡',
-  ux_interaction_card: '交互设计卡',
-  ddd_applicability_review: 'DDD 适用性评审',
-  engineering_plan: '工程方案',
-  qa_test_plan: '测试方案',
-  release_checklist: '发布清单',
-  user_stories: '用户故事',
-  acceptance_criteria: '验收标准',
-  business_rules: '业务规则',
-  ubiquitous_language: '统一语言',
-  state_action_matrix: '状态动作矩阵',
-  lightweight_domain_model: '轻量领域模型',
-  bounded_context: '限界上下文',
-  aggregate_design: '聚合设计',
-  domain_events: '领域事件',
-  api_contract: '接口契约',
-  ubiquitous_language_code_map: '业务统一语言·代码映射',
-  technical_architecture: '技术架构文档',
+  crud_spec_card: t('artifactType.crud_spec_card'),
+  product_requirement_card: t('artifactType.product_requirement_card'),
+  ux_interaction_card: t('artifactType.ux_interaction_card'),
+  ddd_applicability_review: t('artifactType.ddd_applicability_review'),
+  engineering_plan: t('artifactType.engineering_plan'),
+  qa_test_plan: t('artifactType.qa_test_plan'),
+  release_checklist: t('artifactType.release_checklist'),
+  user_stories: t('artifactType.user_stories'),
+  acceptance_criteria: t('artifactType.acceptance_criteria'),
+  business_rules: t('artifactType.business_rules'),
+  ubiquitous_language: t('artifactType.ubiquitous_language'),
+  state_action_matrix: t('artifactType.state_action_matrix'),
+  lightweight_domain_model: t('artifactType.lightweight_domain_model'),
+  bounded_context: t('artifactType.bounded_context'),
+  aggregate_design: t('artifactType.aggregate_design'),
+  domain_events: t('artifactType.domain_events'),
+  api_contract: t('artifactType.api_contract'),
+  ubiquitous_language_code_map: t('artifactType.ubiquitous_language_code_map'),
+  technical_architecture: t('artifactType.technical_architecture'),
 };
 
 export const PUBLIC_DOCUMENT_TYPES = [
@@ -78,8 +80,8 @@ export const PUBLIC_DOCUMENT_TYPES = [
 ];
 
 export const GATE_RESULT_MAP: Record<string, string> = {
-  passed: '通过',
-  failed: '未通过',
-  warning: '警告',
-  manual_review_required: '待人工审核',
+  passed: t('gateResult.passed'),
+  failed: t('gateResult.failed'),
+  warning: t('gateResult.warning'),
+  manual_review_required: t('gateResult.manual_review_required'),
 };

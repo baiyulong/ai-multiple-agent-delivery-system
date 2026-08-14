@@ -9,6 +9,7 @@ import { generateGateId } from '../core/ids.js';
 import { resolveDeliveryRoot } from '../core/paths.js';
 import { notifyRole, nextStepsFooter } from '../core/notify.js';
 import { fail, ok, type ToolContext } from './common.js';
+import { t } from '../core/i18n.js';
 
 /**
  * 门禁工具（PRD 7.6 / 8.6 / 9.10）：
@@ -19,32 +20,32 @@ export function registerGateTools(server: McpServer, ctx: () => ToolContext) {
   server.registerTool(
     'gate.check',
     {
-      description:
-        '对阶段交付物执行门禁检查（PRD 7.6 / 9.10）。通过→交付物 validated/阶段 validated；失败→needs_revision。结果记录到 gates/{stage}.gate.json（PRD 14.3）。',
+      description: t('tool.gate.check.description'),
       inputSchema: {
-        task_id: z.string().describe('任务 ID'),
-        stage: z.string().describe('阶段名'),
-        artifact_id: z.string().describe('交付物 ID'),
+        task_id: z.string().describe(t('tool.gate.check.task_id')),
+        stage: z.string().describe(t('tool.gate.check.stage')),
+        artifact_id: z.string().describe(t('tool.gate.check.artifact_id')),
       },
     },
     async (args) => {
       try {
         const root = resolveDeliveryRoot(ctx().root);
         const task = await getTask(root, args.task_id);
-        if (!task) return fail('task_not_found', `任务不存在: ${args.task_id}`);
+        if (!task) return fail('task_not_found', t('error.task_not_found', { id: args.task_id }));
         const stages = (await getStages(root, args.task_id)) ?? [];
         const stage = stages.find((s) => s.stage === args.stage);
-        if (!stage) return fail('stage_not_found', `阶段不存在: ${args.stage}`);
+        if (!stage) return fail('stage_not_found', t('error.stage_not_found', { stage: args.stage }));
 
         const got = await getArtifact(root, args.task_id, args.artifact_id);
-        if (!got) return fail('artifact_not_found', `交付物不存在: ${args.artifact_id}`);
+        if (!got) return fail('artifact_not_found', t('tool.artifact.get.not_found', { id: args.artifact_id }));
         if (got.metadata.stage !== args.stage) {
-          return fail('artifact_stage_mismatch', `交付物 ${args.artifact_id} 不属于阶段 ${args.stage}`);
+          return fail('artifact_stage_mismatch', t('tool.gate.check.artifact_stage_mismatch', { id: args.artifact_id, stage: args.stage }));
         }
 
         const rule = await loadGateRule(root, got.metadata.artifact_type);
         if (!rule) {
           // 无门禁规则：需要人工审核
+          const issue = t('tool.gate.check.no_rule', { type: got.metadata.artifact_type });
           await appendGateRecord(root, args.task_id, args.stage, {
             gate_id: await generateGateId(root),
             task_id: args.task_id,
@@ -54,28 +55,28 @@ export function registerGateTools(server: McpServer, ctx: () => ToolContext) {
             result: 'manual_review_required',
             score: 0,
             missing_sections: [],
-            issues: [`未找到门禁规则: ${got.metadata.artifact_type}`],
+            issues: [issue],
             checked_at: new Date().toISOString(),
           });
           // 通知阶段角色（best-effort，不影响主逻辑）
           const email = await notifyRole(
             root,
             stage.role,
-            `【门禁未通过，请返工】${task.title}`,
+            t('email.subject.gate_failed', { title: task.title }),
             [
-              `任务：${task.title}`,
-              `任务ID：${args.task_id}`,
-              `交付物类型：${got.metadata.artifact_type}`,
+              t('email.line.task', { title: task.title }),
+              t('email.line.task_id', { id: args.task_id }),
+              t('email.line.artifact_type', { type: got.metadata.artifact_type }),
               `结果：manual_review_required`,
               `分数：0`,
-              `问题：未找到门禁规则: ${got.metadata.artifact_type}`,
+              t('email.line.issues', { issues: issue }),
             ].join('\n') + nextStepsFooter(args.task_id),
           );
           return ok({
             result: 'manual_review_required',
             score: 0,
             missing_sections: [],
-            issues: [`未找到门禁规则: ${got.metadata.artifact_type}`],
+            issues: [issue],
             email,
           });
         }
@@ -110,14 +111,14 @@ export function registerGateTools(server: McpServer, ctx: () => ToolContext) {
           email = await notifyRole(
             root,
             stage.role,
-            `【门禁未通过，请返工】${task.title}`,
+            t('email.subject.gate_failed', { title: task.title }),
             [
-              `任务：${task.title}`,
-              `任务ID：${args.task_id}`,
-              `交付物类型：${got.metadata.artifact_type}`,
-              `结果：${outcome.result}`,
-              `分数：${outcome.score}`,
-              `问题：${outcome.issues.join('；') || '无'}`,
+              t('email.line.task', { title: task.title }),
+              t('email.line.task_id', { id: args.task_id }),
+              t('email.line.artifact_type', { type: got.metadata.artifact_type }),
+              t('email.line.result', { result: outcome.result }),
+              t('email.line.score', { score: outcome.score }),
+              t('email.line.issues', { issues: outcome.issues.join('；') || t('email.line.issues_none') }),
             ].join('\n') + nextStepsFooter(args.task_id),
           );
         }
@@ -133,7 +134,7 @@ export function registerGateTools(server: McpServer, ctx: () => ToolContext) {
           email,
         });
       } catch (e) {
-        return fail('gate_check_failed', (e as Error).message);
+        return fail('gate_check_failed', t('tool.gate.check.failed', { msg: (e as Error).message }));
       }
     },
   );

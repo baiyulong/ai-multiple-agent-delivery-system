@@ -6,6 +6,7 @@ import { nowIso } from './time.js';
 import { getQuestions, getStages, getTask, readContext } from './store/task-store.js';
 import { listArtifacts } from './store/artifact-store.js';
 import { readGateStageFile } from './store/gate-store.js';
+import { t } from './i18n.js';
 import type { ArtifactMeta, GateCheckRecord, Question, StageRecord, Task } from './types.js';
 
 /**
@@ -33,49 +34,54 @@ function stageTable(stages: StageRecord[]): string {
         `| ${s.stage} | ${s.role} | ${s.required_artifact_types?.join(', ') ?? s.required_artifact_type} | ${s.status} | ${s.artifact_id ?? '-'} |`,
     )
     .join('\n');
-  return `| 阶段 | 角色 | 交付物类型 | 状态 | 交付物 ID |\n|---|---|---|---|---|\n${rows}`;
+  return `${t('export.stage_table_header')}\n|---|---|---|---|---|\n${rows}`;
 }
 
 function artifactSection(artifacts: ArtifactMeta[], contents: Map<string, string>): string {
   const parts: string[] = [];
   for (const a of artifacts) {
-    const content = contents.get(a.artifact_id) ?? '（内容读取失败）';
+    const content = contents.get(a.artifact_id) ?? t('export.artifact_read_failed');
     parts.push(
       `### ${a.artifact_type} (${a.artifact_id})\n\n` +
-        `- 阶段：${a.stage}\n- 角色：${a.role}\n- 状态：${a.status}\n- 版本：${a.version}\n` +
-        (a.summary ? `- 摘要：${a.summary}\n` : '') +
-        `\n<details>\n<summary>交付物内容</summary>\n\n${content}\n</details>\n`,
+        `${t('export.artifact_stage', { stage: a.stage })}\n${t('export.artifact_role', { role: a.role })}\n${t('export.artifact_status', { status: a.status })}\n${t('export.artifact_version', { version: a.version })}\n` +
+        (a.summary ? `${t('export.artifact_summary', { summary: a.summary })}\n` : '') +
+        `\n<details>\n<summary>${t('export.artifact_content_summary')}</summary>\n\n${content}\n</details>\n`,
     );
   }
   return parts.join('\n');
 }
 
 function gateSection(gateRecords: Array<{ stage: string; record: GateCheckRecord }>): string {
-  if (gateRecords.length === 0) return '（暂无门禁记录）';
+  if (gateRecords.length === 0) return t('export.gate_none');
   const rows = gateRecords
     .map(
       (g) =>
         `| ${g.stage} | ${g.record.artifact_id} | ${g.record.result} | ${g.record.score} | ${g.record.issues.join('; ') || '-'} |`,
     )
     .join('\n');
-  return `| 阶段 | 交付物 | 结果 | 分数 | 问题 |\n|---|---|---|---|---|\n${rows}`;
+  return `${t('export.gate_table_header')}\n|---|---|---|---|---|\n${rows}`;
 }
 
 function questionSection(questions: Question[]): string {
-  if (questions.length === 0) return '（无待确认问题）';
+  if (questions.length === 0) return t('export.question_none');
   return questions
     .map(
       (q) =>
-        `- [${q.status}] ${q.question}\n  - 提出方：${q.raised_by} → ${q.assigned_to_role}${q.blocks_stage ? `（阻塞 ${q.blocks_stage}）` : ''}${q.answer ? `\n  - 答复：${q.answer}` : ''}`,
+        `- [${q.status}] ${q.question}\n  - ${t('export.question_raised_by')}：${q.raised_by} → ${q.assigned_to_role}${q.blocks_stage ? t('export.question_blocks', { stage: q.blocks_stage }) : ''}${q.answer ? `\n  - ${t('export.question_answer', { answer: q.answer })}` : ''}`,
     )
     .join('\n');
 }
 
-/** 从 context.md 提取"已确认决策"章节 */
+/** 从 context.md 提取"已确认决策"章节（标题匹配当前语言） */
 function decisionsSection(contextMd: string): string {
-  const re = /##\s*(?:\d+[.\、)）]\s*)?已确认决策\s*\n([\s\S]*?)(?=\n##\s|$)/;
+  const heading = t('export.decisions_heading');
+  const re = new RegExp(`##\\s*(?:\\d+[.、)）]\\s*)?${escapeRegExp(heading)}\\s*\\n([\\s\\S]*?)(?=\\n##\\s|$)`);
   const m = re.exec(contextMd);
-  return m?.[1]?.trim() ?? '（未记录）';
+  return m?.[1]?.trim() ?? t('export.decisions_none');
+}
+
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 /** 生成交付包 Markdown 正文（纯函数，供 md 与 html 两种格式复用；contents 为 artifact_id -> 正文） */
@@ -85,42 +91,42 @@ export function buildDeliveryPackageMarkdown(
 ): string {
   const { task, stages, artifacts, gateRecords, questions, contextMd } = input;
   return [
-    `# 交付包：${task.title}`,
+    t('export.package_title', { title: task.title }),
     '',
-    '## 任务摘要',
+    t('export.task_summary'),
     '',
-    `- 任务 ID：${task.task_id}`,
-    `- 任务类型：${task.task_type}`,
-    `- 状态：${task.status}`,
-    `- 创建人：${task.created_by}`,
-    `- 创建时间：${task.created_at}`,
-    `- 描述：${task.description}`,
+    t('export.task_id', { id: task.task_id }),
+    t('export.task_type', { type: task.task_type }),
+    t('export.status', { status: task.status }),
+    t('export.created_by', { by: task.created_by }),
+    t('export.created_at', { time: task.created_at }),
+    t('export.description', { desc: task.description }),
     '',
-    '## 流程阶段',
+    t('export.flow_stages'),
     '',
     stageTable(stages),
     '',
-    '## 交付物列表',
+    t('export.artifact_list'),
     '',
     artifactSection(artifacts, contents),
     '',
-    '## 门禁结果',
+    t('export.gate_results'),
     '',
     gateSection(gateRecords),
     '',
-    '## 待确认问题',
+    t('export.open_questions'),
     '',
     questionSection(questions),
     '',
-    '## 关键决策',
+    t('export.key_decisions'),
     '',
     decisionsSection(contextMd),
     '',
-    '## 最终状态',
+    t('export.final_status'),
     '',
-    `- 任务状态：${task.status}`,
-    `- 当前阶段：${task.current_stage ?? '-'}`,
-    `- 导出时间：${nowIso()}`,
+    t('export.status', { status: task.status }),
+    t('export.current_stage', { stage: task.current_stage ?? '-' }),
+    t('export.exported_at', { time: nowIso() }),
     '',
   ].join('\n');
 }
@@ -145,11 +151,11 @@ export function buildDeliveryPackageHtml(md: string): string {
   const renderer = new MarkdownIt({ html: true, linkify: true, breaks: true });
   const body = renderer.render(md);
   return `<!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="${t('export.html_lang')}">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>交付包</title>
+<title>${t('export.html_title')}</title>
 <style>
   :root { color-scheme: light dark; }
   * { box-sizing: border-box; }
@@ -256,7 +262,7 @@ export async function exportTaskDocuments(
   const rel_paths = result.paths.map((p) => `tasks/${taskId}/${p}`);
   const hint =
     rel_paths.length > 0
-      ? `任务文档（相对 .delivery 根目录）：${rel_paths.join('、')}`
+      ? t('export.documents_hint', { paths: rel_paths.join('、') })
       : '';
   return { rel_paths, abs_paths, hint };
 }

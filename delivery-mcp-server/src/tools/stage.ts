@@ -16,6 +16,7 @@ import { dashboardUrl } from '../core/dashboard-url.js';
 import { notifyRole, nextStepsFooter } from '../core/notify.js';
 import { exportTaskDocuments } from '../core/exporter.js';
 import { fail, ok, type ToolContext } from './common.js';
+import { t } from '../core/i18n.js';
 import type { StageRecord } from '../core/types.js';
 
 /**
@@ -27,22 +28,21 @@ export function registerStageTools(server: McpServer, ctx: () => ToolContext) {
   server.registerTool(
     'stage.get',
     {
-      description:
-        '获取阶段状态与就绪信息：can_start、缺失上游交付物、指派 Agent、阻塞问题（PRD 7.3 / 7.4 / 8.4）。',
+      description: t('tool.stage.get.description'),
       inputSchema: {
-        task_id: z.string().describe('任务 ID'),
-        stage: z.string().describe('阶段名'),
+        task_id: z.string().describe(t('tool.stage.get.task_id')),
+        stage: z.string().describe(t('tool.stage.get.stage')),
       },
     },
     async (args) => {
       try {
         const root = resolveDeliveryRoot(ctx().root);
         const task = await getTask(root, args.task_id);
-        if (!task) return fail('task_not_found', `任务不存在: ${args.task_id}`);
+        if (!task) return fail('task_not_found', t('error.task_not_found', { id: args.task_id }));
         const stages = (await getStages(root, args.task_id)) ?? [];
         const stage = stages.find((s) => s.stage === args.stage);
         if (!stage) {
-          return fail('stage_not_found', `阶段不存在: ${args.stage}`, {
+          return fail('stage_not_found', t('tool.stage.get.stage_not_found', { stage: args.stage }), {
             available: stages.map((s) => s.stage),
           });
         }
@@ -69,7 +69,7 @@ export function registerStageTools(server: McpServer, ctx: () => ToolContext) {
           blocking_questions: await blockingQuestions,
         });
       } catch (e) {
-        return fail('stage_get_failed', (e as Error).message);
+        return fail('stage_get_failed', t('tool.stage.get.failed', { msg: (e as Error).message }));
       }
     },
   );
@@ -77,54 +77,53 @@ export function registerStageTools(server: McpServer, ctx: () => ToolContext) {
   server.registerTool(
     'stage.complete',
     {
-      description:
-        '标记阶段完成（PRD 7.7 / 8.4 / 9.6）。前置条件：①必需交付物存在 ②交付物状态 validated ③gate.check 通过 ④任务内不存在任何 open 阻塞问题（不论阻塞的是哪个阶段）。完成阶段必须由用户确认（confirmed_by）。完成后推进 current_stage。',
+      description: t('tool.stage.complete.description'),
       inputSchema: {
-        task_id: z.string().describe('任务 ID'),
-        stage: z.string().describe('阶段名'),
-        confirmed_by: z.string().min(1).describe('用户确认人（姓名/邮箱），完成阶段前必须由用户确认'),
-        completed_by: z.string().optional().describe('完成人/Agent'),
+        task_id: z.string().describe(t('tool.stage.complete.task_id')),
+        stage: z.string().describe(t('tool.stage.complete.stage')),
+        confirmed_by: z.string().min(1).describe(t('tool.stage.complete.confirmed_by')),
+        completed_by: z.string().optional().describe(t('tool.stage.complete.completed_by')),
       },
     },
     async (args) => {
       try {
         const root = resolveDeliveryRoot(ctx().root);
         const task = await getTask(root, args.task_id);
-        if (!task) return fail('task_not_found', `任务不存在: ${args.task_id}`);
+        if (!task) return fail('task_not_found', t('error.task_not_found', { id: args.task_id }));
         const stages = (await getStages(root, args.task_id)) ?? [];
         const stage = stages.find((s) => s.stage === args.stage);
-        if (!stage) return fail('stage_not_found', `阶段不存在: ${args.stage}`);
-        if (stage.status === 'completed') return fail('already_completed', `阶段已完成: ${args.stage}`);
+        if (!stage) return fail('stage_not_found', t('error.stage_not_found', { stage: args.stage }));
+        if (stage.status === 'completed') return fail('already_completed', t('tool.stage.complete.already_completed', { stage: args.stage }));
 
         // ① 必需交付物存在且 validated
         const artifacts = await (await import('../core/store/artifact-store.js')).listArtifacts(root, args.task_id);
         const reqTypes = requiredTypes(stage);
         const missing: string[] = [];
         const notValidated: string[] = [];
-        for (const t of reqTypes) {
-          const match = artifacts.find((a) => a.stage === args.stage && a.artifact_type === t);
-          if (!match) missing.push(t);
-          else if (match.status !== 'validated') notValidated.push(`${t}(${match.status})`);
+        for (const reqType of reqTypes) {
+          const match = artifacts.find((a) => a.stage === args.stage && a.artifact_type === reqType);
+          if (!match) missing.push(reqType);
+          else if (match.status !== 'validated') notValidated.push(`${reqType}(${match.status})`);
         }
         if (missing.length > 0) {
-          return fail('artifact_missing', `阶段缺少必需交付物: ${missing.join('、')}`, { missing });
+          return fail('artifact_missing', t('tool.stage.complete.artifact_missing', { missing: missing.join('、') }), { missing });
         }
         if (notValidated.length > 0) {
           return fail(
             'artifact_not_validated',
-            `交付物未通过门禁: ${notValidated.join('、')}。请先 gate.check。`,
+            t('tool.stage.complete.artifact_not_validated', { items: notValidated.join('、') }),
             { not_validated: notValidated },
           );
         }
 
         // ③ gate.check 通过
-        for (const t of reqTypes) {
-          const match = artifacts.find((a) => a.stage === args.stage && a.artifact_type === t);
+        for (const reqType of reqTypes) {
+          const match = artifacts.find((a) => a.stage === args.stage && a.artifact_type === reqType);
           const rec = await getLatestGateRecord(root, args.task_id, args.stage, match!.artifact_id);
           if (!rec || rec.result !== 'passed') {
             return fail(
               'gate_not_passed',
-              `交付物 ${t} 未通过门禁（${rec?.result ?? '无门禁记录'}）。请先 gate.check。`,
+              t('tool.stage.complete.gate_not_passed', { type: reqType, result: rec?.result ?? t('tool.stage.complete.no_gate_record') }),
             );
           }
         }
@@ -136,7 +135,10 @@ export function registerStageTools(server: McpServer, ctx: () => ToolContext) {
           const blockedStages = [...new Set(blockers.map((q) => q.blocks_stage as string))].join('、');
           return fail(
             'blocked_by_question',
-            `任务存在未解决的阻塞问题（影响阶段：${blockedStages}）: ${blockers.map((q) => `${q.question_id}: ${q.question}`).join('；')}`,
+            t('tool.stage.complete.blocked_by_question', {
+              stages: blockedStages,
+              questions: blockers.map((q) => `${q.question_id}: ${q.question}`).join('；'),
+            }),
             { blockers: blockers.map((q) => q.question_id), blocked_stages: blockedStages },
           );
         }
@@ -157,7 +159,7 @@ export function registerStageTools(server: McpServer, ctx: () => ToolContext) {
         const documents = await exportTaskDocuments(root, args.task_id).catch(() => null);
         const docHint =
           documents && documents.rel_paths.length > 0
-            ? `\n\n任务文档：${documents.rel_paths.join('\n          ')}`
+            ? t('email.doc_hint', { paths: documents.rel_paths.join('\n          ') })
             : '';
 
         // 通知下一阶段角色（best-effort，不影响主逻辑）
@@ -166,13 +168,13 @@ export function registerStageTools(server: McpServer, ctx: () => ToolContext) {
           email = await notifyRole(
             root,
             nextDef.role,
-            `【阶段完成，请继续】${task.title}`,
+            t('email.subject.stage_complete', { title: task.title }),
             [
-              `任务：${task.title}`,
-              `任务ID：${args.task_id}`,
-              `已完成阶段：${args.stage}`,
-              `下一阶段：${next?.stage ?? '（无）'}`,
-              `下一阶段角色：${nextDef.role}`,
+              t('email.line.task', { title: task.title }),
+              t('email.line.task_id', { id: args.task_id }),
+              t('email.line.completed_stage', { stage: args.stage }),
+              t('email.line.next_stage', { stage: next?.stage ?? t('email.line.next_stage_none') }),
+              t('email.line.next_role', { role: nextDef.role }),
             ].join('\n') + docHint + nextStepsFooter(args.task_id),
             { assignees: normalizeAssigneeList(task.assignees?.[nextDef.role]) },
           );
@@ -189,11 +191,11 @@ export function registerStageTools(server: McpServer, ctx: () => ToolContext) {
           documents,
           document_hint: documents?.hint ?? null,
           dashboard_url: dashboardUrl(args.task_id),
-          view_hint: `阶段已推进，可在浏览器查看任务: ${dashboardUrl(args.task_id)}`,
+          view_hint: t('tool.stage.complete.view_hint', { url: dashboardUrl(args.task_id) }),
           email,
         });
       } catch (e) {
-        return fail('stage_complete_failed', (e as Error).message);
+        return fail('stage_complete_failed', t('tool.stage.complete.failed', { msg: (e as Error).message }));
       }
     },
   );

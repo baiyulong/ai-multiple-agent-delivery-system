@@ -1,0 +1,14 @@
+{
+  "artifact_type": "acceptance_criteria",
+  "required_sections": ["Acceptance Criteria List", "Key Scenario Notes"],
+  "aliases": {},
+  "non_empty_sections": ["Acceptance Criteria List"],
+  "min_list_items": [
+    {
+      "section": "Acceptance Criteria List",
+      "min": 3,
+      "message": "Acceptance criteria list must contain at least 3 items"
+    }
+  ],
+  "pass_threshold": 60
+}

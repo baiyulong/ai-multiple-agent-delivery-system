@@ -4,6 +4,7 @@
  * 由 DocumentsView 在 Collapse.Panel 中使用。
  */
 import MarkdownView from './MarkdownView.vue';
+import { t } from '@/utils/i18n';
 
 defineProps<{
   content: string;
@@ -16,12 +17,12 @@ defineProps<{
   <div class="doc-card-content">
     <div v-if="loading" class="doc-loading">
       <span class="spinner" style="width: 18px; height: 18px; border-width: 2px"></span>
-      加载中...
+      {{ t('loading') }}
     </div>
     <div v-else-if="error" class="doc-loading" style="color: var(--color-danger)">
       {{ error }}
     </div>
     <MarkdownView v-else-if="content" :source="content" />
-    <div v-else class="doc-loading">暂无内容</div>
+    <div v-else class="doc-loading">{{ t('noContent') }}</div>
   </div>
 </template>

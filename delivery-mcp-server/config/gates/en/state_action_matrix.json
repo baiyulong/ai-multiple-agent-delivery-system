@@ -1,0 +1,14 @@
+{
+  "artifact_type": "state_action_matrix",
+  "required_sections": ["State and Button Matrix", "State Transitions", "Button Behavior Notes"],
+  "aliases": {},
+  "non_empty_sections": ["State and Button Matrix"],
+  "min_list_items": [
+    {
+      "section": "State and Button Matrix",
+      "min": 2,
+      "message": "State and button matrix must contain at least 2 rows"
+    }
+  ],
+  "pass_threshold": 60
+}

@@ -1,0 +1,44 @@
+{
+  "task_type": "crud",
+  "name": "CRUD Layered Architecture (Preset)",
+  "description": "A lightweight layered architecture for simple CRUD. Suitable for scenarios with simple business rules, no complex state transitions, and mostly data maintenance.",
+  "layers": [
+    {
+      "name": "Presentation Layer",
+      "responsibility": "Receives requests, validates parameters, returns responses; does not carry business logic",
+      "typical_files": ["Controller / Route / Page / Component"]
+    },
+    {
+      "name": "Application Layer",
+      "responsibility": "Use-case orchestration, transaction boundaries, DTO conversion; calls domain/service layers",
+      "typical_files": ["Service / ApplicationService / UseCase"]
+    },
+    {
+      "name": "Data Access Layer",
+      "responsibility": "Persistence, queries, repository implementation; shields database details",
+      "typical_files": ["Repository / Mapper / DAO / Entity"]
+    }
+  ],
+  "structure": {
+    "backend": [
+      "src/controller/",
+      "src/service/",
+      "src/repository/",
+      "src/entity/",
+      "src/dto/"
+    ],
+    "frontend": [
+      "src/pages/",
+      "src/components/",
+      "src/api/"
+    ]
+  },
+  "code_requirements": [
+    "Each maintained object maps to one Controller + Service + Repository",
+    "Separate DTO from Entity; never expose Entity directly to the frontend",
+    "Query conditions, list fields, create/edit/delete rules must match crud_spec_card one-to-one",
+    "Permission checks are handled uniformly in the application layer",
+    "Validation rules are defined centrally and reused by frontend and backend"
+  ],
+  "source": "preset"
+}

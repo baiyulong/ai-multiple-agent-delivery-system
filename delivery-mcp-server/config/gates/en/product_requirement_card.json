@@ -1,0 +1,24 @@
+{
+  "artifact_type": "product_requirement_card",
+  "required_sections": [
+    "Requirement Background",
+    "Business Goals",
+    "User Roles",
+    "User Scenarios",
+    "User Stories",
+    "Feature Scope",
+    "Business Rules",
+    "Acceptance Criteria",
+    "Priority Suggestions",
+    "Non-functional Requirements",
+    "Risks and Open Questions",
+    "Inputs for UI/UX",
+    "Inputs for Architect",
+    "Inputs for QA"
+  ],
+  "aliases": {
+    "Inputs for UI/UX": ["Inputs for UIUX", "Inputs for UI UX"]
+  },
+  "non_empty_sections": ["Business Goals", "Acceptance Criteria"],
+  "pass_threshold": 60
+}

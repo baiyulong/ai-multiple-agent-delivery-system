@@ -1,0 +1,49 @@
+{
+  "task_type": "lightweight_ddd",
+  "name": "Lightweight DDD Recommended Architecture (Preset)",
+  "description": "Introduces a lightweight domain model on top of layering. Suitable for scenarios with some business rules and state transitions that do not require full DDD complexity.",
+  "layers": [
+    {
+      "name": "Presentation Layer",
+      "responsibility": "Requests/responses, parameter validation, pages; does not carry business logic",
+      "typical_files": ["Controller / View / Component"]
+    },
+    {
+      "name": "Application Layer",
+      "responsibility": "Use-case orchestration, transactions, DTO mapping, permission checks",
+      "typical_files": ["ApplicationService / UseCase / Command / Query"]
+    },
+    {
+      "name": "Domain Layer",
+      "responsibility": "Core business rules, entities, value objects, domain services, repository interfaces",
+      "typical_files": ["Entity / ValueObject / DomainService / Repository(interface)"]
+    },
+    {
+      "name": "Infrastructure Layer",
+      "responsibility": "Repository implementations, database, external service adaptation",
+      "typical_files": ["RepositoryImpl / Mapper / Infrastructure"]
+    }
+  ],
+  "structure": {
+    "backend": [
+      "src/application/",
+      "src/domain/",
+      "src/infrastructure/",
+      "src/interfaces/",
+      "src/dto/"
+    ],
+    "frontend": [
+      "src/pages/",
+      "src/components/",
+      "src/api/"
+    ]
+  },
+  "code_requirements": [
+    "The domain layer must not depend on the infrastructure layer (dependency inversion; repository interfaces are defined in the domain layer)",
+    "Core business rules must live in the domain layer; never scatter them into Controllers/SQL/frontend",
+    "The application layer handles transactions and use-case orchestration; the domain layer handles rules",
+    "Entities/value objects/domain services must align with lightweight_domain_model",
+    "API contracts must align with api_contract"
+  ],
+  "source": "preset"
+}

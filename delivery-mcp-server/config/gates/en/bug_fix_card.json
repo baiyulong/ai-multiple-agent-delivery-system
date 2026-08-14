@@ -1,0 +1,11 @@
+{
+  "artifact_type": "bug_fix_card",
+  "required_sections": [
+    "Fix Approach",
+    "Fix Scope",
+    "Verification Results",
+    "Regression Check"
+  ],
+  "non_empty_sections": ["Fix Approach", "Fix Scope", "Verification Results"],
+  "pass_threshold": 60
+}

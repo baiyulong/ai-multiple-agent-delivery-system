@@ -2,6 +2,7 @@ import { join } from 'node:path';
 import { readJson, readText } from './fsx.js';
 import { builtinGatesDir } from './locate.js';
 import { assertInside } from './paths.js';
+import { t } from './i18n.js';
 import type { GateResult } from './types.js';
 
 /**
@@ -145,7 +146,7 @@ export function runGate(content: string, rule: GateRule): GateOutcome {
       continue;
     }
     if (secContent.trim().length === 0) {
-      issues.push(`章节「${nonEmpty}」内容为空`);
+      issues.push(t('gate.issue.empty_section', { section: nonEmpty }));
       score -= 10;
     }
   }
@@ -156,7 +157,7 @@ export function runGate(content: string, rule: GateRule): GateOutcome {
     if (!found) continue;
     try {
       if (new RegExp(f.pattern, 'm').test(secContent)) {
-        issues.push(f.message || `章节「${f.section}」命中禁止写法`);
+        issues.push(f.message || t('gate.issue.forbidden_pattern', { section: f.section }));
         score -= 10;
       }
     } catch {
@@ -170,7 +171,7 @@ export function runGate(content: string, rule: GateRule): GateOutcome {
     if (!found) continue;
     const n = countListItems(secContent);
     if (n < m.min) {
-      issues.push(m.message || `章节「${m.section}」列表项不足 ${m.min} 条（当前 ${n} 条）`);
+      issues.push(m.message || t('gate.issue.min_list_items', { section: m.section, min: m.min, n }));
       score -= 10;
     }
   }

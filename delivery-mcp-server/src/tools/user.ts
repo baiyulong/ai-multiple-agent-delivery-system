@@ -2,9 +2,10 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { isUserConfigured, readCurrentUser, writeCurrentUser } from '../core/store/user-store.js';
 import { isEmailConfigured } from '../core/store/email-store.js';
-import { isTeamConfigured, readTeamConfig, TEAM_ROLE_LABELS } from '../core/store/team-store.js';
+import { isTeamConfigured, readTeamConfig } from '../core/store/team-store.js';
 import { resolveDeliveryRoot } from '../core/paths.js';
 import { ok, fail, type ToolContext } from './common.js';
+import { roleLabels, t } from '../core/i18n.js';
 
 /**
  * 用户工具组：user.get / user.set
@@ -19,8 +20,7 @@ export function registerUserTools(server: McpServer, ctx: () => ToolContext) {
   server.registerTool(
     'user.get',
     {
-      description:
-        '获取当前操作人的个人配置（姓名、邮箱），以及按邮箱在项目团队名册中匹配到的角色。未配置时返回 configured=false，需先用 user.set 配置。',
+      description: t('tool.user.get.description'),
       inputSchema: {},
     },
     async () => {
@@ -39,13 +39,13 @@ export function registerUserTools(server: McpServer, ctx: () => ToolContext) {
           user: user ? { name: user.name, email: user.email } : null,
           email_configured: emailConfigured,
           roles: member?.roles ?? [],
-          role_labels: TEAM_ROLE_LABELS,
+          role_labels: roleLabels(),
           in_team: !!member,
           team_configured: teamConfigured,
           updated_at: user?.updated_at ?? null,
         });
       } catch (e) {
-        return fail('user_get_failed', (e as Error).message);
+        return fail('user_get_failed', t('tool.user.get.failed', { msg: (e as Error).message }));
       }
     },
   );
@@ -53,11 +53,10 @@ export function registerUserTools(server: McpServer, ctx: () => ToolContext) {
   server.registerTool(
     'user.set',
     {
-      description:
-        '设置当前操作人的个人配置（姓名、邮箱）。首次使用系统前必须配置。个人配置存储在用户主目录，跨项目沿用；不会影响已配置的个人邮件（email.set）。团队角色分工请另用 team.set 配置。',
+      description: t('tool.user.set.description'),
       inputSchema: {
-        name: z.string().min(1).describe('当前操作人姓名'),
-        email: z.string().email().describe('当前操作人邮箱（用于在团队名册中匹配角色）'),
+        name: z.string().min(1).describe(t('tool.user.set.name')),
+        email: z.string().email().describe(t('tool.user.set.email')),
       },
     },
     async (args) => {
@@ -69,7 +68,7 @@ export function registerUserTools(server: McpServer, ctx: () => ToolContext) {
           updated_at: user.updated_at,
         });
       } catch (e) {
-        return fail('user_set_failed', (e as Error).message);
+        return fail('user_set_failed', t('tool.user.set.failed', { msg: (e as Error).message }));
       }
     },
   );

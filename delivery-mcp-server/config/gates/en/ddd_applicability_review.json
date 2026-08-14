@@ -1,0 +1,17 @@
+{
+  "artifact_type": "ddd_applicability_review",
+  "required_sections": [
+    "Applicability Judgment",
+    "Judgment Criteria",
+    "Recommended Architecture Style",
+    "Whether a Domain Model Is Needed",
+    "Whether Domain Events Are Needed",
+    "Whether a Bounded Context Is Needed",
+    "Reasoning",
+    "Recommendations for Architect",
+    "Recommendations for QA"
+  ],
+  "aliases": {},
+  "non_empty_sections": ["Applicability Judgment", "Recommended Architecture Style"],
+  "pass_threshold": 60
+}

@@ -9,6 +9,7 @@ import { api, exportUrl } from '@/api/api';
 import { useTeamUser } from '@/composables/useTeamUser';
 import { formatTime } from '@/utils/helpers';
 import { STATUS_MAP, TASK_TYPE_MAP } from '@/utils/constants';
+import { t } from '@/utils/i18n';
 import type { TaskDetailResponse } from '@/api/types';
 import StageProgress from '@/components/StageProgress.vue';
 import GateSummary from '@/components/GateSummary.vue';
@@ -34,7 +35,7 @@ async function fetchDetail() {
     detail.value = data;
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    errorMsg.value = '加载任务详情失败：' + msg;
+    errorMsg.value = t('detail.loadFailed') + msg;
     message.error(errorMsg.value);
   } finally {
     loading.value = false;
@@ -85,7 +86,7 @@ async function loadContext() {
     contextContent.value = data.content || '';
     contextLoaded.value = true;
   } catch (err: unknown) {
-    contextError.value = '加载失败：' + (err instanceof Error ? err.message : String(err));
+    contextError.value = t('loadFailed') + (err instanceof Error ? err.message : String(err));
   } finally {
     contextLoading.value = false;
   }
@@ -127,12 +128,12 @@ function downloadPackage(format: 'md' | 'html') {
 
 <template>
   <div v-if="loading" style="text-align: center; padding: 60px">
-    <div>加载任务详情...</div>
+    <div>{{ t('detail.loading') }}</div>
   </div>
 
   <div v-else-if="errorMsg" style="text-align: center; padding: 60px">
     <p style="color: #ff4d4f">{{ errorMsg }}</p>
-    <Button type="primary" @click="fetchDetail">重试</Button>
+    <Button type="primary" @click="fetchDetail">{{ t('retry') }}</Button>
   </div>
 
   <div v-else-if="task">
@@ -147,16 +148,16 @@ function downloadPackage(format: 'md' | 'html') {
         </Space>
       </template>
       <Descriptions :column="2" bordered>
-        <Descriptions.Item label="任务 ID">{{ task.task_id }}</Descriptions.Item>
-        <Descriptions.Item label="类型">{{ TASK_TYPE_MAP[task.task_type] || task.task_type }}</Descriptions.Item>
-        <Descriptions.Item label="创建时间">{{ formatTime(task.created_at) }}</Descriptions.Item>
-        <Descriptions.Item label="更新时间">{{ formatTime(task.updated_at) }}</Descriptions.Item>
-        <Descriptions.Item label="描述" :span="2">{{ task.description || '暂无描述' }}</Descriptions.Item>
+        <Descriptions.Item :label="t('detail.id')">{{ task.task_id }}</Descriptions.Item>
+        <Descriptions.Item :label="t('detail.type')">{{ TASK_TYPE_MAP[task.task_type] || task.task_type }}</Descriptions.Item>
+        <Descriptions.Item :label="t('detail.createdAt')">{{ formatTime(task.created_at) }}</Descriptions.Item>
+        <Descriptions.Item :label="t('detail.updatedAt')">{{ formatTime(task.updated_at) }}</Descriptions.Item>
+        <Descriptions.Item :label="t('detail.description')" :span="2">{{ task.description || t('detail.noDescription') }}</Descriptions.Item>
       </Descriptions>
     </Card>
 
     <!-- 阶段进度 -->
-    <Card title="阶段进度" :bordered="false" style="margin-bottom: 16px">
+    <Card :title="t('detail.stages')" :bordered="false" style="margin-bottom: 16px">
       <StageProgress :stages="stages" :current-stage="currentStage" :team="team" :user="user" />
     </Card>
 
@@ -164,7 +165,7 @@ function downloadPackage(format: 'md' | 'html') {
     <GateSummary :gate-summary="gateSummary" />
 
     <!-- 交付物 -->
-    <Card v-if="artifacts.length > 0" title="交付物" :bordered="false" style="margin-bottom: 16px">
+    <Card v-if="artifacts.length > 0" :title="t('detail.artifacts')" :bordered="false" style="margin-bottom: 16px">
       <Collapse>
         <Collapse.Panel v-for="a in artifacts" :key="a.artifact_id">
           <template #header>
@@ -180,30 +181,30 @@ function downloadPackage(format: 'md' | 'html') {
     </Card>
 
     <!-- 待确认问题 -->
-    <Card v-if="questions.length > 0" title="待确认问题" :bordered="false" style="margin-bottom: 16px">
+    <Card v-if="questions.length > 0" :title="t('detail.questions')" :bordered="false" style="margin-bottom: 16px">
       <QuestionItem v-for="q in questions" :key="q.question_id" :question="q" />
     </Card>
 
     <!-- 共享上下文 -->
-    <Card v-if="task" title="共享上下文" :bordered="false" style="margin-bottom: 16px">
+    <Card v-if="task" :title="t('detail.context')" :bordered="false" style="margin-bottom: 16px">
       <Button size="small" @click="contextExpanded = !contextExpanded">
-        {{ contextExpanded ? '收起' : '展开' }}
+        {{ contextExpanded ? t('detail.collapse') : t('detail.expand') }}
       </Button>
       <div v-if="contextExpanded" style="margin-top: 16px">
-        <div v-if="contextLoading">加载中...</div>
+        <div v-if="contextLoading">{{ t('loading') }}</div>
         <div v-else-if="contextError" style="color: #ff4d4f">{{ contextError }}</div>
         <MarkdownView v-else :source="contextContent" />
       </div>
     </Card>
 
     <!-- 交付包 -->
-    <Card v-if="deliveryVisible" title="交付包" :bordered="false">
+    <Card v-if="deliveryVisible" :title="t('detail.package')" :bordered="false">
       <Space>
         <Button type="primary" :loading="deliveryLoading" @click="loadDeliveryPackage">
-          {{ deliveryShown ? '已加载' : '查看交付包' }}
+          {{ deliveryShown ? t('detail.packageLoaded') : t('detail.viewPackage') }}
         </Button>
-        <Button @click="downloadPackage('md')">下载 Markdown</Button>
-        <Button @click="downloadPackage('html')">下载 HTML</Button>
+        <Button @click="downloadPackage('md')">{{ t('detail.downloadMd') }}</Button>
+        <Button @click="downloadPackage('html')">{{ t('detail.downloadHtml') }}</Button>
       </Space>
       <div v-if="deliveryError" style="color: #ff4d4f; margin-top: 8px">{{ deliveryError }}</div>
       <div v-if="deliveryShown" style="margin-top: 16px">

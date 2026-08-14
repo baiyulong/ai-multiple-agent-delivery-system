@@ -6,6 +6,7 @@
 import { ref } from 'vue';
 import { api } from '@/api/api';
 import { statusBadgeClass, artifactTypeName } from '@/utils/helpers';
+import { t } from '@/utils/i18n';
 import MarkdownView from './MarkdownView.vue';
 import type { ArtifactMeta } from '@/api/types';
 
@@ -31,7 +32,7 @@ async function toggle() {
       loaded.value = true;
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      error.value = '加载失败：' + msg;
+      error.value = t('loadFailed') + msg;
     } finally {
       loading.value = false;
     }
@@ -65,7 +66,7 @@ const badgeClass = statusBadgeClass(props.artifact.status);
     <div v-if="expanded" class="artifact-body">
       <div v-if="loading" class="artifact-loading">
         <div class="spinner" style="width: 20px; height: 20px; border-width: 2px"></div>
-        加载中...
+        {{ t('loading') }}
       </div>
       <div v-else-if="error" class="artifact-loading" style="color: var(--color-danger)">
         {{ error }}

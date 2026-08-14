@@ -14,10 +14,11 @@ import { readFile, readdir, stat, writeFile, rm } from 'node:fs/promises';
 import { dirname, extname, join, normalize } from 'node:path';
 import { builtinArchitecturesDir } from './core/locate.js';
 import { resolveDeliveryRoot } from './core/paths.js';
+import { t, roleLabels } from './core/i18n.js';
 import { getQuestions, getStages, getTask, listTaskIds, readContext } from './core/store/task-store.js';
 import { getArtifact, listArtifacts } from './core/store/artifact-store.js';
 import { readGateStageFile } from './core/store/gate-store.js';
-import { isTeamConfigured, readTeamConfig, TEAM_ROLE_LABELS } from './core/store/team-store.js';
+import { isTeamConfigured, readTeamConfig } from './core/store/team-store.js';
 import { readCurrentUser, writeCurrentUser, type SmtpConfig } from './core/store/user-store.js';
 import { resolveEmailConfig, SMTP_PRESETS, PRESET_KEYS } from './core/smtp-presets.js';
 import { buildDeliveryPackageHtml, buildDeliveryPackageMarkdown } from './core/exporter.js';
@@ -108,34 +109,34 @@ function renderPresetMarkdown(preset: PresetArchitecture): string {
   if (preset.description) out.push(`> ${preset.description}`, '');
 
   if (preset.layers && preset.layers.length > 0) {
-    out.push('## 分层架构', '');
+    out.push(t('dashboard.arch.layers'), '');
     for (const layer of preset.layers) {
       if (!layer.name) continue;
       out.push(`### ${layer.name}`);
-      if (layer.responsibility) out.push(`- 职责：${layer.responsibility}`);
+      if (layer.responsibility) out.push(t('dashboard.arch.responsibility', { v: layer.responsibility }));
       if (layer.typical_files && layer.typical_files.length > 0) {
-        out.push(`- 典型文件：${layer.typical_files.join('、')}`);
+        out.push(t('dashboard.arch.typical_files', { v: layer.typical_files.join('、') }));
       }
       out.push('');
     }
   }
 
   if (preset.structure) {
-    out.push('## 目录结构', '');
+    out.push(t('dashboard.arch.structure'), '');
     if (preset.structure.backend && preset.structure.backend.length > 0) {
-      out.push('### 后端');
+      out.push(t('dashboard.arch.backend'));
       for (const item of preset.structure.backend) out.push(`- ${item}`);
       out.push('');
     }
     if (preset.structure.frontend && preset.structure.frontend.length > 0) {
-      out.push('### 前端');
+      out.push(t('dashboard.arch.frontend'));
       for (const item of preset.structure.frontend) out.push(`- ${item}`);
       out.push('');
     }
   }
 
   if (preset.code_requirements && preset.code_requirements.length > 0) {
-    out.push('## 代码要求', '');
+    out.push(t('dashboard.arch.code_requirements'), '');
     for (const item of preset.code_requirements) out.push(`- ${item}`);
     out.push('');
   }
@@ -290,20 +291,20 @@ function isMyTask(task: TaskListItem, userEmail: string | null | undefined): boo
 /** 任务状态列表（用于前端筛选） */
 const TASK_STATUSES = ['draft', 'in_progress', 'blocked', 'completed', 'cancelled', 'archived'];
 
-/** 任务状态中文标签 */
+/** 任务状态本地化标签 */
 const STATUS_LABELS: Record<string, string> = {
-  draft: '草稿',
-  in_progress: '进行中',
-  blocked: '阻塞',
-  completed: '已完成',
-  cancelled: '已取消',
-  archived: '已归档',
+  draft: t('dashboard.status.draft'),
+  in_progress: t('dashboard.status.in_progress'),
+  blocked: t('dashboard.status.blocked'),
+  completed: t('dashboard.status.completed'),
+  cancelled: t('dashboard.status.cancelled'),
+  archived: t('dashboard.status.archived'),
 };
 
 /** 导出文档为 Markdown：聚合所有文档内容为单个 Markdown 字符串（内容缺失时服务端补齐） */
 async function buildDocumentsMarkdown(docs: PublicDocEntry[]): Promise<string> {
   const lines: string[] = [];
-  lines.push('# 公共文档');
+  lines.push(t('dashboard.public_docs_title'));
   lines.push('');
   const grouped = new Map<string, PublicDocEntry[]>();
   for (const doc of docs) {
@@ -315,7 +316,7 @@ async function buildDocumentsMarkdown(docs: PublicDocEntry[]): Promise<string> {
     lines.push(`## ${type}`);
     lines.push('');
     for (const item of items) {
-      const title = item.task_title ? `${item.task_title} (${item.task_id})` : item.title ?? item.task_id ?? '未知任务';
+      const title = item.task_title ? `${item.task_title} (${item.task_id})` : item.title ?? item.task_id ?? t('dashboard.unknown_task');
       lines.push(`### ${title}`);
       lines.push('');
       let content = item.content;
@@ -323,7 +324,7 @@ async function buildDocumentsMarkdown(docs: PublicDocEntry[]): Promise<string> {
         const art = await getArtifact(root, item.task_id, item.artifact_id);
         content = art?.content;
       }
-      lines.push(content ?? '_（无内容）_');
+      lines.push(content ?? t('dashboard.no_content'));
       lines.push('');
     }
   }
@@ -332,18 +333,18 @@ async function buildDocumentsMarkdown(docs: PublicDocEntry[]): Promise<string> {
 
 function buildTasksMarkdown(tasks: TaskListItem[]): string {
   const lines: string[] = [];
-  lines.push('# 任务列表');
+  lines.push(t('dashboard.task_list_title'));
   lines.push('');
-  for (const t of tasks) {
-    lines.push(`## ${t.title}`);
+  for (const item of tasks) {
+    lines.push(`## ${item.title}`);
     lines.push('');
-    lines.push(`- ID: ${t.task_id}`);
-    lines.push(`- 类型: ${t.task_type}`);
-    lines.push(`- 状态: ${STATUS_LABELS[t.status] ?? t.status}`);
-    lines.push(`- 当前阶段: ${t.current_stage ?? '-'}`);
-    lines.push(`- 创建者: ${t.created_by ?? '-'}`);
-    lines.push(`- 进度: ${t.completed_stages}/${t.total_stages}`);
-    lines.push(`- 更新时间: ${t.updated_at}`);
+    lines.push(`- ID: ${item.task_id}`);
+    lines.push(`- ${t('dashboard.field.type')}: ${item.task_type}`);
+    lines.push(`- ${t('dashboard.field.status')}: ${STATUS_LABELS[item.status] ?? item.status}`);
+    lines.push(`- ${t('dashboard.field.current_stage')}: ${item.current_stage ?? '-'}`);
+    lines.push(`- ${t('dashboard.field.created_by')}: ${item.created_by ?? '-'}`);
+    lines.push(`- ${t('dashboard.field.progress')}: ${item.completed_stages}/${item.total_stages}`);
+    lines.push(`- ${t('dashboard.field.updated_at')}: ${item.updated_at}`);
     lines.push('');
   }
   return lines.join('\n');
@@ -624,7 +625,7 @@ const server = createServer(async (req, res) => {
       return sendJson(res, 200, {
         configured,
         members: config?.members ?? [],
-        role_labels: TEAM_ROLE_LABELS,
+        role_labels: roleLabels(),
         updated_at: config?.updated_at ?? null,
       });
     }
@@ -640,7 +641,7 @@ const server = createServer(async (req, res) => {
         configured: !!user,
         user: user ? { name: user.name, email: user.email } : null,
         roles: member?.roles ?? [],
-        role_labels: TEAM_ROLE_LABELS,
+        role_labels: roleLabels(),
         in_team: !!member,
         updated_at: user?.updated_at ?? null,
         smtp,

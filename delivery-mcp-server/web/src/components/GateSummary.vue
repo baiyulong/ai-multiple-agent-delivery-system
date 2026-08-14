@@ -7,6 +7,7 @@ import { computed } from 'vue';
 import type { GateSummaryEntry } from '@/api/types';
 import { stageDisplayName, statusBadgeClass } from '@/utils/helpers';
 import { GATE_RESULT_MAP } from '@/utils/constants';
+import { t } from '@/utils/i18n';
 
 const props = defineProps<{
   gateSummary: Record<string, GateSummaryEntry> | null;
@@ -31,7 +32,8 @@ const items = computed<GateItem[]>(() => {
     const result = gate.result || 'unknown';
     const badgeClass = statusBadgeClass(result);
     const label = GATE_RESULT_MAP[result] || result;
-    const scoreText = gate.score != null ? gate.score + '分' : '-';
+    const scoreText =
+      gate.score != null ? t('gate.score', { score: gate.score }) : '-';
     return { stageName: stageDisplayName(stageName), badgeClass, label, scoreText };
   });
 });
@@ -40,7 +42,7 @@ const items = computed<GateItem[]>(() => {
 <template>
   <div v-if="visible" class="card">
     <div class="card-header">
-      <h2 class="card-title">门禁摘要</h2>
+      <h2 class="card-title">{{ t('gate.title') }}</h2>
     </div>
     <div class="card-body">
       <div class="gate-grid">

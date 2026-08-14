@@ -11,6 +11,7 @@ import { api } from '@/api/api';
 import { useTeamUser } from '@/composables/useTeamUser';
 import { STATUS_MAP, TASK_TYPE_MAP } from '@/utils/constants';
 import { formatTime, stageDisplayName } from '@/utils/helpers';
+import { t } from '@/utils/i18n';
 import type { TaskListItem, TaskStatus } from '@/api/types';
 
 const router = useRouter();
@@ -58,18 +59,18 @@ const statusColor = (status: TaskStatus): string => {
 
 const columns: ColumnsType<TaskListItem> = [
   {
-    title: '任务标题',
+    title: t('col.title'),
     dataIndex: 'title',
     key: 'title',
   },
   {
-    title: '状态',
+    title: t('col.status'),
     dataIndex: 'status',
     key: 'status',
     width: 100,
   },
   {
-    title: '类型',
+    title: t('col.type'),
     dataIndex: 'task_type',
     key: 'task_type',
     width: 120,
@@ -77,7 +78,7 @@ const columns: ColumnsType<TaskListItem> = [
       TASK_TYPE_MAP[record.task_type] || record.task_type,
   },
   {
-    title: '阶段',
+    title: t('col.stage'),
     dataIndex: 'current_stage',
     key: 'current_stage',
     width: 120,
@@ -85,7 +86,7 @@ const columns: ColumnsType<TaskListItem> = [
       stageDisplayName(record.current_stage ?? ''),
   },
   {
-    title: '进度',
+    title: t('col.progress'),
     key: 'progress',
     width: 100,
     customRender: ({ record }: { record: TaskListItem }) => {
@@ -95,7 +96,7 @@ const columns: ColumnsType<TaskListItem> = [
     },
   },
   {
-    title: '更新时间',
+    title: t('col.updatedAt'),
     dataIndex: 'updated_at',
     key: 'updated_at',
     width: 150,
@@ -123,13 +124,13 @@ async function load() {
     if (taskData.status === 'fulfilled') {
       taskList.value = taskData.value.tasks ?? [];
     } else {
-      errorMsg.value = '加载任务失败：' + (taskData.reason instanceof Error ? taskData.reason.message : String(taskData.reason));
+      errorMsg.value = t('home.loadTasksFailed') + (taskData.reason instanceof Error ? taskData.reason.message : String(taskData.reason));
     }
     if (docData.status === 'fulfilled') {
       docCount.value = (docData.value.documents ?? []).length;
     }
   } catch (err: unknown) {
-    errorMsg.value = '加载数据失败：' + (err instanceof Error ? err.message : String(err));
+    errorMsg.value = t('home.loadDataFailed') + (err instanceof Error ? err.message : String(err));
   } finally {
     loading.value = false;
   }
@@ -142,13 +143,13 @@ onMounted(load);
   <div class="home-view">
     <!-- 加载态 -->
     <div v-if="loading" class="home-loading">
-      <Spin size="large" tip="加载中..." />
+      <Spin size="large" :tip="t('loading')" />
     </div>
 
     <!-- 错误态 -->
     <div v-else-if="errorMsg && taskList.length === 0" class="home-error">
       <p>{{ errorMsg }}</p>
-      <Button type="primary" @click="load">重试</Button>
+      <Button type="primary" @click="load">{{ t('retry') }}</Button>
     </div>
 
     <!-- 正常内容 -->
@@ -174,10 +175,10 @@ onMounted(load);
                 <line x1="20" y1="20" x2="10" y2="14" stroke="#63ACFF" stroke-width="1.2" opacity="0.5" />
               </svg>
             </span>
-            AI 交付任务看板
+            {{ t('home.title') }}
           </h1>
-          <p class="home-subtitle" v-if="userName">欢迎回来，{{ userName }}</p>
-          <p class="home-subtitle" v-else>多 Agent 协作交付管理平台</p>
+          <p class="home-subtitle" v-if="userName">{{ t('home.welcomeBack', { name: userName }) }}</p>
+          <p class="home-subtitle" v-else>{{ t('home.subtitle') }}</p>
         </div>
       </div>
 
@@ -185,22 +186,22 @@ onMounted(load);
       <Row :gutter="[16, 16]" class="home-stats">
         <Col :xs="12" :sm="8" :md="6">
           <Card class="stat-card stat-card-total" :bordered="false" :body-style="{ padding: '20px' }">
-            <Statistic title="任务总数" :value="stats.total" :value-style="{ fontSize: '28px', fontWeight: 700 }" />
+            <Statistic :title="t('home.statTotal')" :value="stats.total" :value-style="{ fontSize: '28px', fontWeight: 700 }" />
           </Card>
         </Col>
         <Col :xs="12" :sm="8" :md="6">
           <Card class="stat-card stat-card-progress" :bordered="false" :body-style="{ padding: '20px' }">
-            <Statistic title="进行中" :value="stats.inProgress" :value-style="{ fontSize: '28px', fontWeight: 700, color: '#63ACFF' }" />
+            <Statistic :title="t('home.statInProgress')" :value="stats.inProgress" :value-style="{ fontSize: '28px', fontWeight: 700, color: '#63ACFF' }" />
           </Card>
         </Col>
         <Col :xs="12" :sm="8" :md="6">
           <Card class="stat-card stat-card-done" :bordered="false" :body-style="{ padding: '20px' }">
-            <Statistic title="已完成" :value="stats.completed" :value-style="{ fontSize: '28px', fontWeight: 700, color: '#52c41a' }" />
+            <Statistic :title="t('home.statCompleted')" :value="stats.completed" :value-style="{ fontSize: '28px', fontWeight: 700, color: '#52c41a' }" />
           </Card>
         </Col>
         <Col :xs="12" :sm="8" :md="6">
           <Card class="stat-card stat-card-docs" :bordered="false" :body-style="{ padding: '20px' }">
-            <Statistic title="公共文档" :value="stats.docs" :value-style="{ fontSize: '28px', fontWeight: 700, color: '#b37feb' }" />
+            <Statistic :title="t('home.statDocs')" :value="stats.docs" :value-style="{ fontSize: '28px', fontWeight: 700, color: '#b37feb' }" />
           </Card>
         </Col>
       </Row>
@@ -219,8 +220,8 @@ onMounted(load);
                 </svg>
               </div>
               <div class="shortcut-body">
-                <div class="shortcut-label">任务列表</div>
-                <div class="shortcut-desc">查看和管理所有交付任务</div>
+                <div class="shortcut-label">{{ t('home.shortcutTasks') }}</div>
+                <div class="shortcut-desc">{{ t('home.shortcutTasksDesc') }}</div>
               </div>
               <div class="shortcut-arrow">&rarr;</div>
             </div>
@@ -239,8 +240,8 @@ onMounted(load);
                 </svg>
               </div>
               <div class="shortcut-body">
-                <div class="shortcut-label">公共文档</div>
-                <div class="shortcut-desc">浏览团队共享文档和交付物</div>
+                <div class="shortcut-label">{{ t('home.shortcutDocs') }}</div>
+                <div class="shortcut-desc">{{ t('home.shortcutDocsDesc') }}</div>
               </div>
               <div class="shortcut-arrow">&rarr;</div>
             </div>
@@ -249,9 +250,9 @@ onMounted(load);
       </Row>
 
       <!-- 最近更新任务 -->
-      <Card title="最近更新" :bordered="false" class="home-recent">
+      <Card :title="t('home.recentTitle')" :bordered="false" class="home-recent">
         <template #extra>
-          <Button type="link" @click="router.push('/')">查看全部</Button>
+          <Button type="link" @click="router.push('/')">{{ t('home.viewAll') }}</Button>
         </template>
 
         <Table
@@ -278,7 +279,7 @@ onMounted(load);
           </template>
         </Table>
 
-        <Empty v-else description="暂无任务" />
+        <Empty v-else :description="t('home.noTasks')" />
       </Card>
     </template>
   </div>

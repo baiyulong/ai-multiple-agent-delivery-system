@@ -1,0 +1,14 @@
+{
+  "artifact_type": "user_stories",
+  "required_sections": ["User Story List", "User Story Prioritization", "Iteration Constraints"],
+  "aliases": {},
+  "non_empty_sections": ["User Story List"],
+  "min_list_items": [
+    {
+      "section": "User Story List",
+      "min": 3,
+      "message": "User story list must contain at least 3 items"
+    }
+  ],
+  "pass_threshold": 60
+}

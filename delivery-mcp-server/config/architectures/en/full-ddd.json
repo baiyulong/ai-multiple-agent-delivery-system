@@ -1,0 +1,51 @@
+{
+  "task_type": "full_ddd",
+  "name": "Full DDD Recommended Architecture (Preset)",
+  "description": "For complex business domains: bounded contexts, aggregates, domain events, anti-corruption layers. Suitable for scenarios with complex business rules, multi-context collaboration, and frequent state transitions.",
+  "layers": [
+    {
+      "name": "Presentation Layer",
+      "responsibility": "Controllers, pages, DTOs; does not carry business logic",
+      "typical_files": ["Controller / View / Component"]
+    },
+    {
+      "name": "Application Layer",
+      "responsibility": "Use-case orchestration, command/query separation (CQRS optional), transactions, permissions",
+      "typical_files": ["ApplicationService / Command / Query / DTO"]
+    },
+    {
+      "name": "Domain Layer",
+      "responsibility": "Aggregate roots, entities, value objects, domain services, domain events, repository interfaces, business invariants",
+      "typical_files": ["AggregateRoot / Entity / ValueObject / DomainService / DomainEvent / RepositoryInterface"]
+    },
+    {
+      "name": "Infrastructure Layer",
+      "responsibility": "Repository implementations, event bus, external system adaptation, anti-corruption layer (ACL)",
+      "typical_files": ["RepositoryImpl / EventPublisher / AntiCorruptionLayer / Infrastructure"]
+    }
+  ],
+  "structure": {
+    "backend": [
+      "src/application/",
+      "src/domain/",
+      "src/infrastructure/",
+      "src/interfaces/",
+      "src/shared/"
+    ],
+    "frontend": [
+      "src/pages/",
+      "src/components/",
+      "src/api/",
+      "src/domain/"
+    ]
+  },
+  "code_requirements": [
+    "Organize modules by bounded context; contexts collaborate through interfaces/events, never direct dependencies",
+    "Within an aggregate, access only through the aggregate root; the outside world may only reference the aggregate root",
+    "Domain events are used for cross-context/cross-module coordination; event subscribers are registered in the infrastructure layer",
+    "Business invariants must be enforced in the domain layer; never scatter them into the application layer or SQL",
+    "The anti-corruption layer isolates external systems so external models do not pollute the domain model",
+    "Align with bounded_context / aggregate_design / domain_events / api_contract"
+  ],
+  "source": "preset"
+}

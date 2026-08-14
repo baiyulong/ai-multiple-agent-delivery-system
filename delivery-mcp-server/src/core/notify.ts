@@ -2,6 +2,7 @@ import { readEmailConfig } from './store/email-store.js';
 import { findMemberByEmail, findMembersByRole, findMemberByName } from './store/team-store.js';
 import { sendEmail } from './mailer.js';
 import { dashboardUrl } from './dashboard-url.js';
+import { t } from './i18n.js';
 
 /**
  * 角色通知：向指定角色的所有成员发送邮件。
@@ -84,9 +85,9 @@ export function nextStepsFooter(taskId: string): string {
   const url = dashboardUrl(taskId);
   return [
     '',
-    '— 下一步如何操作 —',
-    `1. 在浏览器打开任务看板查看任务：${url}`,
-    '2. 若看板尚未启动，在 delivery-mcp-server 目录运行：npm run dashboard（默认 http://localhost:8787）',
-    `3. 也可以直接让 AI 助手查看任务：调用 task.get（task_id=${taskId}）`,
+    t('email.footer.next_steps'),
+    t('email.footer.step1', { url }),
+    t('email.footer.step2'),
+    t('email.footer.step3', { id: taskId }),
   ].join('\n');
 }

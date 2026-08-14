@@ -6,3 +6,4 @@ dist/
 public/
 !web/public/
 !web/public/logo.svg
+delivery-mcp-server

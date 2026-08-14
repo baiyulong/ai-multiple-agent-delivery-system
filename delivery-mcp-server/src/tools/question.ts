@@ -9,6 +9,7 @@ import { notifyPerson, notifyRole, nextStepsFooter } from '../core/notify.js';
 import { exportTaskDocuments } from '../core/exporter.js';
 import { normalizeAssigneeList } from '../core/store/team-store.js';
 import { fail, ok, type ToolContext } from './common.js';
+import { t } from '../core/i18n.js';
 
 /**
  * 待确认问题工具组（PRD 7.9 / 8.8 / 9.13 / 9.14）：
@@ -19,25 +20,24 @@ export function registerQuestionTools(server: McpServer, ctx: () => ToolContext)
   server.registerTool(
     'question.create',
     {
-      description:
-        '创建待确认问题（PRD 7.9 / 9.13）。指定 blocks_stage 时将对应阶段标记为 blocked。',
+      description: t('tool.question.create.description'),
       inputSchema: {
-        task_id: z.string().describe('任务 ID'),
-        raised_by: z.string().describe('提出方角色 Agent'),
-        assigned_to_role: z.string().describe('负责确认的角色'),
-        question: z.string().describe('问题内容'),
-        blocks_stage: z.string().optional().describe('阻塞的阶段名（可选）'),
+        task_id: z.string().describe(t('tool.question.create.task_id')),
+        raised_by: z.string().describe(t('tool.question.create.raised_by')),
+        assigned_to_role: z.string().describe(t('tool.question.create.assigned_to_role')),
+        question: z.string().describe(t('tool.question.create.question')),
+        blocks_stage: z.string().optional().describe(t('tool.question.create.blocks_stage')),
       },
     },
     async (args) => {
       try {
         const root = resolveDeliveryRoot(ctx().root);
         const task = await getTask(root, args.task_id);
-        if (!task) return fail('task_not_found', `任务不存在: ${args.task_id}`);
+        if (!task) return fail('task_not_found', t('error.task_not_found', { id: args.task_id }));
         const stages = (await getStages(root, args.task_id)) ?? [];
 
         if (args.blocks_stage && !stages.some((s) => s.stage === args.blocks_stage)) {
-          return fail('stage_not_found', `阻塞阶段不存在: ${args.blocks_stage}`);
+          return fail('stage_not_found', t('tool.question.create.stage_not_found', { stage: args.blocks_stage }));
         }
 
         const now = nowIso();
@@ -67,13 +67,18 @@ export function registerQuestionTools(server: McpServer, ctx: () => ToolContext)
           (x) => x.assigned_to_role === args.assigned_to_role && (x.status === 'open' || x.status === 'answered'),
         );
         const lines = [
-          `任务：${task.title}`,
-          `任务ID：${args.task_id}`,
-          `需确认角色：${args.assigned_to_role}`,
-          `待确认问题（${openForRole.length} 个）：`,
+          t('email.line.task', { title: task.title }),
+          t('email.line.task_id', { id: args.task_id }),
+          t('email.line.question_role', { role: args.assigned_to_role }),
+          t('email.line.open_questions', { count: openForRole.length }),
           '',
           ...openForRole.map((x, i) => {
-            return `[${i + 1}] ${x.question_id}：${x.question}${x.blocks_stage ? `（阻塞阶段：${x.blocks_stage}）` : ''}`;
+            return t('email.line.question_item', {
+              i: i + 1,
+              id: x.question_id,
+              question: x.question,
+              blocked: x.blocks_stage ? t('email.line.blocked_stage', { stage: x.blocks_stage }) : '',
+            });
           }),
         ];
 
@@ -81,13 +86,13 @@ export function registerQuestionTools(server: McpServer, ctx: () => ToolContext)
         const documents = await exportTaskDocuments(root, args.task_id).catch(() => null);
         const docHint =
           documents && documents.rel_paths.length > 0
-            ? `\n\n任务文档：${documents.rel_paths.join('\n          ')}`
+            ? t('email.doc_hint', { paths: documents.rel_paths.join('\n          ') })
             : '';
 
         const email = await notifyRole(
           root,
           args.assigned_to_role,
-          `【任务待确认】${task.title}（${openForRole.length} 个问题）`,
+          t('email.subject.question_pending', { title: task.title, count: openForRole.length }),
           `${lines.join('\n')}${docHint}${nextStepsFooter(args.task_id)}`,
           { assignees: normalizeAssigneeList(task.assignees?.[args.assigned_to_role]) },
         );
@@ -101,7 +106,7 @@ export function registerQuestionTools(server: McpServer, ctx: () => ToolContext)
           email,
         });
       } catch (e) {
-        return fail('question_create_failed', (e as Error).message);
+        return fail('question_create_failed', t('tool.question.create.failed', { msg: (e as Error).message }));
       }
     },
   );
@@ -109,24 +114,24 @@ export function registerQuestionTools(server: McpServer, ctx: () => ToolContext)
   server.registerTool(
     'question.resolve',
     {
-      description: '解决待确认问题（PRD 9.14）。该阶段无其他 open 问题时解除 blocked 状态。',
+      description: t('tool.question.resolve.description'),
       inputSchema: {
-        task_id: z.string().describe('任务 ID'),
-        question_id: z.string().describe('问题 ID'),
-        answer: z.string().describe('确认答复'),
-        resolved_by: z.string().optional().describe('解决人/Agent'),
+        task_id: z.string().describe(t('tool.question.resolve.task_id')),
+        question_id: z.string().describe(t('tool.question.resolve.question_id')),
+        answer: z.string().describe(t('tool.question.resolve.answer')),
+        resolved_by: z.string().optional().describe(t('tool.question.resolve.resolved_by')),
       },
     },
     async (args) => {
       try {
         const root = resolveDeliveryRoot(ctx().root);
         const task = await getTask(root, args.task_id);
-        if (!task) return fail('task_not_found', `任务不存在: ${args.task_id}`);
+        if (!task) return fail('task_not_found', t('error.task_not_found', { id: args.task_id }));
         const questions = await getQuestions(root, args.task_id);
         const q = questions.find((x) => x.question_id === args.question_id);
-        if (!q) return fail('question_not_found', `问题不存在: ${args.question_id}`);
+        if (!q) return fail('question_not_found', t('tool.question.resolve.not_found', { id: args.question_id }));
         if (q.status === 'resolved' || q.status === 'cancelled') {
-          return fail('question_closed', `问题已关闭: ${args.question_id} (${q.status})`);
+          return fail('question_closed', t('tool.question.resolve.closed', { id: args.question_id, status: q.status }));
         }
 
         const now = nowIso();
@@ -154,14 +159,14 @@ export function registerQuestionTools(server: McpServer, ctx: () => ToolContext)
         const email = await notifyRole(
           root,
           q.raised_by,
-          `【问题已解决】${task.title}`,
+          t('email.subject.question_resolved', { title: task.title }),
           [
-            `任务：${task.title}`,
-            `任务ID：${args.task_id}`,
-            `问题ID：${q.question_id}`,
-            `问题：${q.question}`,
-            `答复：${args.answer}`,
-            `解决人：${args.resolved_by ?? '未知'}`,
+            t('email.line.task', { title: task.title }),
+            t('email.line.task_id', { id: args.task_id }),
+            t('email.line.question_id', { id: q.question_id }),
+            t('email.line.question', { q: q.question }),
+            t('email.line.answer', { answer: args.answer }),
+            t('email.line.resolved_by', { by: args.resolved_by ?? t('email.line.resolved_by_unknown') }),
           ].join('\n') + nextStepsFooter(args.task_id),
           { assignees: normalizeAssigneeList(task.assignees?.[q.raised_by]) },
         );
@@ -171,22 +176,22 @@ export function registerQuestionTools(server: McpServer, ctx: () => ToolContext)
           ? await notifyPerson(
               root,
               args.resolved_by,
-              `【问题已解决确认】${task.title}`,
+              t('email.subject.question_resolved_confirm', { title: task.title }),
               [
-                `您确认的问题已记录：`,
-                `任务：${task.title}`,
-                `任务ID：${args.task_id}`,
-                `问题ID：${q.question_id}`,
-                `问题：${q.question}`,
-                `您的答复：${args.answer}`,
-                `阻塞阶段：${q.blocks_stage ?? '无'}`,
+                t('email.line.confirmed_recorded'),
+                t('email.line.task', { title: task.title }),
+                t('email.line.task_id', { id: args.task_id }),
+                t('email.line.question_id', { id: q.question_id }),
+                t('email.line.question', { q: q.question }),
+                t('email.line.your_answer', { answer: args.answer }),
+                t('email.line.blocked_stage_value', { stage: q.blocks_stage ?? t('email.line.blocked_stage_none') }),
               ].join('\n') + nextStepsFooter(args.task_id),
             )
           : undefined;
 
         return ok({ question_id: q.question_id, status: q.status, email, resolver_email: resolverEmail });
       } catch (e) {
-        return fail('question_resolve_failed', (e as Error).message);
+        return fail('question_resolve_failed', t('tool.question.resolve.failed', { msg: (e as Error).message }));
       }
     },
   );

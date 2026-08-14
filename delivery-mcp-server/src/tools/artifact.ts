@@ -17,6 +17,7 @@ import { getStages, getTask } from '../core/store/task-store.js';
 import { setStageArtifactId, setStageStatus } from '../core/store/stage-store.js';
 import { resolveDeliveryRoot } from '../core/paths.js';
 import { fail, ok, type ToolContext } from './common.js';
+import { t } from '../core/i18n.js';
 
 /**
  * 交付物工具组（PRD 7.5 / 8.5 / 9.7-9.9）：
@@ -28,33 +29,32 @@ export function registerArtifactTools(server: McpServer, ctx: () => ToolContext)
   server.registerTool(
     'artifact.submit',
     {
-      description:
-        '提交交付物：保存 Markdown 文件并创建 metadata（PRD 7.5 / 9.7）。提交前校验上游阶段已完成（PRD 7.3 双保险）。',
+      description: t('tool.artifact.submit.description'),
       inputSchema: {
-        task_id: z.string().describe('任务 ID'),
-        stage: z.string().describe('所属阶段'),
-        role: z.string().describe('角色 Agent'),
-        artifact_type: z.string().describe('交付物类型（如 crud_spec_card）'),
-        content: z.string().describe('交付物 Markdown 内容'),
-        title: z.string().optional().describe('交付物标题'),
-        summary: z.string().optional().describe('交付物摘要'),
+        task_id: z.string().describe(t('tool.artifact.submit.task_id')),
+        stage: z.string().describe(t('tool.artifact.submit.stage')),
+        role: z.string().describe(t('tool.artifact.submit.role')),
+        artifact_type: z.string().describe(t('tool.artifact.submit.artifact_type')),
+        content: z.string().describe(t('tool.artifact.submit.content')),
+        title: z.string().optional().describe(t('tool.artifact.submit.title')),
+        summary: z.string().optional().describe(t('tool.artifact.submit.summary')),
       },
     },
     async (args) => {
       try {
         const root = resolveDeliveryRoot(ctx().root);
         const task = await getTask(root, args.task_id);
-        if (!task) return fail('task_not_found', `任务不存在: ${args.task_id}`);
+        if (!task) return fail('task_not_found', t('error.task_not_found', { id: args.task_id }));
         const stages = (await getStages(root, args.task_id)) ?? [];
         const stage = stages.find((s) => s.stage === args.stage);
         if (!stage) {
-          return fail('stage_not_found', `阶段不存在: ${args.stage}`, { available: stages.map((s) => s.stage) });
+          return fail('stage_not_found', t('error.stage_not_found', { stage: args.stage }), { available: stages.map((s) => s.stage) });
         }
 
         // 校验 artifact_type 属于该阶段必需类型
         const reqTypes = requiredTypes(stage);
         if (!reqTypes.includes(args.artifact_type)) {
-          return fail('unexpected_artifact_type', `交付物类型 ${args.artifact_type} 不属于阶段 ${args.stage}`, {
+          return fail('unexpected_artifact_type', t('tool.artifact.submit.unexpected_type', { type: args.artifact_type, stage: args.stage }), {
             required: reqTypes,
           });
         }
@@ -65,7 +65,7 @@ export function registerArtifactTools(server: McpServer, ctx: () => ToolContext)
         if (missing.length > 0) {
           return fail(
             'upstream_missing',
-            `上游交付物缺失，不能提交 ${args.artifact_type}`,
+            t('tool.artifact.submit.upstream_missing', { type: args.artifact_type }),
             {
               status: 'blocked',
               missing_upstream: missing,
@@ -80,7 +80,12 @@ export function registerArtifactTools(server: McpServer, ctx: () => ToolContext)
         if (existing) {
           return fail(
             'artifact_exists',
-            `阶段 ${args.stage} 已存在 ${args.artifact_type}（${existing.artifact_id} v${existing.version}），请使用 artifact.update 修订`,
+            t('tool.artifact.submit.artifact_exists', {
+              stage: args.stage,
+              type: args.artifact_type,
+              id: existing.artifact_id,
+              version: existing.version,
+            }),
             { artifact_id: existing.artifact_id, version: existing.version },
           );
         }
@@ -106,7 +111,7 @@ export function registerArtifactTools(server: McpServer, ctx: () => ToolContext)
           path: meta.path,
         });
       } catch (e) {
-        return fail('submit_failed', (e as Error).message);
+        return fail('submit_failed', t('tool.artifact.submit.failed', { msg: (e as Error).message }));
       }
     },
   );
@@ -114,20 +119,20 @@ export function registerArtifactTools(server: McpServer, ctx: () => ToolContext)
   server.registerTool(
     'artifact.get',
     {
-      description: '读取交付物内容与 metadata（PRD 9.8）。',
+      description: t('tool.artifact.get.description'),
       inputSchema: {
-        task_id: z.string().describe('任务 ID'),
-        artifact_id: z.string().describe('交付物 ID'),
+        task_id: z.string().describe(t('tool.artifact.get.task_id')),
+        artifact_id: z.string().describe(t('tool.artifact.get.artifact_id')),
       },
     },
     async (args) => {
       try {
         const root = resolveDeliveryRoot(ctx().root);
         const got = await getArtifact(root, args.task_id, args.artifact_id);
-        if (!got) return fail('artifact_not_found', `交付物不存在: ${args.artifact_id}`);
+        if (!got) return fail('artifact_not_found', t('tool.artifact.get.not_found', { id: args.artifact_id }));
         return ok(got);
       } catch (e) {
-        return fail('get_failed', (e as Error).message);
+        return fail('get_failed', t('tool.artifact.get.failed', { msg: (e as Error).message }));
       }
     },
   );
@@ -135,10 +140,10 @@ export function registerArtifactTools(server: McpServer, ctx: () => ToolContext)
   server.registerTool(
     'artifact.list',
     {
-      description: '列出任务交付物（PRD 9.9），可选按阶段过滤。',
+      description: t('tool.artifact.list.description'),
       inputSchema: {
-        task_id: z.string().describe('任务 ID'),
-        stage: z.string().optional().describe('阶段过滤'),
+        task_id: z.string().describe(t('tool.artifact.list.task_id')),
+        stage: z.string().optional().describe(t('tool.artifact.list.stage')),
       },
     },
     async (args) => {
@@ -147,7 +152,7 @@ export function registerArtifactTools(server: McpServer, ctx: () => ToolContext)
         const artifacts = await listArtifacts(root, args.task_id, args.stage);
         return ok({ artifacts });
       } catch (e) {
-        return fail('list_failed', (e as Error).message);
+        return fail('list_failed', t('tool.artifact.list.failed', { msg: (e as Error).message }));
       }
     },
   );
@@ -155,12 +160,12 @@ export function registerArtifactTools(server: McpServer, ctx: () => ToolContext)
   server.registerTool(
     'artifact.update',
     {
-      description: '修订交付物：保留历史版本（PRD 14.4 / 12.3 返工流程），版本 +1，状态回到 submitted。',
+      description: t('tool.artifact.update.description'),
       inputSchema: {
-        task_id: z.string().describe('任务 ID'),
-        artifact_id: z.string().describe('交付物 ID'),
-        content: z.string().describe('修订后的 Markdown 内容'),
-        summary: z.string().optional().describe('修订摘要'),
+        task_id: z.string().describe(t('tool.artifact.update.task_id')),
+        artifact_id: z.string().describe(t('tool.artifact.update.artifact_id')),
+        content: z.string().describe(t('tool.artifact.update.content')),
+        summary: z.string().optional().describe(t('tool.artifact.update.summary')),
       },
     },
     async (args) => {
@@ -179,7 +184,7 @@ export function registerArtifactTools(server: McpServer, ctx: () => ToolContext)
           path: meta.path,
         });
       } catch (e) {
-        return fail('update_failed', (e as Error).message);
+        return fail('update_failed', t('tool.artifact.update.failed', { msg: (e as Error).message }));
       }
     },
   );

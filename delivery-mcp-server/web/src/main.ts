@@ -7,9 +7,12 @@ import App from './App.vue';
 import router from './router';
 import { $request } from '@miitvip/admin-pro/es/utils/request';
 import { $g } from '@miitvip/admin-pro/es/utils/global';
+import { t, lang } from '@/utils/i18n';
 
 // 站点标识（logo 图标 + 侧边栏站点名）与页脚版权
-$g.site = '多Agent协作';
+$g.site = t('app.siteTitle');
+document.documentElement.lang = lang;
+document.title = t('home.title');
 $g.logo = '/logo.svg';
 $g.copyright!.laptop = '© Copyright 2026 ~ Now';
 $g.copyright!.mobile = '© Copyright 2026 ~ Now';

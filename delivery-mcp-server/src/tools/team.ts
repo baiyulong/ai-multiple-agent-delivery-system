@@ -3,12 +3,12 @@ import { z } from 'zod';
 import {
   isTeamConfigured,
   readTeamConfig,
-  TEAM_ROLE_LABELS,
   TEAM_ROLES,
   upsertMember,
 } from '../core/store/team-store.js';
 import { resolveDeliveryRoot } from '../core/paths.js';
 import { ok, fail, type ToolContext } from './common.js';
+import { roleLabels, t } from '../core/i18n.js';
 
 /**
  * 团队工具组：team.get / team.set
@@ -19,8 +19,7 @@ export function registerTeamTools(server: McpServer, ctx: () => ToolContext) {
   server.registerTool(
     'team.get',
     {
-      description:
-        '获取项目团队配置：成员姓名、邮箱与角色（一人可多角色）。未配置时返回 configured=false，需先用 team.set 配置。',
+      description: t('tool.team.get.description'),
       inputSchema: {},
     },
     async () => {
@@ -31,11 +30,11 @@ export function registerTeamTools(server: McpServer, ctx: () => ToolContext) {
         return ok({
           configured,
           members: config?.members ?? [],
-          role_labels: TEAM_ROLE_LABELS,
+          role_labels: roleLabels(),
           updated_at: config?.updated_at ?? null,
         });
       } catch (e) {
-        return fail('team_get_failed', (e as Error).message);
+        return fail('team_get_failed', t('tool.team.get.failed', { msg: (e as Error).message }));
       }
     },
   );
@@ -43,15 +42,14 @@ export function registerTeamTools(server: McpServer, ctx: () => ToolContext) {
   server.registerTool(
     'team.set',
     {
-      description:
-        '新增或更新团队成员（按邮箱匹配，roles 覆盖）。首次使用系统前必须配置至少一名成员。一人可担任多个角色。注意：写入前校验所有成员 roles 的并集必须覆盖全部 8 个角色，否则拒绝写入并提示缺失角色。',
+      description: t('tool.team.set.description'),
       inputSchema: {
-        name: z.string().describe('成员姓名'),
-        email: z.string().email().describe('成员邮箱（唯一标识，用于更新时匹配）'),
+        name: z.string().describe(t('tool.team.set.name')),
+        email: z.string().email().describe(t('tool.team.set.email')),
         roles: z
           .array(z.enum(TEAM_ROLES))
           .min(1)
-          .describe('担任的角色列表（可多个）'),
+          .describe(t('tool.team.set.roles')),
       },
     },
     async (args) => {
@@ -75,7 +73,7 @@ export function registerTeamTools(server: McpServer, ctx: () => ToolContext) {
         if (missing.length > 0) {
           return fail(
             'roles_incomplete',
-            `团队角色不完整，需覆盖全部 8 个角色：${missing.join('、')}`,
+            t('tool.team.set.roles_incomplete', { missing: missing.join('、') }),
             { missing_roles: missing },
           );
         }
@@ -85,11 +83,11 @@ export function registerTeamTools(server: McpServer, ctx: () => ToolContext) {
           created,
           configured: config.members.length > 0,
           members: config.members,
-          role_labels: TEAM_ROLE_LABELS,
+          role_labels: roleLabels(),
           updated_at: config.updated_at,
         });
       } catch (e) {
-        return fail('team_set_failed', (e as Error).message);
+        return fail('team_set_failed', t('tool.team.set.failed', { msg: (e as Error).message }));
       }
     },
   );

@@ -1,0 +1,44 @@
+{
+  "artifact_type": "crud_spec_card",
+  "required_sections": [
+    "Feature Name",
+    "Maintained Object",
+    "User Roles",
+    "Business Purpose",
+    "Page Type",
+    "Query Conditions",
+    "List Fields",
+    "Create Rules",
+    "Edit Rules",
+    "Delete/Disable Rules",
+    "Permission Rules",
+    "Data Validation",
+    "Audit Requirements",
+    "Acceptance Criteria"
+  ],
+  "aliases": {
+    "Delete/Disable Rules": ["Delete Disable Rules", "Delete and Disable Rules", "Deletion Rules"],
+    "Feature Name": ["1. Feature Name"]
+  },
+  "non_empty_sections": ["Delete/Disable Rules", "Permission Rules"],
+  "forbidden_patterns": [
+    {
+      "section": "Permission Rules",
+      "pattern": "^\\s*[Cc]ontrol by permission\\s*[.。]?\\s*$",
+      "message": "Permission Rules must not only say \"control by permission\""
+    },
+    {
+      "section": "Acceptance Criteria",
+      "pattern": "^\\s*[Ff]unction works normally\\s*[.。]?\\s*$",
+      "message": "Acceptance Criteria must not only say \"function works normally\""
+    }
+  ],
+  "min_list_items": [
+    {
+      "section": "Acceptance Criteria",
+      "min": 3,
+      "message": "Must contain at least 3 testable acceptance criteria"
+    }
+  ],
+  "pass_threshold": 60
+}
