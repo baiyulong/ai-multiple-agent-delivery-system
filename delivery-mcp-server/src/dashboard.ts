@@ -11,8 +11,8 @@
  */
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { readFile, readdir, stat, writeFile, rm } from 'node:fs/promises';
-import { dirname, extname, join, normalize } from 'node:path';
-import { builtinArchitecturesDir } from './core/locate.js';
+import { extname, join, normalize } from 'node:path';
+import { builtinArchitecturesDir, activeLang } from './core/locate.js';
 import { resolveDeliveryRoot } from './core/paths.js';
 import { t, roleLabels } from './core/i18n.js';
 import { getQuestions, getStages, getTask, listTaskIds, readContext } from './core/store/task-store.js';
@@ -27,18 +27,11 @@ const CONFIGURED_PORT = Number(process.env.DELIVERY_DASHBOARD_PORT ?? process.en
 
 /**
  * 解析看板数据根目录（项目级 .delivery）：
- * 1. DELIVERY_ROOT 环境变量（显式指定，最高优先）
- * 2. 项目根目录：delivery-mcp-server 的父目录（install.md 约定 server 装在项目根下）
- * 3. 回退 cwd/.delivery
- *
- * 这样从 delivery-mcp-server 目录启动 dashboard 也能读到项目根目录的 .delivery。
+ * DELIVERY_ROOT 环境变量（install.js 注册 MCP 时注入 <项目>/.delivery）> cwd/.delivery。
+ * server/dashboard 均装在用户目录，不再用"server 父目录=项目根"启发式。
  */
 function resolveDashboardRoot(): string {
-  if (process.env.DELIVERY_ROOT) return resolveDeliveryRoot();
-  // dashboard.ts 位于 <项目根>/delivery-mcp-server/src/dashboard.ts
-  const serverDir = dirname(import.meta.dirname); // <项目根>/delivery-mcp-server
-  const projectRoot = dirname(serverDir); // <项目根>
-  return join(projectRoot, '.delivery');
+  return resolveDeliveryRoot();
 }
 
 const root = resolveDashboardRoot();
@@ -423,7 +416,8 @@ async function serveStatic(reqPath: string, res: ServerResponse): Promise<boolea
   const filePath = reqPath === '/' ? '/index.html' : reqPath;
   const normalized = normalize(filePath).replace(/^([\\/])+/, '');
   if (normalized.includes('..') || normalized.startsWith('.')) return false;
-  const full = join(import.meta.dirname, '..', 'public', normalized);
+  // web 静态资源：web-dist/{lang}/（CI 预构建 zh/en 两份，安装时按语言保留一份）
+  const full = join(import.meta.dirname, '..', 'web-dist', activeLang(), normalized);
   try {
     const info = await stat(full);
     if (!info.isFile()) return false;

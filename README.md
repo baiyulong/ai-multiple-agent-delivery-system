@@ -120,36 +120,40 @@ npm test
 
 ## 在新项目中使用
 
-### 1. 拷贝组件到新项目
+> **安装模型**：工具本体**全局安装一份**（`~/.config/ai-delivery/delivery-mcp-server/`），角色 Agent 全局安装（`~/.config/opencode/agents/`），**跨项目共享，不重复安装**。项目内只注册 `opencode.json` 的 `mcp.delivery`（绝对路径 + `DELIVERY_ROOT`）与 `.gitignore` 的 `.delivery/`。详见 [install.md](install.md)。
 
-把以下内容放到你的新项目根目录：
+### 1. 一键安装（推荐）
 
-```
-your-project/
-├── .opencode/                 # 8 个 Agent 配置
-├── delivery-mcp-server/       # MCP server（可 git submodule 引用）
-└── opencode.json              # MCP 注册
-```
-
-### 2. 构建 server
+在**目标项目根目录**执行（从 GitHub Release 下载预构建包，无需本地构建）：
 
 ```bash
-cd delivery-mcp-server && npm install && npm run build
+node delivery-mcp-server/install.js --release
 ```
 
-### 3. 确认 opencode.json
+> 也可从本地仓库源码安装：`node /path/to/ai-delivery-system/delivery-mcp-server/install.js /path/to/project`。
+
+脚本自动完成：安装工具本体到全局目录 → 拷贝 Agent 到全局目录 → 合并 `opencode.json`（注册 `mcp.delivery`）→ 追加 `.gitignore`（`.delivery/`）→ 安装依赖。重复运行是幂等的（已存在且版本相同则跳过）。
+
+### 2. 手动注册（等价于脚本第 3 步）
+
+在目标项目根目录的 `opencode.json` 中**合并**（保留已有字段），`command` 必须是**绝对路径**：
 
 ```json
 {
+  "$schema": "https://opencode.ai/config.json",
   "mcp": {
+    "...目标项目已有 mcp...": {},
     "delivery": {
       "type": "local",
-      "command": ["node", "delivery-mcp-server/dist/server.js"],
+      "command": ["node", "/home/USER/.config/ai-delivery/delivery-mcp-server/dist/server.js"],
+      "environment": { "DELIVERY_ROOT": "/path/to/proj/.delivery" },
       "enabled": true
     }
   }
 }
 ```
+
+> Windows 下路径形如 `C:\Users\USER\.config\ai-delivery\delivery-mcp-server\dist\server.js`。`.gitignore` 追加 `.delivery/`。
 
 ### 4. 在 OpenCode 中开始交付
 
@@ -215,7 +219,12 @@ cd delivery-mcp-server && npm install && npm run build
 无需登录的本地只读看板，用浏览器浏览任务情况：任务列表、阶段进度、门禁结果、交付物正文、待确认问题、共享上下文、公共文档。
 
 ```bash
-cd delivery-mcp-server
+# 在项目根目录执行（自动注入 DELIVERY_ROOT，推荐）：
+node ~/.config/ai-delivery/delivery-mcp-server/install.js --dashboard
+
+# 或前台启动（需先设置 DELIVERY_ROOT）：
+cd ~/.config/ai-delivery/delivery-mcp-server
+$env:DELIVERY_ROOT = "C:\path\to\proj\.delivery"   # 数据根（必须）
 npm run dashboard
 # 输出: AI 交付任务看板已启动: http://localhost:8787
 ```
@@ -231,9 +240,9 @@ npm run dashboard
 | 项 | 说明 |
 |---|---|
 | 端口 | 环境变量 `DELIVERY_DASHBOARD_PORT` 或 `PORT`，默认 `8787`；被占用时自动回退随机端口，实际端口写入 `<数据根>/dashboard.port` |
-| 数据根 | 环境变量 `DELIVERY_ROOT`，默认当前目录 `.delivery` |
+| 数据根 | 环境变量 `DELIVERY_ROOT`，默认当前目录 `.delivery`（从全局目录启动时**必须**设置） |
 
-> 看板是独立入口，与 MCP server（`npm run dev`）互不影响，可同时运行。
+> 看板是独立入口，与 MCP server 互不影响，可同时运行。停止：`node ~/.config/ai-delivery/delivery-mcp-server/install.js --stop-dashboard`。
 
 ---
 
@@ -287,7 +296,7 @@ crud_spec_card → ux_interaction_card → ddd_applicability_review + ubiquitous
 
 ```
 .delivery/
-├── config/                    # 初始化时从内置模板复制（用户可改）
+├── config/                    # 项目级配置（用户可改，优先于全局默认配置）
 │   ├── flows/                 # 流程模板
 │   ├── gates/                 # 门禁规则
 │   └── architectures/         # 预设架构模板（全新项目用）
@@ -306,12 +315,13 @@ crud_spec_card → ux_interaction_card → ddd_applicability_review + ubiquitous
 
 - 任务 ID 按日递增：`TASK-20260805-001`
 - 存储根目录优先级：工具传入 `root` > 环境变量 `DELIVERY_ROOT` > 当前工作目录 `.delivery`
+- 配置读取链（项目 `.delivery/config/*` > 全局安装默认配置 `~/.config/ai-delivery/delivery-mcp-server/config/*` > 内置兜底）
 
 ---
 
 ## 升级
 
-> **更新范围**：升级会覆盖 `delivery-mcp-server/` 工具本体 + `.opencode/agent/delivery-*.md` 角色配置 + 流程/门禁/交付物模板，并重新构建。**保留 `.delivery` 任务数据**与 `opencode.json` 中的自定义配置。升级完成后需**重启 OpenCode** 生效。
+> **更新范围**：升级会覆盖全局安装的 `~/.config/ai-delivery/delivery-mcp-server/` 工具本体 + 全局 agent（`~/.config/opencode/agents/delivery-*.md`）+ 流程/门禁/交付物模板，并安装依赖。**保留项目 `.delivery` 任务数据**与 `opencode.json` 中的自定义配置。升级完成后需**重启 OpenCode** 生效。
 
 ### 方式一：让 AI 帮你升级（推荐）
 
@@ -319,27 +329,27 @@ crud_spec_card → ux_interaction_card → ddd_applicability_review + ubiquitous
 
 > 请帮我升级 AI 交付任务系统到最新版：https://github.com/baiyulong/ai-multiple-agent-delivery-system/blob/main/install.md
 
-AI 会读取 install.md 中的更新章节，自动执行 `node delivery-mcp-server/install.js --release`（下载最新 Release → 覆盖本体与角色配置 → 重新构建 → 提示重启 OpenCode）。你无需手敲任何命令。
+AI 会读取 install.md 中的更新章节，自动执行 `node ~/.config/ai-delivery/delivery-mcp-server/install.js --release`（下载最新预构建包 → 覆盖全局本体与角色配置 → 安装依赖 → 提示重启 OpenCode）。你无需手敲任何命令。
 
 ### 方式二：自己运行升级命令
 
 在目标项目根目录执行：
 
 ```bash
-node delivery-mcp-server/install.js --release
+node ~/.config/ai-delivery/delivery-mcp-server/install.js --release
 ```
 
-脚本会自动完成：停旧进程 → 下载最新 Release → 删除旧版并拷贝新版 → 重新构建。
+脚本会自动完成：停旧进程 → 下载最新预构建 zip → 覆盖全局安装与全局 agent → `npm install --omit=dev`（预构建包无需构建）。
 
 常用参数：
 
 | 参数 | 说明 |
 |---|---|
-| `--release` | 从 GitHub Releases 下载最新稳定版并更新（升级默认用它） |
+| `--release` | 从 GitHub Releases 下载最新稳定版预构建包并更新（升级默认用它） |
 | `--force-update` | 强制覆盖已安装的 delivery-mcp-server（不比较版本） |
 | `--dashboard` | 升级后后台启动浏览器看板（日志 `.delivery/dashboard.log`） |
 | `--dry-run` | 只打印将要执行的操作，不改动文件 |
-| `--skip-build` | 跳过构建（断点续跑，稍后需手动 `npm run build`） |
+| `--skip-build` | 跳过构建（仅源码安装有意义；预构建包无构建步骤） |
 
 也可先用 `update.check` 查看版本状态（可选 `force` 强制重新检测），确认有新版本再升级。
 
@@ -347,9 +357,9 @@ node delivery-mcp-server/install.js --release
 
 ## 自定义流程与门禁
 
-所有流程与门禁规则都是 JSON 配置，**用户配置优先于内置**：
+所有流程与门禁规则都是 JSON 配置，**用户配置优先于内置**（项目 `.delivery/config/*` > 全局安装默认 `~/.config/ai-delivery/delivery-mcp-server/config/*` > 内置兜底）：
 
-- **修改流程**：编辑 `.delivery/config/flows/<type>-flow.json` 或 `delivery-mcp-server/config/flows/`，可增删阶段、调整角色、设置 `allow_skip`、指定上游依赖。
+- **修改流程**：编辑 `.delivery/config/flows/<type>-flow.json` 或全局 `~/.config/ai-delivery/delivery-mcp-server/config/flows/`，可增删阶段、调整角色、设置 `allow_skip`、指定上游依赖。
 - **修改门禁**：编辑 `.delivery/config/gates/<artifact_type>.json`，规则支持四类检查：
   - `required_sections`：必需章节（缺一章扣 15 分）
   - `non_empty_sections`：内容不可为空
@@ -388,4 +398,4 @@ A：阶段按 `required_artifact_types` 支持多交付物；并行多个角色�
 A：设置环境变量 `DELIVERY_ROOT` 指向目标目录。
 
 **Q：OpenCode 里工具找不到？**
-A：确认已 `npm run build` 生成 `dist/server.js`，且 `opencode.json` 路径正确，重启 OpenCode。
+A：确认全局 `~/.config/ai-delivery/delivery-mcp-server/dist/server.js` 已构建，且 `opencode.json` 的 `command` 用的是**绝对路径**，重启 OpenCode。

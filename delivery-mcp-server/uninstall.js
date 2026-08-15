@@ -1,36 +1,49 @@
 #!/usr/bin/env node
 /**
- * AI 交付任务系统 · 安全卸载脚本
+ * AI 交付任务系统 · 安全卸载脚本（用户目录安装模型）
+ *
+ * 新模型下工具本体全局安装在 ~/.config/ai-delivery/，项目内只有注册信息
+ * （opencode.json 的 mcp.delivery、.gitignore 的 .delivery/）与任务数据 .delivery/。
+ * 卸载按"项目解绑"与"全局清理"分层：
  *
  * 用法：
- *   node uninstall.js                      # 卸载当前项目中的 delivery 系统
- *   node uninstall.js --purge-data         # 同时删除 .delivery/ 任务数据（默认保留）
- *   node uninstall.js --purge-agents       # 同时删除 .opencode/agent/delivery-*.md（默认保留，可能被自定义过）
- *   node uninstall.js --dry-run            # 只打印将要执行的操作，不改动文件
+ *   node uninstall.js                       # 解绑当前项目（移除 opencode.json 中 mcp.delivery、停止进程）
+ *   node uninstall.js --purge-data          # 同时删除 .delivery/ 任务数据（默认保留）
+ *   node uninstall.js --purge-server        # 同时删除全局安装 ~/.config/ai-delivery/delivery-mcp-server/（影响所有项目）
+ *   node uninstall.js --purge-agents        # 同时删除全局 agent ~/.config/opencode/agents/delivery-*.md（影响所有项目）
+ *   node uninstall.js --purge-all           # 以上全部
+ *   node uninstall.js --dry-run             # 只打印将要执行的操作，不改动文件
  *
  * 功能：
  *   1. 停止运行中的 dashboard 与 MCP server 进程
- *   2. 移除 delivery-mcp-server/ 目录
- *   3. 移除 opencode.json 中的 mcp.delivery 配置
- *   4. 保留 .opencode/agent/delivery-*.md（可能被自定义过，除非 --purge-agents）
- *   5. 保留 .delivery/ 任务数据（除非 --purge-data）
+ *   2. 移除 opencode.json 中的 mcp.delivery 配置
+ *   3. 移除 .gitignore 中的 .delivery/ 条目
+ *   4. 保留 .delivery/ 任务数据（除非 --purge-data）
+ *   5. 保留全局安装与全局 agent（除非 --purge-server / --purge-agents）
  */
 
 import { existsSync } from 'node:fs';
 import { readFile, rm, writeFile } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import { dirname, join } from 'node:path';
+import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
-const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
-const PROJECT_ROOT = dirname(SCRIPT_DIR);
+const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url)); // 脚本所在目录（全局安装目录下的 delivery-mcp-server/ 或仓库内）
+const PROJECT_ROOT = process.cwd(); // 卸载面向"当前目录所在项目"（新模型：在项目根目录执行）
 const AGENT_PREFIX = 'delivery-';
+
+// 全局安装目录（与 install.js 保持一致，可用环境变量覆盖便于测试）
+const GLOBAL_ROOT = process.env.DELIVERY_INSTALL_ROOT ?? join(homedir(), '.config', 'ai-delivery');
+const GLOBAL_SERVER_DIR = join(GLOBAL_ROOT, 'delivery-mcp-server');
+const GLOBAL_AGENTS_DIR = process.env.DELIVERY_AGENTS_DIR ?? join(homedir(), '.config', 'opencode', 'agents');
 
 // ---------- 参数解析 ----------
 const args = process.argv.slice(2);
 const FLAG_DRY = args.includes('--dry-run');
-const FLAG_PURGE_DATA = args.includes('--purge-data');
-const FLAG_PURGE_AGENTS = args.includes('--purge-agents');
+const FLAG_PURGE_DATA = args.includes('--purge-data') || args.includes('--purge-all');
+const FLAG_PURGE_SERVER = args.includes('--purge-server') || args.includes('--purge-all');
+const FLAG_PURGE_AGENTS = args.includes('--purge-agents') || args.includes('--purge-all');
 
 // ---------- 工具 ----------
 const log = (msg) => console.log(msg);
@@ -50,9 +63,9 @@ function runCapture(cmd, args, opts = {}) {
 }
 
 /** Windows：按命令行关键字查找进程 PID（PowerShell Get-CimInstance，避免 wmic 的 % 通配符问题） */
-async function findPidsByCommandLineWin(keyword) {
+async function findPidsByCommandLineWin() {
   try {
-    const script = `Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*${keyword}*' } | Select-Object -ExpandProperty ProcessId`;
+    const script = `Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*delivery-mcp-server*' -and $_.CommandLine -like '*server.js*' } | Select-Object -ExpandProperty ProcessId`;
     const out = await runCapture('powershell', ['-NoProfile', '-NonInteractive', '-Command', script]);
     return out
       .split('\n')
@@ -145,10 +158,10 @@ async function stopProcesses() {
     }
   }
 
-  // 停止 MCP server 进程（通过查找 node 进程命令行包含 delivery-mcp-server/dist/server.js）
+  // 停止 MCP server 进程（通过查找 node 进程命令行包含 delivery-mcp-server 与 server.js）
   if (process.platform === 'win32') {
     try {
-      const pids = await findPidsByCommandLineWin('delivery-mcp-server/dist/server.js');
+      const pids = await findPidsByCommandLineWin();
       for (const pid of pids) {
         log(`  停止 MCP server 进程 (PID: ${pid})`);
         killPid(pid);
@@ -159,7 +172,7 @@ async function stopProcesses() {
   } else {
     try {
       const result = await new Promise((resolve, reject) => {
-        const child = spawn('sh', ['-c', 'ps aux | grep "delivery-mcp-server/dist/server.js" | grep -v grep | awk \'{print $2}\''], { stdio: ['ignore', 'pipe', 'ignore'] });
+        const child = spawn('sh', ['-c', 'ps aux | grep "delivery-mcp-server" | grep "server.js" | grep -v grep | awk \'{print $2}\''], { stdio: ['ignore', 'pipe', 'ignore'] });
         let output = '';
         child.stdout?.on('data', (d) => (output += d));
         child.on('exit', () => resolve(output));
@@ -179,57 +192,9 @@ async function stopProcesses() {
   ok('进程已停止');
 }
 
-// ---------- 2. 移除 delivery-mcp-server ----------
-async function removeServer() {
-  log('\n[2/5] 移除 delivery-mcp-server/');
-  const serverDir = join(PROJECT_ROOT, 'delivery-mcp-server');
-  if (!existsSync(serverDir)) {
-    skip('delivery-mcp-server/ 不存在');
-    return;
-  }
-  if (FLAG_DRY) {
-    log('  - 将删除 delivery-mcp-server/');
-  } else {
-    await rm(serverDir, { recursive: true, force: true });
-    ok('delivery-mcp-server/ 已删除');
-  }
-}
-
-// ---------- 3. 角色 Agent 配置（默认保留，可能被自定义过） ----------
-async function removeAgents() {
-  log('\n[3/5] 角色 Agent 配置');
-  const agentsDir = join(PROJECT_ROOT, '.opencode', 'agent');
-  if (!existsSync(agentsDir)) {
-    skip('.opencode/agent/ 不存在');
-    return;
-  }
-
-  const { readdir } = await import('node:fs/promises');
-  const files = (await readdir(agentsDir)).filter((f) => f.endsWith('.md') && f.startsWith(AGENT_PREFIX));
-
-  if (!FLAG_PURGE_AGENTS) {
-    skip(`保留 ${files.length} 个 delivery-*.md（可能被自定义过，需 --purge-agents 才删除）`);
-    return;
-  }
-
-  if (files.length === 0) {
-    skip('未找到 delivery-*.md 文件');
-    return;
-  }
-
-  for (const f of files) {
-    if (FLAG_DRY) {
-      log(`  - 将删除 .opencode/agent/${f}`);
-    } else {
-      await rm(join(agentsDir, f));
-    }
-  }
-  ok(`已删除 ${files.length} 个角色 Agent 文件`);
-}
-
-// ---------- 4. 移除 opencode.json 中的 mcp.delivery ----------
+// ---------- 2. 移除 opencode.json 中的 mcp.delivery ----------
 async function removeMcpConfig() {
-  log('\n[4/5] 移除 opencode.json 中的 mcp.delivery 配置');
+  log('\n[2/5] 移除 opencode.json 中的 mcp.delivery 配置');
   const opencodeFile = join(PROJECT_ROOT, 'opencode.json');
   const config = await readJsonSafe(opencodeFile);
   if (!config || !config.mcp?.delivery) {
@@ -250,9 +215,32 @@ async function removeMcpConfig() {
   }
 }
 
-// ---------- 5. 任务数据（默认保留） ----------
+// ---------- 3. 移除 .gitignore 中的 .delivery/ 条目 ----------
+async function removeGitignoreEntry() {
+  log('\n[3/5] 移除 .gitignore 中的 .delivery/ 条目');
+  const gitignoreFile = join(PROJECT_ROOT, '.gitignore');
+  if (!existsSync(gitignoreFile)) {
+    skip('.gitignore 不存在');
+    return;
+  }
+  const content = await readFile(gitignoreFile, 'utf-8');
+  const lines = content.split(/\r?\n/);
+  const kept = lines.filter((l) => l.trim() !== '.delivery/' && l.trim() !== '.delivery');
+  if (kept.length === lines.length) {
+    skip('.gitignore 中无 .delivery/ 条目');
+    return;
+  }
+  if (FLAG_DRY) {
+    log('  - 将移除 .gitignore 中的 .delivery/ 条目');
+  } else {
+    await writeFile(gitignoreFile, kept.join('\n').replace(/\n{3,}/g, '\n\n').replace(/^\n+/, '') + '\n', 'utf-8');
+    ok('.gitignore 中的 .delivery/ 条目已移除');
+  }
+}
+
+// ---------- 4. 任务数据（默认保留） ----------
 async function removeData() {
-  log('\n[5/5] 任务数据');
+  log('\n[4/5] 任务数据');
   const dataDir = join(PROJECT_ROOT, '.delivery');
   if (!existsSync(dataDir)) {
     skip('.delivery/ 不存在');
@@ -272,21 +260,64 @@ async function removeData() {
   }
 }
 
+// ---------- 5. 全局安装与全局 agent（默认保留） ----------
+async function removeGlobal() {
+  log('\n[5/5] 全局安装');
+
+  if (FLAG_PURGE_SERVER) {
+    if (!existsSync(GLOBAL_SERVER_DIR)) {
+      skip(`全局安装不存在：${GLOBAL_SERVER_DIR}`);
+    } else if (FLAG_DRY) {
+      log(`  - 将删除全局安装 ${GLOBAL_SERVER_DIR}`);
+    } else {
+      await rm(GLOBAL_SERVER_DIR, { recursive: true, force: true });
+      ok(`全局安装已删除：${GLOBAL_SERVER_DIR}`);
+    }
+  } else {
+    skip(`全局安装已保留：${GLOBAL_SERVER_DIR}（影响所有项目，需 --purge-server 才删除）`);
+  }
+
+  if (FLAG_PURGE_AGENTS) {
+    if (!existsSync(GLOBAL_AGENTS_DIR)) {
+      skip(`全局 agent 目录不存在：${GLOBAL_AGENTS_DIR}`);
+      return;
+    }
+    const { readdir } = await import('node:fs/promises');
+    const files = (await readdir(GLOBAL_AGENTS_DIR)).filter((f) => f.endsWith('.md') && f.startsWith(AGENT_PREFIX));
+    if (files.length === 0) {
+      skip('全局 agent 目录中无 delivery-*.md');
+      return;
+    }
+    for (const f of files) {
+      if (FLAG_DRY) {
+        log(`  - 将删除 agent/${f}`);
+      } else {
+        await rm(join(GLOBAL_AGENTS_DIR, f));
+      }
+    }
+    if (!FLAG_DRY) ok(`已删除 ${files.length} 个全局角色 Agent 文件`);
+  } else {
+    skip(`全局 agent 已保留：${GLOBAL_AGENTS_DIR}（影响所有项目，需 --purge-agents 才删除）`);
+  }
+}
+
 // ---------- 主流程 ----------
-log('AI 交付任务系统卸载');
+log('AI 交付任务系统卸载（用户目录安装模型）');
 log('====================');
+log(`项目根目录：${PROJECT_ROOT}`);
+log(`全局安装目录：${GLOBAL_SERVER_DIR}`);
 
 if (FLAG_DRY) log('（dry-run 模式：仅预览，不改动任何文件）\n');
 
 await stopProcesses();
-await removeServer();
-await removeAgents();
 await removeMcpConfig();
+await removeGitignoreEntry();
 await removeData();
+await removeGlobal();
 
 log(`
 卸载完成。
-  - 已保留 .opencode/agent/delivery-*.md（可能被自定义过，如需删除加 --purge-agents）
   - 已保留 .delivery/ 任务数据（如需删除加 --purge-data）
-  若需重新安装，请运行：node delivery-mcp-server/install.js --release
+  - 已保留全局安装与全局 agent（如需删除加 --purge-server / --purge-agents）
+  若需重新安装，请在项目根目录运行：node ${join(GLOBAL_SERVER_DIR, 'install.js')} --release
 `);

@@ -19,7 +19,7 @@
   "scripts": {
     "build": "tsup && npm run build:web",
     "dev": "tsx src/server.ts",
-    "dashboard": "tsx src/dashboard.ts",
+    "dashboard": "node dist/dashboard.js",
     "dashboard:stop": "node install.js --stop-dashboard",
     "dev:web": "npm --prefix web run dev",
     "build:web": "npm --prefix web run build",

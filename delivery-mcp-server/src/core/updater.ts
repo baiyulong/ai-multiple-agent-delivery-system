@@ -57,8 +57,9 @@ function ttlHours(): number {
   return 6;
 }
 
-/** 读本地当前版本：优先读 <root>/delivery-mcp-server/package.json，回退到运行包 */
+/** 读本地当前版本：全局安装目录的 package.json（新模型：工具本体装在 ~/.config/ai-delivery/，packageRoot 即全局安装目录） */
 async function readCurrentVersion(root: string): Promise<string> {
+  // 兼容旧模型：<root>/delivery-mcp-server/package.json（按项目安装）优先，回退到运行包
   const installed = await readJson<{ version?: string }>(join(root, 'delivery-mcp-server', 'package.json'));
   if (installed?.version) return installed.version;
   const running = await readJson<{ version?: string }>(join(packageRoot(), 'package.json'));
@@ -159,7 +160,7 @@ export function startBackgroundUpdateCheck(root: string): void {
   checkForUpdates(root)
     .then((state) => {
       if (state.update_available && state.latest_version) {
-        console.error(`[delivery] 发现新版本 ${state.latest_version}，请运行 node delivery-mcp-server/install.js --release 更新`);
+        console.error(`[delivery] 发现新版本 ${state.latest_version}，请运行 node ${join(packageRoot(), 'install.js')} --release 更新（在项目根目录执行）`);
       }
     })
     .catch(() => {

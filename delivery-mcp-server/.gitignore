@@ -1,9 +1,6 @@
 node_modules/
 dist/
+web-dist/
 /.delivery/
 *.log
 
-public/
-!web/public/
-!web/public/logo.svg
-delivery-mcp-server

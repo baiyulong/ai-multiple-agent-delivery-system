@@ -28,69 +28,83 @@ Works with **OpenCode** and other MCP-capable AI coding tools.
 
 ## 3. Installation Steps (executed by AI)
 
-> Goal: install `delivery-mcp-server` and `.opencode/agent/` **into the target project root**, so the MCP server is referenced by relative path and the dashboard reads the project's own `.delivery` when started from within the project.
+> **Installation model (important)**: the tool itself is installed **globally once** in the user directory `~/.config/ai-delivery/delivery-mcp-server/`, and the role Agents globally in `~/.config/opencode/agents/` — **shared across projects, not re-installed per project**. The project only registers:
+>
+> 1. `mcp.delivery` in `opencode.json` (**absolute-path** command + `DELIVERY_ROOT` env var pointing at this project's `.delivery`)
+> 2. a `.delivery/` entry appended to `.gitignore` (task data root)
+>
+> Global paths can be overridden by env vars (normally not needed): `DELIVERY_INSTALL_ROOT` (tool root, default `~/.config/ai-delivery`), `DELIVERY_AGENTS_DIR` (agents dir, default `~/.config/opencode/agents`).
 >
 > **Recommended Option 1: run the `install.js` script (works on Windows/Linux, completes all steps and safe merging automatically), see 【Option 1】below; or follow 【Option 2】to do it manually step by step.**
 
 ### Option 1: One-click install script (recommended)
 
-Run in the **target project root** (requires Node.js ≥ 22):
+**Install from the latest prebuilt package on GitHub Releases (recommended, small download, pinned version, no local build)**:
 
 ```bash
-# Install from the latest stable version on GitHub Releases (recommended, small download, pinned version)
+# Run in the target project root
 node delivery-mcp-server/install.js --release
-
-# Or specify a local repository path (when the script is not in the same directory as the repo):
-node delivery-mcp-server/install.js --repo /tmp/ai-delivery-system
 ```
 
+**Or specify a local repository path (when the script is not in the same directory as the repo)**:
+
+```bash
+node delivery-mcp-server/install.js --repo /tmp/ai-delivery-system /path/to/project
+```
+
+> You can also run it directly from a repo checkout: `node /path/to/ai-delivery-system/delivery-mcp-server/install.js /path/to/project`.
+
 The script automatically:
-1. **（--release mode）** Downloads the latest stable tar.gz from GitHub Releases → extracts to a temp directory → uses it as the source path; handles both `v`-prefixed and non-prefixed directory names; exits with a message if there is no Release
-2. Validates the target directory (refuses to install into this repo itself; non-git projects can use `--force`)
-3. Copies `delivery-mcp-server/` to the target project (if it exists: `--release` / `--force-update` / **local version lower than source version** will delete the old copy and install the new one; otherwise it is skipped)
-4. Copies `.opencode/agent/` role configs to the target project (**only adds `delivery-*.md`, never overwrites existing agent files in the target project**)
-5. Merges `opencode.json`: **preserves all existing fields of the target project** (mcp/plugin/permission/agent etc.), only adds `mcp.delivery`, skips if the same-named mcp already exists
-6. Appends `.gitignore`: `delivery-mcp-server` (idempotent). **Email config belongs to the current user personally** (`email.set` writes to the user home `~/.config/ai-delivery/user.json`), never written into the project, no versioning concerns.
-7. Runs `npm install` + `npm run build` inside `delivery-mcp-server`
-8. By default does **not** auto-start the dashboard (add `--dashboard` to start in the background; avoids being killed by command-line tools with timeouts)
-9. Prints follow-up configuration guidance (user.set / team.set / email.set)
-10. Cleans up temporary files automatically
+
+0. **（--release mode）** Queries the latest GitHub Release → downloads the prebuilt `ai-delivery-*.zip` (contains dist + web-dist/{zh,en} + config + templates) → validates the zip format → extracts to a temp directory as the source path; exits with a message if there is no Release or the download fails
+1. Validates the target directory (refuses to install into the repo itself; non-git projects can use `--force`)
+2. Determines the install language (see "Language selection" below)
+3. Stops running dashboard and MCP server processes (avoids file locks on update)
+4. **Installs the tool into the global directory** `~/.config/ai-delivery/delivery-mcp-server/` (if it exists: `--release` / `--force-update` / **local version lower than source version** delete the old copy and install the new one; otherwise it is skipped)
+5. **Applies the install language**: writes `config/lang/active.json`, deletes the other language's built-in resources (config/gates, config/architectures, templates, lang json, `web-dist/`)
+6. **Copies the role Agents to the global directory** `~/.config/opencode/agents/` (`delivery-*.md`, language suffix stripped; source install only adds, never overwrites existing; `--release` update mode overwrites)
+7. **Merges `opencode.json`**: preserves all existing fields of the target project, only writes `mcp.delivery` = `{ "type": "local", "command": ["node", "<global>/delivery-mcp-server/dist/server.js"], "environment": { "DELIVERY_ROOT": "<project>/.delivery" }, "enabled": true }` (skips if already present with the same path; updates if an old path exists)
+8. **Appends `.gitignore`**: `.delivery/` (idempotent). **Email config belongs to the current user personally** (`email.set` writes to the user home `~/.config/ai-delivery/user.json`), never written into the project
+9. **Installs dependencies**: for `--release` prebuilt packages only runs `npm install --omit=dev` (**no build** — dist is included); for source installs runs `npm install` + `npm run build` (`VITE_LANG` injected into the web build, producing `web-dist/` in the selected language)
+10. If the project contains an old per-project `delivery-mcp-server/`, prints a **migration hint** (task data `.delivery` is preserved in place; the old directory can be deleted manually)
+11. By default does **not** auto-start the dashboard (add `--dashboard` to start in the background; avoids being killed by command-line tools with timeouts)
+12. Prints follow-up configuration guidance (user.set / team.set / email.set) and local global-path info
 
 ```bash
 # Common parameters
-node delivery-mcp-server/install.js                 # Install into the current directory
-node delivery-mcp-server/install.js /path/to/proj   # Install into a specific project
-node delivery-mcp-server/install.js --release       # Install from the latest stable GitHub Release
-node delivery-mcp-server/install.js --repo ../clone # Specify a local repository path
-node delivery-mcp-server/install.js --force-update  # Force-overwrite an installed delivery-mcp-server (no version comparison)
-node delivery-mcp-server/install.js --dashboard     # Start the dashboard in the background after install (detached, log .delivery/dashboard.log)
-node delivery-mcp-server/install.js --stop-dashboard # Stop the dashboard process (or npm run dashboard:stop)
-node delivery-mcp-server/install.js --dry-run       # Only print operations that would run, change nothing
+node delivery-mcp-server/install.js                          # Install into the project of the current directory
+node delivery-mcp-server/install.js /path/to/proj           # Install into a specific project
+node delivery-mcp-server/install.js --release               # Install/update from the latest stable GitHub Release
+node delivery-mcp-server/install.js --repo ../clone /path/to/proj # Specify a local repository path
+node delivery-mcp-server/install.js --force-update          # Force-overwrite the installed tool (no version comparison)
+node delivery-mcp-server/install.js --dashboard             # Start the dashboard in the background after install (detached, log <project>/.delivery/dashboard.log)
+node delivery-mcp-server/install.js --stop-dashboard        # Only stop the dashboard process, no install
+node delivery-mcp-server/install.js --dry-run               # Only print operations that would run, change nothing
+node delivery-mcp-server/install.js --force                 # Continue even if the target directory is not a git repo
 ```
 
-**Language selection (bilingual):** the system ships Chinese (`zh`) and English (`en`) versions. The install script asks for the language interactively (default `zh`). You can also pin it explicitly:
+**Language selection (bilingual):** the system ships Chinese (`zh`) and English (`en`) versions. The install script determines the language in this order: `--lang` flag > globally installed language (`<global>/delivery-mcp-server/config/lang/active.json`) > legacy project `.install-lang` (old versions) > interactive prompt > default `zh`:
 
 ```bash
-node delivery-mcp-server/install.js --lang en       # Install the English version (web UI + role agents + templates)
-node delivery-mcp-server/install.js --lang zh       # Install the Chinese version (default)
+node delivery-mcp-server/install.js --lang en               # Install the English version (web UI + role agents + templates)
+node delivery-mcp-server/install.js --lang zh               # Install the Chinese version (default)
 ```
 
-Only the selected language is installed. The choice is remembered in `.install-lang` in the target project, and is reused on later updates. `--lang` overrides the remembered choice.
+Only the selected language is installed (the other language's built-in resources and web artifacts are deleted); the choice is remembered in the **global** `active.json` and reused on later updates. `--lang` overrides the remembered choice.
 
 ### Option 2: Manual installation
 
 #### 1. Get the source (Release download recommended)
 
-**Option A: download from GitHub Releases (recommended, small download, pinned version)**
+**Option A: download the prebuilt package from GitHub Releases (recommended, small download, pinned version)**
 
 ```bash
 # Query the latest Release version
 curl -s https://api.github.com/repos/baiyulong/ai-multiple-agent-delivery-system/releases/latest | grep tag_name
 
-# Download and extract (replace v0.1.0 with the actual version)
-curl -L -o /tmp/release.tar.gz https://github.com/baiyulong/ai-multiple-agent-delivery-system/archive/refs/tags/v0.1.0.tar.gz
-mkdir -p /tmp/ai-delivery-system
-tar -xzf /tmp/release.tar.gz -C /tmp/ai-delivery-system --strip-components=1
+# Download and extract the prebuilt zip (replace v0.2.x with the actual version)
+curl -L -o /tmp/ai-delivery.zip https://github.com/baiyulong/ai-multiple-agent-delivery-system/releases/download/v0.2.x/ai-delivery-v0.2.x.zip
+unzip -q /tmp/ai-delivery.zip -d /tmp/ai-delivery-system
 ```
 
 **Option B: git clone (full source, incl. git history)**
@@ -99,45 +113,58 @@ tar -xzf /tmp/release.tar.gz -C /tmp/ai-delivery-system --strip-components=1
 git clone https://github.com/baiyulong/ai-multiple-agent-delivery-system.git /tmp/ai-delivery-system
 ```
 
-#### 2. Copy components into the target project root
+#### 2. Install the tool into the global directory (shared across projects)
 
-Run in the **target project root** to copy in the server and role Agent configs:
+> If `~/.config/ai-delivery/delivery-mcp-server/` already exists (installed by another project), **skip this step and step 3**, go straight to step 4 (registration).
 
 ```bash
-# Copy the MCP server (source/config/templates/frontend)
-cp -r /tmp/ai-delivery-system/delivery-mcp-server ./delivery-mcp-server
-
-# Copy the multi-role Agent configs (8 delivery-*.md role files)
-mkdir -p .opencode/agent
-cp -n /tmp/ai-delivery-system/.opencode/agent/delivery-*.md ./.opencode/agent/
+mkdir -p ~/.config/ai-delivery
+cp -r /tmp/ai-delivery-system/delivery-mcp-server ~/.config/ai-delivery/
 ```
 
 > **Windows users**: `cp` is a Unix command not available in PowerShell by default. Choose one of:
 > 1. Prefer the install script: `node delivery-mcp-server/install.js` (cross-platform, completes all steps)
-> 2. Use the PowerShell equivalents: `Copy-Item -Recurse /tmp/ai-delivery-system/delivery-mcp-server ./delivery-mcp-server`; `Copy-Item /tmp/ai-delivery-system/.opencode/agent/delivery-*.md .opencode/agent/` (`-NoClobber` ≈ `-n`)
+> 2. Use the PowerShell equivalents: `Copy-Item -Recurse /tmp/ai-delivery-system/delivery-mcp-server $env:USERPROFILE\.config\ai-delivery\`
 > 3. Run the Unix commands in Git Bash / WSL
 
-> **Important**: all role Agent files are prefixed `delivery-` (`delivery-engineer.md`, `delivery-qa.md`, etc.), **only added, never overwriting** same-named agents that already exist in the target project (e.g. `engineer.md`). `cp -n` guarantees existing same-named files are not overwritten.
-
-#### 3. Install dependencies and build
-
-> **Note**: the following commands must run inside `delivery-mcp-server/`, otherwise you'll get ENOENT (package.json not found).
+#### 3. Copy the role Agents into the global directory
 
 ```bash
-cd delivery-mcp-server
+# 8 role configs (Chinese *.zh.md / English *.en.md), language suffix stripped, into the global agents dir
+mkdir -p ~/.config/opencode/agents
+# Chinese:
+cp /tmp/ai-delivery-system/.opencode/agent/delivery-*.zh.md ~/.config/opencode/agents/
+# English:
+cp /tmp/ai-delivery-system/.opencode/agent/delivery-*.en.md ~/.config/opencode/agents/
+# Strip the language suffix (delivery-orchestrator.zh.md → delivery-orchestrator.md)
+cd ~/.config/opencode/agents
+for f in delivery-*.zh.md delivery-*.en.md; do mv "$f" "${f%.zh.md}.md"; mv "${f}" "${f%.en.md}.md"; done 2>/dev/null || true
+```
+
+> **Important**: all role Agent files are prefixed `delivery-` (`delivery-engineer.md`, `delivery-qa.md`, etc.), **only added, never overwriting** same-named agents in the target project's `.opencode/agent/` (e.g. `engineer.md`) — note there are two agent directories: **project-level** (`.opencode/agent/`) and **global-level** (`~/.config/opencode/agents/`); project-level takes precedence.
+
+#### 4. Install dependencies and build (only needed on first global install)
+
+> **Note**: the following commands must run inside the global `delivery-mcp-server/`, otherwise you'll get ENOENT (package.json not found).
+
+```bash
+cd ~/.config/ai-delivery/delivery-mcp-server
 npm install
-npm run build        # produces dist/server.js (the file OpenCode references)
+# Choose the web UI language before building (zh or en):
+VITE_LANG=zh npm run build        # Chinese web UI
+# or: VITE_LANG=en npm run build  # English web UI
+# Produces dist/server.js (what OpenCode references) + web-dist/{zh|en}/
 ```
 
-> **Note**: the built web UI language follows `VITE_LANG` (zh/en). The install script's `--lang` controls this automatically.
+> If using the `--release` prebuilt package, **skip this step** (dist and web-dist are included; only `npm install --omit=dev` is needed).
 
-#### 4. Verify the build artifact exists
+#### 5. Verify the build artifact exists
 
 ```bash
-# Should exist: delivery-mcp-server/dist/server.js
+# Should exist: ~/.config/ai-delivery/delivery-mcp-server/dist/server.js
 ```
 
-#### 5. Register the MCP server in the target project (must merge, never overwrite)
+#### 6. Register the MCP server in the target project (must merge, never overwrite)
 
 In the target project root's `opencode.json`, **merge** (create if the file doesn't exist). **Be sure to preserve all existing fields of the target project** (e.g. existing `mcp`, `plugin`, `permission`, `agent`, etc.):
 
@@ -148,7 +175,8 @@ In the target project root's `opencode.json`, **merge** (create if the file does
     "...target project's existing mcp...": {},
     "delivery": {
       "type": "local",
-      "command": ["node", "delivery-mcp-server/dist/server.js"],
+      "command": ["node", "/home/USER/.config/ai-delivery/delivery-mcp-server/dist/server.js"],
+      "environment": { "DELIVERY_ROOT": "/path/to/proj/.delivery" },
       "enabled": true
     }
   }
@@ -156,53 +184,45 @@ In the target project root's `opencode.json`, **merge** (create if the file does
 ```
 
 > **Never overwrite wholesale**: if the target project already has an `opencode.json`, only add the `mcp.delivery` field, keep everything else unchanged; if `mcp.delivery` already exists, skip — do not add it again.
-> Because the server is installed inside the project, the `command` can use the **relative path** `delivery-mcp-server/dist/server.js`; OpenCode starts it with the project root as cwd.
+> **Paths**: the server lives in the **global directory** (not inside the project), so the `command` must be an **absolute path**; also use `environment.DELIVERY_ROOT` to explicitly point at this project's data root (in the new model the server and the project have no parent/child relationship, so it must be injected explicitly). On Windows the path looks like `C:\Users\USER\.config\ai-delivery\delivery-mcp-server\dist\server.js`.
 
-#### 6. Clean up the temporary clone
+#### 7. Clean up the temporary clone
 
 ```bash
 rm -rf /tmp/ai-delivery-system
 ```
 
-#### 7. Start the browser task dashboard and tell the user
+#### 8. Start the browser task dashboard and tell the user
 
 > **Note**: the dashboard is a long-running service; **it does not auto-start with the install by default** (to avoid being killed by command-line tools with timeouts). Start it on demand after installation:
 >
-> - Background start (recommended, separate process + log + port check): `node delivery-mcp-server/install.js --dashboard`
-> - Foreground start: `cd delivery-mcp-server && npm run dashboard` (must run inside `delivery-mcp-server/`, otherwise ENOENT)
-> - Stop: `node delivery-mcp-server/install.js --stop-dashboard` or `cd delivery-mcp-server && npm run dashboard:stop`
->
-> **Windows manual start** (if the script's background start is unavailable):
-> ```powershell
-> # Option 1: PowerShell Start-Process background start
-> cd delivery-mcp-server
-> Start-Process -FilePath "npm.cmd" -ArgumentList "run","dashboard" -RedirectStandardOutput ".delivery\dashboard.log" -RedirectStandardError ".delivery\dashboard.err.log" -NoNewWindow
-> # Option 2: open a separate cmd window in the foreground (closing the window stops it)
-> Start-Process cmd -ArgumentList "/k","npm run dashboard"
-> ```
+> - Background start (recommended, separate process + log + port check): run `node ~/.config/ai-delivery/delivery-mcp-server/install.js --dashboard` in the project root (the script injects `DELIVERY_ROOT` automatically)
+> - Foreground start: `cd ~/.config/ai-delivery/delivery-mcp-server && npm run dashboard` (**you must set `DELIVERY_ROOT` to the project data root first**, e.g. PowerShell: `$env:DELIVERY_ROOT="C:\path\to\proj\.delivery"`)
+> - Stop: `node ~/.config/ai-delivery/delivery-mcp-server/install.js --stop-dashboard` or `cd ~/.config/ai-delivery/delivery-mcp-server && npm run dashboard:stop`
 
 ```bash
-cd delivery-mcp-server
+cd ~/.config/ai-delivery/delivery-mcp-server
+$env:DELIVERY_ROOT = "C:\path\to\proj\.delivery"   # must be set (data root)
 npm run dashboard
 # Output: AI delivery task dashboard started: http://localhost:8787
 ```
 
 **Must tell the user**:
-- Dashboard URL: `http://localhost:8787` (if the port is occupied, check the actual port in `.delivery/dashboard.port` or the startup log)
+- Dashboard URL: `http://localhost:8787` (if the port is occupied, check the actual port in `<project>/.delivery/dashboard.port` or the startup log)
 - Note: all task creation and status changes are visible on this page; `task.create` / `stage.complete` etc. also return `dashboard_url` and `view_hint` that can be opened directly in the browser to view the corresponding task.
 
-> The dashboard automatically reads `.delivery` in the **project root** (the parent directory of delivery-mcp-server), no extra config needed. To use a different data directory, set the env var `DELIVERY_ROOT`.
+> The dashboard resolves the data root as: `DELIVERY_ROOT` env var > `.delivery` in the current directory. When starting from the global directory you **must** set `DELIVERY_ROOT` (the script's `--dashboard` injects it automatically).
 
-#### 8. Add delivery-related files to .gitignore
+#### 9. Add the task data to .gitignore
 
-`delivery-mcp-server` is the **tool itself** copied from this repo (incl. node_modules/dist), not source code of the target project — it should be ignored. Run in the **target project root**:
+Run in the **target project root** (the script does this automatically; manual installs must do it):
 
 ```bash
 # Create .gitignore if missing; otherwise append idempotently only if the entry is absent
-grep -qxF 'delivery-mcp-server' .gitignore 2>/dev/null || echo 'delivery-mcp-server' >> .gitignore
+grep -qxF '.delivery/' .gitignore 2>/dev/null || echo '.delivery/' >> .gitignore
 ```
 
-> Note: do **not** ignore `.delivery/` wholesale — it's the target project's delivery records and should be version-controlled.
+> Note: `.delivery/` is the task data root (team config + task records); in the new model it is **recommended to ignore it** (it is tool runtime data that can be rebuilt at any time; if you want to customize flow/gate templates in `.delivery/config/`, commit them separately). **The tool itself is no longer inside the project**, so there's no need to ignore `delivery-mcp-server`.
 > **Email config (SMTP server + authorization code) belongs to the current user personally**; `email.set` writes to the user home `~/.config/ai-delivery/user.json`, never appears in the project directory, so it must not and need not be committed.
 
 ---
@@ -299,22 +319,22 @@ In OpenCode, confirm you can see the following tool groups: `task.*`, `stage.*`,
 ### 2. Run a full example (optional)
 
 ```bash
-cd delivery-mcp-server
+cd ~/.config/ai-delivery/delivery-mcp-server
 npm run example
 ```
 
 ### 3. Start the browser task dashboard (optional)
 
 ```bash
-cd delivery-mcp-server
-npm run dashboard
+# In the project root (injects DELIVERY_ROOT automatically):
+node ~/.config/ai-delivery/delivery-mcp-server/install.js --dashboard
 # Open http://localhost:8787
 ```
 
-Background start (separate process + log): `node delivery-mcp-server/install.js --dashboard`
-Stop the dashboard: `node delivery-mcp-server/install.js --stop-dashboard` or `cd delivery-mcp-server && npm run dashboard:stop`
+Background start (separate process + log): `--dashboard` as above
+Stop the dashboard: `node ~/.config/ai-delivery/delivery-mcp-server/install.js --stop-dashboard`
 
-> The dashboard automatically reads `.delivery` in the **project root** (the parent directory of delivery-mcp-server), no extra config needed. To use a different data directory, set the env var `DELIVERY_ROOT`.
+> Dashboard data root: `DELIVERY_ROOT` env var > `.delivery` in the current directory. When starting directly from the global directory (`npm run dashboard`) you **must** set `DELIVERY_ROOT` to the project data root.
 
 ---
 
@@ -340,28 +360,27 @@ The orchestrator will, in order:
 
 ### Option 1: One-click update (recommended)
 
-An installed project can update to the latest version with the install script:
+> **Note**: in the new model the tool lives in the **global directory**; run the update command in the **project root**:
 
 ```bash
-# Run in the target project root
-node delivery-mcp-server/install.js --release
+node ~/.config/ai-delivery/delivery-mcp-server/install.js --release
 ```
 
-The script automatically downloads the latest Release → overwrites the `delivery-mcp-server/` tool + `delivery-*.md` role configs → rebuilds. **`.delivery` task data** and custom config in `opencode.json` are **preserved**. Pass `--lang zh|en` to switch the installed language (otherwise the remembered `.install-lang` language is reused).
+The script automatically: queries and downloads the latest Release prebuilt zip → stops old processes → overwrites the global tool + role Agents → `npm install --omit=dev` (no build needed for prebuilt packages). **`.delivery` task data** and custom config in `opencode.json` are **preserved**. Pass `--lang zh|en` to switch the installed language (otherwise the globally remembered `active.json` language is reused).
 
-> **Version-comparison auto-update**: when `delivery-mcp-server` already exists, `--release` / `--force-update` / **local version lower than source version** automatically delete the old copy and overwrite; otherwise it is skipped.
+> **Version-comparison auto-update**: when the global install already exists, `--release` / `--force-update` / **local version lower than source version** automatically delete the old copy and overwrite; otherwise it is skipped.
 > **Windows manual update** (when the script is unavailable):
 > ```powershell
-> # After downloading and extracting the latest Release, run in the target project root
-> Copy-Item -Recurse -Force "$env:TEMP\ai-delivery-system\delivery-mcp-server" .\delivery-mcp-server
-> Copy-Item -Force "$env:TEMP\ai-delivery-system\.opencode\agent\delivery-*.md" .\.opencode\agent\
-> cd delivery-mcp-server; npm install; npm run build
+> # After downloading and extracting the latest Release prebuilt package
+> Copy-Item -Recurse -Force "$env:TEMP\ai-delivery-system\delivery-mcp-server" "$env:USERPROFILE\.config\ai-delivery\delivery-mcp-server"
+> Copy-Item -Force "$env:TEMP\ai-delivery-system\.opencode\agent\delivery-*.en.md" "$env:USERPROFILE\.config\opencode\agents\"   # or *.zh.md
+> cd "$env:USERPROFILE\.config\ai-delivery\delivery-mcp-server"; npm install --omit=dev
 > ```
 
 ### Option 2: MCP-tool update
 
 - **Auto-check on every startup**: when OpenCode starts the MCP server, the server asynchronously checks for new versions (based on GitHub Releases) and prints a hint in the startup log if found; silently skips without network, doesn't affect startup.
-- **Manual update**: use `update.check` to view version status (optional `force` to force re-check), then run `node delivery-mcp-server/install.js --release` to update.
+- **Manual update**: use `update.check` to view version status (optional `force` to force re-check), then run `node ~/.config/ai-delivery/delivery-mcp-server/install.js --release` in the project root to update.
 
 After updating, **restart OpenCode** for changes to take effect. Set `DELIVERY_UPDATE_CHECK=0` to disable the auto-check.
 
@@ -370,7 +389,7 @@ After updating, **restart OpenCode** for changes to take effect. Set `DELIVERY_U
 ## 7. FAQ
 
 **Q: Tools not found in OpenCode?**
-A: Make sure `npm run build` produced `dist/server.js`, the `command` path in `opencode.json` is correct, then restart OpenCode.
+A: Make sure the global `~/.config/ai-delivery/delivery-mcp-server/dist/server.js` is built and the `command` in `opencode.json` uses an **absolute path**, then restart OpenCode.
 
 **Q: `task.create` blocked with `config_required`?**
 A: The current user or team roster isn't configured. Run `user.set` and `team.set` per section 4.
@@ -382,42 +401,55 @@ A: The union of members' roles in the team roster doesn't cover all 8 roles. Fol
 A: `.delivery/tasks/` under the target project root — plain-text files, trackable and versionable.
 
 **Q: The dashboard can't read task data?**
-A: Make sure `delivery-mcp-server` is installed under the **project root** (install.md section 3); the dashboard reads the project root `.delivery` automatically. If the server is elsewhere, set `DELIVERY_ROOT` to the project root.
+A: When starting the dashboard from the global directory you **must** set `DELIVERY_ROOT` to the project data root (`node ~/.config/ai-delivery/delivery-mcp-server/install.js --dashboard` injects it automatically; for the foreground `npm run dashboard`, set it manually).
 
 **Q: Want to change the storage location?**
 A: Set the env var `DELIVERY_ROOT` to the target directory.
+
+**Q: Updated the version but OpenCode still runs the old code?**
+A: The MCP server process is stopped on update; **restart OpenCode** for it to start with the new code.
 
 ---
 
 ## 8. Uninstall
 
+> **Note**: run the uninstall command in the **project root**. In the new model the tool lives in the global directory, so uninstall is split into "project unbinding" and "global cleanup".
+
 ### Option 1: One-click uninstall (recommended)
 
 ```bash
-# Run in the target project root (stops running processes and cleans up automatically)
-node delivery-mcp-server/uninstall.js
+# Run in the target project root (stops running processes, removes project registration)
+node ~/.config/ai-delivery/delivery-mcp-server/uninstall.js
 
 # Also delete .delivery/ task data (kept by default)
-node delivery-mcp-server/uninstall.js --purge-data
+node ~/.config/ai-delivery/delivery-mcp-server/uninstall.js --purge-data
 
-# Also delete .opencode/agent/delivery-*.md (kept by default; may have been customized)
-node delivery-mcp-server/uninstall.js --purge-agents
+# Also delete the global install ~/.config/ai-delivery/delivery-mcp-server/ (affects all projects; kept by default)
+node ~/.config/ai-delivery/delivery-mcp-server/uninstall.js --purge-server
+
+# Also delete the global role Agents ~/.config/opencode/agents/delivery-*.md (affects all projects; kept by default)
+node ~/.config/ai-delivery/delivery-mcp-server/uninstall.js --purge-agents
+
+# All of the above (data + global install + global agents)
+node ~/.config/ai-delivery/delivery-mcp-server/uninstall.js --purge-all
 
 # Preview the operations that would run
-node delivery-mcp-server/uninstall.js --dry-run
+node ~/.config/ai-delivery/delivery-mcp-server/uninstall.js --dry-run
 ```
 
+> If the project still contains a legacy per-project `delivery-mcp-server/`, you can also use `node delivery-mcp-server/uninstall.js` (legacy script) to unbind the current project.
+
 The script automatically:
-1. Stops running dashboard and MCP server processes
-2. Deletes the `delivery-mcp-server/` directory
-3. Keeps `.opencode/agent/delivery-*.md` role configs (may have been customized; not deleted by default — only with `--purge-agents`)
-4. Removes the `mcp.delivery` config from `opencode.json`
-5. Keeps the `.delivery/` task data directory (not deleted by default — only with `--purge-data`)
+1. Stops running dashboard (by the port in `.delivery/dashboard.port`) and MCP server processes
+2. Removes the `mcp.delivery` config from `opencode.json` (deletes `mcp` too if it becomes empty)
+3. Removes the `.delivery/` entry from `.gitignore`
+4. Keeps the `.delivery/` task data directory (not deleted by default — only with `--purge-data`)
+5. Keeps the global install and global agents (not deleted by default, **affects all projects** — only with `--purge-server` / `--purge-agents`)
 
 ### Option 2: Manual uninstall
 
 1. Stop the dashboard (Ctrl+C closes the dashboard window) and exit OpenCode (releases the MCP server)
 2. Remove the `mcp.delivery` config from `opencode.json`
-3. Delete the `delivery-mcp-server/` directory
-4. Keep `.opencode/agent/delivery-*.md` (may have been customized; if you really want them gone, only delete the `delivery-` prefixed files)
-5. Keep the `.delivery/` directory (task data; delete manually if you really want to)
+3. Remove the `.delivery/` entry from `.gitignore`
+4. Keep the `.delivery/` directory (task data; delete manually if you really want to)
+5. Global cleanup (optional, **affects all projects**): delete `~/.config/ai-delivery/delivery-mcp-server/` and `~/.config/opencode/agents/delivery-*.md`

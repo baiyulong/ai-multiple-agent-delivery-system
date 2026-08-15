@@ -167,7 +167,7 @@
   "tool.email.providers.description": "列出内置支持的邮件服务商 SMTP 预设（host/port/secure 与开启授权码的注意事项）。供 email.set 选择 provider 使用。",
   "tool.email.providers.failed": "列出邮件服务商失败: {msg}",
 
-  "tool.update.check.description": "检查 GitHub Releases 是否有新版本。默认走本地缓存（TTL 内不重复请求 GitHub）；传 force=true 强制重新请求。无网络时静默返回 network_error，不抛错。有新版本时需手动执行更新：node delivery-mcp-server/install.js --release。",
+  "tool.update.check.description": "检查 GitHub Releases 是否有新版本。默认走本地缓存（TTL 内不重复请求 GitHub）；传 force=true 强制重新请求。无网络时静默返回 network_error，不抛错。有新版本时需手动执行更新：在项目根目录运行 node ~/.config/ai-delivery/delivery-mcp-server/install.js --release。",
   "tool.update.check.force": "强制重新请求 GitHub（忽略 TTL 缓存）",
   "tool.update.check.failed": "检查更新失败: {msg}",
 

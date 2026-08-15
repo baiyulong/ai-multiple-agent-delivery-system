@@ -37,7 +37,7 @@ npm run dashboard # 启动浏览器任务看板 http://localhost:8787
 ## 自动更新
 
 - **检测自动跑**：每次 OpenCode 启动拉起 MCP server 时，server 启动会自动异步检测新版本（GitHub Releases 版本源），检测到新版本会在启动日志打印提示。无网络时静默跳过，不影响启动。
-- **更新手动触发**：用 `update.check` 查询版本状态（可选 `force` 强制重新检测），然后运行 `node delivery-mcp-server/install.js --release` 完成更新（停进程 → 下载 → 删除旧版 → 拷贝 → 构建 → 启动，**保留 `.delivery/` 任务数据**）。
+- **更新手动触发**：用 `update.check` 查询版本状态（可选 `force` 强制重新检测），然后在项目根目录运行 `node ~/.config/ai-delivery/delivery-mcp-server/install.js --release` 完成更新（停进程 → 下载预构建包 → 覆盖全局安装 → 安装依赖，**保留 `.delivery/` 任务数据**）。
 - 更新后需**重启 OpenCode** 生效。可用环境变量 `DELIVERY_UPDATE_CHECK=0` 禁用自动检测。
 
 ## MCP 工具（25 个）
@@ -81,23 +81,32 @@ npm run dashboard # 启动浏览器任务看板 http://localhost:8787
 > 配置分层：`team` 是项目级团队分工（所有人），`user` 是机器级"当前我是谁"（仅本人），个人 SMTP 邮件配置（email.get / email.set）与身份同存于 user.json。
 > 当前操作人的角色 = `user.set` 的邮箱在团队名册中匹配到的 roles；看板会高亮显示当前人。
 
-## 在 OpenCode 中注册
+## 在 OpenCode 中注册（用户目录安装模型）
 
-在项目根目录 `opencode.json` 添加：
+工具本体**全局安装一份**（`~/.config/ai-delivery/delivery-mcp-server/`），跨项目共享。用安装脚本自动完成注册（推荐）：
+
+```bash
+# 在目标项目根目录执行（下载预构建包，自动注册到 opencode.json 并追加 .gitignore）
+node delivery-mcp-server/install.js --release
+# 或从本地仓库源码安装：node /path/to/ai-delivery-system/delivery-mcp-server/install.js /path/to/project
+```
+
+手动注册时，在项目根目录 `opencode.json` 添加（`command` 必须是**绝对路径**，并注入 `DELIVERY_ROOT`）：
 
 ```json
 {
   "mcp": {
     "delivery": {
       "type": "local",
-      "command": ["node", "delivery-mcp-server/dist/server.js"],
+      "command": ["node", "/home/USER/.config/ai-delivery/delivery-mcp-server/dist/server.js"],
+      "environment": { "DELIVERY_ROOT": "/path/to/proj/.delivery" },
       "enabled": true
     }
   }
 }
 ```
 
-> 先执行 `npm run build` 生成 `dist/server.js`。也可用 `--import tsx src/server.ts` 直接以源码运行。
+> 先执行 `npm run build` 生成 `dist/server.js`。也可用 `--import tsx src/server.ts` 直接以源码运行（仅本地开发）。
 
 ## 存储结构（`.delivery`）
 

@@ -1,0 +1,79 @@
+name: Release
+
+# 发布流程：打 tag（v*）时构建全部编译产物并打包预构建 zip。
+# 安装端（install.js --release）下载该 zip 后只需 npm install --omit=dev，不再构建。
+# zip 结构：delivery-mcp-server/{dist,web-dist/{zh,en},config,templates,package*.json,install.js,uninstall.js} + .opencode/agent/delivery-*.md
+# 与仓库布局一致，install.js 解压后直接按仓库路径取用。
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: delivery-mcp-server/package-lock.json
+
+      - name: Install dependencies
+        working-directory: delivery-mcp-server
+        run: npm ci
+
+      - name: Typecheck
+        working-directory: delivery-mcp-server
+        run: npm run typecheck
+
+      - name: Test
+        working-directory: delivery-mcp-server
+        run: npm test
+
+      - name: Build server + dashboard (tsup)
+        working-directory: delivery-mcp-server
+        run: npx tsup
+
+      - name: Build web (zh)
+        working-directory: delivery-mcp-server
+        env:
+          VITE_LANG: zh
+        run: npm run build:web
+
+      - name: Build web (en)
+        working-directory: delivery-mcp-server
+        env:
+          VITE_LANG: en
+        run: npm run build:web
+
+      - name: Package release zip
+        shell: bash
+        run: |
+          set -e
+          TAG="${GITHUB_REF_NAME}"
+          STAGE="release-stage"
+          mkdir -p "${STAGE}/delivery-mcp-server" "${STAGE}/.opencode/agent"
+          cp -r delivery-mcp-server/dist "${STAGE}/delivery-mcp-server/"
+          cp -r delivery-mcp-server/web-dist "${STAGE}/delivery-mcp-server/"
+          cp -r delivery-mcp-server/config "${STAGE}/delivery-mcp-server/"
+          cp -r delivery-mcp-server/templates "${STAGE}/delivery-mcp-server/"
+          cp delivery-mcp-server/package.json delivery-mcp-server/package-lock.json "${STAGE}/delivery-mcp-server/"
+          cp delivery-mcp-server/install.js delivery-mcp-server/uninstall.js "${STAGE}/delivery-mcp-server/"
+          cp .opencode/agent/delivery-*.md "${STAGE}/.opencode/agent/" 2>/dev/null || true
+          cd "${STAGE}"
+          zip -r "../ai-delivery-${TAG}.zip" .
+          cd ..
+          rm -rf "${STAGE}"
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ai-delivery-*.zip
+          generate_release_notes: true

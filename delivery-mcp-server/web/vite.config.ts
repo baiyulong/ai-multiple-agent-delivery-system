@@ -4,6 +4,10 @@ import vue from '@vitejs/plugin-vue';
 // 开发时代理到 dashboard HTTP 服务（npm run dashboard，默认 8787）
 const dashboardPort = process.env.DELIVERY_DASHBOARD_PORT ?? process.env.PORT ?? '8787';
 
+// 语言维度输出目录：web-dist/{lang}/（CI 以 VITE_LANG=zh / VITE_LANG=en 各构建一次）
+// dashboard serveStatic 按 activeLang() 读取 web-dist/{lang}/
+const lang = process.env.VITE_LANG ?? 'zh';
+
 export default defineConfig({
   plugins: [vue()],
   resolve: {
@@ -22,8 +26,8 @@ export default defineConfig({
     },
   },
   build: {
-    // 直接产出 dashboard 的静态目录（服务端 serveStatic 读取 public/）
-    outDir: '../public',
+    // 语言维度输出目录（dashboard 静态资源源），不再用固定 public/
+    outDir: `../web-dist/${lang}`,
     emptyOutDir: true,
   },
 });

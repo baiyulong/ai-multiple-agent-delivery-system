@@ -167,7 +167,7 @@
   "tool.email.providers.description": "List built-in email provider SMTP presets (host/port/secure and notes on enabling auth codes). For selecting a provider in email.set.",
   "tool.email.providers.failed": "Failed to list email providers: {msg}",
 
-  "tool.update.check.description": "Check whether a new version exists on GitHub Releases. Uses a local cache by default (does not re-request GitHub within TTL); pass force=true to force re-request. Silently returns network_error when offline, does not throw. When a new version exists, update manually: node delivery-mcp-server/install.js --release.",
+  "tool.update.check.description": "Check whether a new version exists on GitHub Releases. Uses a local cache by default (does not re-request GitHub within TTL); pass force=true to force re-request. Silently returns network_error when offline, does not throw. When a new version exists, update manually from the project root: node ~/.config/ai-delivery/delivery-mcp-server/install.js --release.",
   "tool.update.check.force": "Force re-request GitHub (ignore TTL cache)",
   "tool.update.check.failed": "Failed to check update: {msg}",
 

@@ -120,36 +120,40 @@ npm test
 
 ## Using in a New Project
 
-### 1. Copy components into the new project
+> **Installation model**: the tool is installed **globally once** (`~/.config/ai-delivery/delivery-mcp-server/`), role Agents globally (`~/.config/opencode/agents/`), **shared across projects, not re-installed per project**. The project only registers `mcp.delivery` in `opencode.json` (absolute path + `DELIVERY_ROOT`) and a `.delivery/` entry in `.gitignore`. See [install.en.md](install.en.md).
 
-Put the following into your new project root:
+### 1. One-click install (recommended)
 
-```
-your-project/
-├── .opencode/                 # 8 Agent configurations
-├── delivery-mcp-server/       # MCP server (can be referenced as a git submodule)
-└── opencode.json              # MCP registration
-```
-
-### 2. Build the server
+Run in the **target project root** (downloads the prebuilt package from GitHub Releases; no local build):
 
 ```bash
-cd delivery-mcp-server && npm install && npm run build
+node delivery-mcp-server/install.js --release
 ```
 
-### 3. Confirm opencode.json
+> Or install from a local repo checkout: `node /path/to/ai-delivery-system/delivery-mcp-server/install.js /path/to/project`.
+
+The script automatically: installs the tool into the global directory → copies Agents to the global directory → merges `opencode.json` (registers `mcp.delivery`) → appends `.gitignore` (`.delivery/`) → installs dependencies. Re-running is idempotent (skips if already present with the same version).
+
+### 2. Manual registration (equivalent to script step 3)
+
+In the target project root's `opencode.json`, **merge** (preserve existing fields); the `command` must be an **absolute path**:
 
 ```json
 {
+  "$schema": "https://opencode.ai/config.json",
   "mcp": {
+    "...target project's existing mcp...": {},
     "delivery": {
       "type": "local",
-      "command": ["node", "delivery-mcp-server/dist/server.js"],
+      "command": ["node", "/home/USER/.config/ai-delivery/delivery-mcp-server/dist/server.js"],
+      "environment": { "DELIVERY_ROOT": "/path/to/proj/.delivery" },
       "enabled": true
     }
   }
 }
 ```
+
+> On Windows the path looks like `C:\Users\USER\.config\ai-delivery\delivery-mcp-server\dist\server.js`. Append `.delivery/` to `.gitignore`.
 
 ### 4. Start delivering in OpenCode
 
@@ -215,7 +219,12 @@ The dashboard header shows current team members (name/email/roles); if not confi
 A local, read-only, no-login dashboard for browsing task status in the browser: task list, stage progress, gate results, artifact content, pending questions, shared context, and public documents.
 
 ```bash
-cd delivery-mcp-server
+# In the project root (injects DELIVERY_ROOT automatically, recommended):
+node ~/.config/ai-delivery/delivery-mcp-server/install.js --dashboard
+
+# Or foreground start (set DELIVERY_ROOT first):
+cd ~/.config/ai-delivery/delivery-mcp-server
+$env:DELIVERY_ROOT = "C:\path\to\proj\.delivery"   # data root (required)
 npm run dashboard
 # Output: AI delivery task dashboard started: http://localhost:8787
 ```
@@ -231,9 +240,9 @@ Configuration:
 | Item | Description |
 |---|---|
 | Port | env var `DELIVERY_DASHBOARD_PORT` or `PORT`, default `8787`; auto-falls back to a random port if occupied, actual port written to `<dataRoot>/dashboard.port` |
-| Data root | env var `DELIVERY_ROOT`, default `.delivery` in the current directory |
+| Data root | env var `DELIVERY_ROOT`, default `.delivery` in the current directory (**required** when starting from the global directory) |
 
-> The dashboard is an independent entry point, independent of the MCP server (`npm run dev`); both can run simultaneously.
+> The dashboard is an independent entry point, independent of the MCP server; both can run simultaneously. Stop: `node ~/.config/ai-delivery/delivery-mcp-server/install.js --stop-dashboard`.
 
 ---
 
@@ -287,7 +296,7 @@ crud_spec_card → ux_interaction_card → ddd_applicability_review + ubiquitous
 
 ```
 .delivery/
-├── config/                    # Copied from built-in templates at initialization (user-editable)
+├── config/                    # Project-level config (user-editable, takes priority over global defaults)
 │   ├── flows/                 # Flow templates
 │   ├── gates/                 # Gate rules
 │   └── architectures/         # Preset architecture templates (for greenfield projects)
@@ -306,12 +315,13 @@ crud_spec_card → ux_interaction_card → ddd_applicability_review + ubiquitous
 
 - Task IDs increment per day: `TASK-20260805-001`
 - Storage root priority: tool-passed `root` > env var `DELIVERY_ROOT` > current working directory `.delivery`
+- Config read chain: project `.delivery/config/*` > global install defaults `~/.config/ai-delivery/delivery-mcp-server/config/*` > built-in fallback
 
 ---
 
 ## Upgrade
 
-> **Scope of update**: upgrading overwrites the `delivery-mcp-server/` tool itself + `.opencode/agent/delivery-*.md` role configs + flow/gate/artifact templates, and rebuilds. **`.delivery` task data** and custom config in `opencode.json` are **preserved**. After upgrading, **restart OpenCode** for changes to take effect.
+> **Scope of update**: upgrading overwrites the global `~/.config/ai-delivery/delivery-mcp-server/` tool + global agents (`~/.config/opencode/agents/delivery-*.md`) + flow/gate/artifact templates, and installs dependencies. **Project `.delivery` task data** and custom config in `opencode.json` are **preserved**. After upgrading, **restart OpenCode** for changes to take effect.
 
 ### Option 1: Let AI upgrade it (recommended)
 
@@ -319,27 +329,27 @@ Open OpenCode and say to the orchestrator (or any Agent):
 
 > Please upgrade the AI Delivery Task System to the latest version: https://github.com/baiyulong/ai-multiple-agent-delivery-system/blob/main/install.md
 
-The AI reads the update section of install.md and runs `node delivery-mcp-server/install.js --release` (downloads the latest Release → overwrites the tool + role configs → rebuilds → prompts to restart OpenCode). No commands needed from you.
+The AI reads the update section of install.md and runs `node ~/.config/ai-delivery/delivery-mcp-server/install.js --release` (downloads the latest prebuilt package → overwrites the global tool + role configs → installs dependencies → prompts to restart OpenCode). No commands needed from you.
 
 ### Option 2: Run the upgrade command yourself
 
 In the target project root:
 
 ```bash
-node delivery-mcp-server/install.js --release
+node ~/.config/ai-delivery/delivery-mcp-server/install.js --release
 ```
 
-The script automatically: stops old processes → downloads the latest Release → deletes the old version and copies the new one → rebuilds.
+The script automatically: stops old processes → downloads the latest prebuilt zip → overwrites the global install and global agents → `npm install --omit=dev` (no build needed for prebuilt packages).
 
 Common parameters:
 
 | Parameter | Description |
 |---|---|
-| `--release` | Downloads the latest stable version from GitHub Releases and updates (default for upgrades) |
+| `--release` | Downloads the latest stable prebuilt package from GitHub Releases and updates (default for upgrades) |
 | `--force-update` | Force-overwrites the installed delivery-mcp-server (without version comparison) |
 | `--dashboard` | Starts the browser dashboard in the background after upgrading (log `.delivery/dashboard.log`) |
 | `--dry-run` | Only prints the operations that would run, changes nothing |
-| `--skip-build` | Skips the build (resume later; you'll need `npm run build` manually) |
+| `--skip-build` | Skips the build (only meaningful for source installs; prebuilt packages have no build step) |
 
 You can also check version status with `update.check` first (optional `force` to force re-check) before upgrading.
 
@@ -347,9 +357,9 @@ You can also check version status with `update.check` first (optional `force` to
 
 ## Customizing Flows & Gates
 
-All flows and gate rules are JSON config; **user config takes priority over built-in**:
+All flows and gate rules are JSON config; **user config takes priority over built-in** (project `.delivery/config/*` > global install defaults `~/.config/ai-delivery/delivery-mcp-server/config/*` > built-in fallback):
 
-- **Modify flows**: edit `.delivery/config/flows/<type>-flow.json` or `delivery-mcp-server/config/flows/` — add/remove stages, adjust roles, set `allow_skip`, specify upstream dependencies.
+- **Modify flows**: edit `.delivery/config/flows/<type>-flow.json` or the global `~/.config/ai-delivery/delivery-mcp-server/config/flows/` — add/remove stages, adjust roles, set `allow_skip`, specify upstream dependencies.
 - **Modify gates**: edit `.delivery/config/gates/<artifact_type>.json`; rules support four check types:
   - `required_sections`: required sections (missing one deducts 15 points)
   - `non_empty_sections`: content must not be empty
@@ -388,4 +398,4 @@ A: Stages support multiple artifacts via `required_artifact_types`; parallel rol
 A: Set the env var `DELIVERY_ROOT` to the target directory.
 
 **Q: Tools not found in OpenCode?**
-A: Make sure `npm run build` produced `dist/server.js`, the `opencode.json` path is correct, and restart OpenCode.
+A: Make sure the global `~/.config/ai-delivery/delivery-mcp-server/dist/server.js` is built and the `command` in `opencode.json` uses an **absolute path**, then restart OpenCode.

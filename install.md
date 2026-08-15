@@ -28,69 +28,83 @@
 
 ## 三、安装步骤（AI 执行）
 
-> 目标：把 `delivery-mcp-server` 和 `.opencode/agent/` **安装到目标项目根目录**，这样 MCP 用相对路径引用、dashboard 从项目内启动即可读取项目自己的 `.delivery`。
+> **安装模型（重要）**：工具本体**全局安装一份**到用户目录 `~/.config/ai-delivery/delivery-mcp-server/`，角色 Agent 全局安装到 `~/.config/opencode/agents/`，**跨项目共享，不重复安装**。项目内只注册：
+>
+> 1. `opencode.json` 的 `mcp.delivery`（**绝对路径** command + `DELIVERY_ROOT` 环境变量指向本项目 `.delivery`）
+> 2. `.gitignore` 追加 `.delivery/`（任务数据根）
+>
+> 全局路径可用环境变量覆盖（一般无需）：`DELIVERY_INSTALL_ROOT`（工具本体根，默认 `~/.config/ai-delivery`）、`DELIVERY_AGENTS_DIR`（agent 目录，默认 `~/.config/opencode/agents`）。
 >
 > **推荐方式一：运行安装脚本 `install.js`（Windows/Linux 通用，自动完成全部步骤与安全合并），见下方【方式一】；也可按【方式二】手动逐步执行。**
 
 ### 方式一：一键安装脚本（推荐）
 
-在**目标项目根目录**执行（需要 Node.js ≥ 22）：
+**从 GitHub Release 下载预构建包安装（推荐，体积小、版本固定、无需本地构建）**：
 
 ```bash
-# 从 GitHub Release 下载最新稳定版安装（推荐，体积小、版本固定）
+# 在目标项目根目录执行
 node delivery-mcp-server/install.js --release
-
-# 或指定本地仓库路径（脚本未与仓库同目录时）：
-node delivery-mcp-server/install.js --repo /tmp/ai-delivery-system
 ```
 
+**或指定本地仓库路径（脚本未与仓库同目录时）**：
+
+```bash
+node delivery-mcp-server/install.js --repo /tmp/ai-delivery-system /path/to/project
+```
+
+> 也可以直接从仓库源码执行：`node /path/to/ai-delivery-system/delivery-mcp-server/install.js /path/to/project`。
+
 脚本会自动：
-1. **（--release 模式）** 从 GitHub Release 下载最新稳定版 tar.gz → 解压到临时目录 → 作为源码路径；解压目录名兼容带 `v` 与不带 `v` 前缀两种格式；若无 Release 则提示并退出
-2. 校验目标目录（拒绝安装进本仓库自身、拒绝非 git 项目可加 `--force`）
-3. 拷贝 `delivery-mcp-server/` 到目标项目（已存在时：`--release` / `--force-update` / **本地版本低于源码版本** 三种情况会直接删除旧版并拷贝新版，否则跳过）
-4. 拷贝 `.opencode/agent/` 角色配置到目标项目（**只新增 `delivery-*.md`，绝不覆盖目标项目已有 agent 文件**）
-5. 合并 `opencode.json`：**保留目标项目已有的全部字段**（mcp/plugin/permission/agent 等），只新增 `mcp.delivery`，若已存在同名 mcp 则跳过
-6. 追加 `.gitignore`：`delivery-mcp-server`（幂等）。**邮件配置属于当前用户个人**（`email.set` 写入用户主目录 `~/.config/ai-delivery/user.json`），不会写入项目，无需考虑版本管理。
-7. 在 `delivery-mcp-server` 内执行 `npm install` + `npm run build`
-8. 默认**不**自动启动看板（加 `--dashboard` 后台启动；避免被有超时的命令行误杀）
-9. 打印后续配置指引（user.set / team.set / email.set）
-10. 自动清理临时文件
+
+0. **（--release 模式）** 查询 GitHub Releases 最新版本 → 下载预构建 `ai-delivery-*.zip`（含 dist + web-dist/{zh,en} + config + templates）→ 校验 zip 格式 → 解压到临时目录作为源码路径；无 Release 或下载失败时提示并退出
+1. 校验目标目录（拒绝把仓库自身当作安装目标；非 git 项目可加 `--force`）
+2. 确定安装语言（见下方"安装语言"）
+3. 停止运行中的 dashboard 与 MCP server 进程（更新时避免文件锁定）
+4. **安装工具本体到全局目录** `~/.config/ai-delivery/delivery-mcp-server/`（已存在时：`--release` / `--force-update` / **本地版本低于源码版本** 三种情况会删除旧版并拷贝新版，否则跳过）
+5. **应用安装语言**：写入 `config/lang/active.json`，删除另一语言的内置资源（config/gates、config/architectures、templates、lang json、`web-dist/`）
+6. **拷贝角色 Agent 到全局目录** `~/.config/opencode/agents/`（`delivery-*.md`，去掉语言后缀；源码安装只新增不覆盖已有，`--release` 更新模式覆盖）
+7. **合并 `opencode.json`**：保留目标项目已有的全部字段，只写 `mcp.delivery` = `{ "type": "local", "command": ["node", "<全局>/delivery-mcp-server/dist/server.js"], "environment": { "DELIVERY_ROOT": "<项目>/.delivery" }, "enabled": true }`（已存在且路径一致则跳过，已存在旧路径则更新）
+8. **追加 `.gitignore`**：`.delivery/`（幂等）。邮件配置属当前用户个人（`email.set` 写入用户主目录 `~/.config/ai-delivery/user.json`），不会写入项目
+9. **安装依赖**：`--release` 预构建包只执行 `npm install --omit=dev`（**不构建**，dist 已就绪）；源码安装执行 `npm install` + `npm run build`（`VITE_LANG` 注入 web 构建，产出所选语言的 `web-dist/`）
+10. 若项目内存在旧版按项目安装的 `delivery-mcp-server/`，打印**迁移提示**（任务数据 `.delivery` 原地保留，旧目录可手动删除）
+11. 默认**不**自动启动看板（加 `--dashboard` 后台启动；避免被有超时的命令行误杀）
+12. 打印后续配置指引（user.set / team.set / email.set）与本机全局路径信息
 
 ```bash
 # 常用参数
-node delivery-mcp-server/install.js                 # 安装到当前目录
-node delivery-mcp-server/install.js /path/to/proj   # 安装到指定项目
-node delivery-mcp-server/install.js --release       # 从 GitHub Release 下载最新稳定版
-node delivery-mcp-server/install.js --repo ../clone # 指定本地仓库路径
-node delivery-mcp-server/install.js --force-update  # 强制覆盖已安装的 delivery-mcp-server（不比较版本）
-node delivery-mcp-server/install.js --dashboard     # 安装后后台启动看板（detached，日志 .delivery/dashboard.log）
-node delivery-mcp-server/install.js --stop-dashboard # 停止看板进程（或 npm run dashboard:stop）
-node delivery-mcp-server/install.js --dry-run       # 只打印将要执行的操作，不改动文件
+node delivery-mcp-server/install.js                          # 安装到当前目录所在项目
+node delivery-mcp-server/install.js /path/to/proj           # 安装到指定项目
+node delivery-mcp-server/install.js --release               # 从 GitHub Release 下载最新稳定版（更新/安装）
+node delivery-mcp-server/install.js --repo ../clone /path/to/proj # 指定本地仓库路径
+node delivery-mcp-server/install.js --force-update          # 强制覆盖已安装的工具本体（不比较版本）
+node delivery-mcp-server/install.js --dashboard             # 安装后后台启动看板（detached，日志 <项目>/.delivery/dashboard.log）
+node delivery-mcp-server/install.js --stop-dashboard        # 仅停止看板进程，不执行安装
+node delivery-mcp-server/install.js --dry-run               # 只打印将要执行的操作，不改动文件
+node delivery-mcp-server/install.js --force                 # 目标目录不是 git 仓库时也继续
 ```
 
-**安装语言（双语）**：系统内置中文（`zh`）与英文（`en`）两个版本。安装脚本会交互式询问语言（默认 `zh`），也可显式指定：
+**安装语言（双语）**：系统内置中文（`zh`）与英文（`en`）两个版本。安装脚本会按此顺序确定语言：`--lang` 参数 > 全局已安装语言（`<全局>/delivery-mcp-server/config/lang/active.json`）> 旧项目 `.install-lang`（兼容旧版）> 交互询问 > 默认 `zh`：
 
 ```bash
-node delivery-mcp-server/install.js --lang en       # 安装英文版（web 界面 + 角色 Agent + 模板）
-node delivery-mcp-server/install.js --lang zh       # 安装中文版（默认）
+node delivery-mcp-server/install.js --lang en               # 安装英文版（web 界面 + 角色 Agent + 模板）
+node delivery-mcp-server/install.js --lang zh               # 安装中文版（默认）
 ```
 
-只安装所选语言。选择会记录到目标项目的 `.install-lang`，后续更新时沿用；`--lang` 优先于记忆的选择。
+只安装所选语言（删除另一语言的内置资源与 web 产物），选择记录到**全局** `active.json`，后续更新自动沿用；`--lang` 优先。
 
 ### 方式二：手动安装
 
 #### 1. 获取源码（推荐从 Release 下载）
 
-**方式 A：从 GitHub Release 下载（推荐，体积小、版本固定）**
+**方式 A：从 GitHub Release 下载预构建包（推荐，体积小、版本固定）**
 
 ```bash
 # 查询最新 Release 版本
 curl -s https://api.github.com/repos/baiyulong/ai-multiple-agent-delivery-system/releases/latest | grep tag_name
 
-# 下载并解压（将 v0.1.0 替换为实际版本）
-curl -L -o /tmp/release.tar.gz https://github.com/baiyulong/ai-multiple-agent-delivery-system/archive/refs/tags/v0.1.0.tar.gz
-mkdir -p /tmp/ai-delivery-system
-tar -xzf /tmp/release.tar.gz -C /tmp/ai-delivery-system --strip-components=1
+# 下载预构建 zip 并解压（将 v0.2.x 替换为实际版本）
+curl -L -o /tmp/ai-delivery.zip https://github.com/baiyulong/ai-multiple-agent-delivery-system/releases/download/v0.2.x/ai-delivery-v0.2.x.zip
+unzip -q /tmp/ai-delivery.zip -d /tmp/ai-delivery-system
 ```
 
 **方式 B：git clone（完整源码，含 git history）**
@@ -99,43 +113,58 @@ tar -xzf /tmp/release.tar.gz -C /tmp/ai-delivery-system --strip-components=1
 git clone https://github.com/baiyulong/ai-multiple-agent-delivery-system.git /tmp/ai-delivery-system
 ```
 
-#### 2. 拷贝组件到目标项目根目录
+#### 2. 安装工具本体到全局目录（跨项目共享）
 
-在**目标项目根目录**执行，把 server 与角色 Agent 配置拷进来：
+> 若 `~/.config/ai-delivery/delivery-mcp-server/` 已存在（其他项目已安装），**跳过本步与第 3 步**，直接进入第 4 步注册。
 
 ```bash
-# 拷贝 MCP server（含源码/配置/模板/前端）
-cp -r /tmp/ai-delivery-system/delivery-mcp-server ./delivery-mcp-server
-
-# 拷贝多角色 Agent 配置（8 个 delivery-*.md 角色文件）
-mkdir -p .opencode/agent
-cp -n /tmp/ai-delivery-system/.opencode/agent/delivery-*.md ./.opencode/agent/
+mkdir -p ~/.config/ai-delivery
+cp -r /tmp/ai-delivery-system/delivery-mcp-server ~/.config/ai-delivery/
 ```
 
-> **Windows 用户注意**：`cp` 是 Unix 命令，PowerShell（cmd）默认没有。三选一：
+> **Windows 用户注意**：`cp` 是 Unix 命令，PowerShell 默认没有。三选一：
 > 1. 优先使用安装脚本：`node delivery-mcp-server/install.js`（跨平台，自动完成全部步骤）
-> 2. 使用 PowerShell 等价命令：`Copy-Item -Recurse /tmp/ai-delivery-system/delivery-mcp-server ./delivery-mcp-server`；`Copy-Item /tmp/ai-delivery-system/.opencode/agent/delivery-*.md .opencode/agent/`（`-NoClobber` 等价 `-n`）
+> 2. 使用 PowerShell 等价命令：`Copy-Item -Recurse /tmp/ai-delivery-system/delivery-mcp-server $env:USERPROFILE\.config\ai-delivery\`
 > 3. 使用 Git Bash / WSL 执行上述 Unix 命令
 
-> **重要**：所有角色 Agent 文件都以 `delivery-` 前缀命名（`delivery-engineer.md`、`delivery-qa.md` 等），**只新增、不覆盖**目标项目已有的同名 agent（如 `engineer.md`）。`cp -n` 保证已存在的同名文件不被覆盖。
-
-#### 3. 安装依赖并构建
-
-> **注意**：以下命令必须在 `delivery-mcp-server/` 目录下执行，否则会报 ENOENT（找不到 package.json）。
+#### 3. 拷贝角色 Agent 到全局目录
 
 ```bash
-cd delivery-mcp-server
+# 8 个角色配置（中文版 *.zh.md / 英文版 *.en.md），去语言后缀后放入全局 agent 目录
+mkdir -p ~/.config/opencode/agents
+# 中文版：
+cp /tmp/ai-delivery-system/.opencode/agent/delivery-*.zh.md ~/.config/opencode/agents/
+# 英文版：
+cp /tmp/ai-delivery-system/.opencode/agent/delivery-*.en.md ~/.config/opencode/agents/
+# 去掉语言后缀（delivery-orchestrator.zh.md → delivery-orchestrator.md）
+cd ~/.config/opencode/agents
+for f in delivery-*.zh.md delivery-*.en.md; do mv "$f" "${f%.zh.md}.md"; mv "${f}" "${f%.en.md}.md"; done 2>/dev/null || true
+```
+
+> **重要**：所有角色 Agent 文件都以 `delivery-` 前缀命名（`delivery-engineer.md`、`delivery-qa.md` 等），**只新增、不覆盖**目标项目 `.opencode/agent/` 下已有的同名 agent（如 `engineer.md`）——注意 agent 目录有**项目级**（`.opencode/agent/`）与**全局级**（`~/.config/opencode/agents/`）两个，项目级优先于全局级。
+
+#### 4. 安装依赖并构建（仅首次安装到全局目录时需要）
+
+> **注意**：以下命令必须在全局的 `delivery-mcp-server/` 目录下执行，否则会报 ENOENT（找不到 package.json）。
+
+```bash
+cd ~/.config/ai-delivery/delivery-mcp-server
 npm install
-npm run build        # 产出 dist/server.js（OpenCode 引用的就是它）
+# 构建前选择 web 界面语言（zh 或 en）：
+VITE_LANG=zh npm run build        # 中文版 web 界面
+# 或：VITE_LANG=en npm run build  # 英文版 web 界面
+# 产出 dist/server.js（OpenCode 引用的就是它）+ web-dist/{zh|en}/
 ```
 
-#### 4. 验证构建产物存在
+> 若用 `--release` 预构建包，**跳过本步**（dist 与 web-dist 已内置，只执行 `npm install --omit=dev`）。
+
+#### 5. 验证构建产物存在
 
 ```bash
-# 应存在：delivery-mcp-server/dist/server.js
+# 应存在：~/.config/ai-delivery/delivery-mcp-server/dist/server.js
 ```
 
-#### 5. 注册 MCP 到目标项目（必须合并，禁止覆盖）
+#### 6. 注册 MCP 到目标项目（必须合并，禁止覆盖）
 
 在**目标项目根目录**的 `opencode.json` 中**合并**添加（若文件不存在则创建）。**务必保留目标项目已有的全部字段**（如已有 `mcp`、`plugin`、`permission`、`agent` 等）：
 
@@ -146,7 +175,8 @@ npm run build        # 产出 dist/server.js（OpenCode 引用的就是它）
     "...目标项目已有 mcp...": {},
     "delivery": {
       "type": "local",
-      "command": ["node", "delivery-mcp-server/dist/server.js"],
+      "command": ["node", "/home/USER/.config/ai-delivery/delivery-mcp-server/dist/server.js"],
+      "environment": { "DELIVERY_ROOT": "/path/to/proj/.delivery" },
       "enabled": true
     }
   }
@@ -154,53 +184,45 @@ npm run build        # 产出 dist/server.js（OpenCode 引用的就是它）
 ```
 
 > **禁止整体覆盖**：目标项目若已有 `opencode.json`，只允许新增 `mcp.delivery` 字段，其余字段原样保留；若已存在 `mcp.delivery` 则跳过，不要重复添加。
-> 因为 server 已装在项目内，`command` 用**相对路径** `delivery-mcp-server/dist/server.js` 即可，OpenCode 会以项目根目录为 cwd 启动它。
+> **路径说明**：server 装在**全局目录**（不随项目走），所以 `command` 必须是**绝对路径**；同时用 `environment.DELIVERY_ROOT` 显式指定本项目数据根（新模型下 server 与项目无父子目录关系，必须显式注入）。Windows 下路径形如 `C:\Users\USER\.config\ai-delivery\delivery-mcp-server\dist\server.js`。
 
-#### 6. 清理临时克隆
+#### 7. 清理临时克隆
 
 ```bash
 rm -rf /tmp/ai-delivery-system
 ```
 
-#### 7. 启动浏览器任务看板并提示用户
+#### 8. 启动浏览器任务看板并提示用户
 
 > **注意**：dashboard 是长期运行的服务，**默认不随安装自动启动**（避免被有超时的命令行工具误杀）。安装完成后按需启动：
 >
-> - 后台启动（推荐，独立进程 + 日志 + 端口探测确认）：`node delivery-mcp-server/install.js --dashboard`
-> - 前台启动：`cd delivery-mcp-server && npm run dashboard`（必须在 `delivery-mcp-server/` 目录下执行，否则报 ENOENT）
-> - 停止：`node delivery-mcp-server/install.js --stop-dashboard` 或 `cd delivery-mcp-server && npm run dashboard:stop`
->
-> **Windows 手动启动**（若脚本后台启动不可用）：
-> ```powershell
-> # 方式一：PowerShell Start-Process 后台启动
-> cd delivery-mcp-server
-> Start-Process -FilePath "npm.cmd" -ArgumentList "run","dashboard" -RedirectStandardOutput ".delivery\dashboard.log" -RedirectStandardError ".delivery\dashboard.err.log" -NoNewWindow
-> # 方式二：新开独立 cmd 窗口前台启动（关闭窗口即停止）
-> Start-Process cmd -ArgumentList "/k","npm run dashboard"
-> ```
+> - 后台启动（推荐，独立进程 + 日志 + 端口探测确认）：在项目根目录执行 `node ~/.config/ai-delivery/delivery-mcp-server/install.js --dashboard`（脚本自动注入 `DELIVERY_ROOT`）
+> - 前台启动：`cd ~/.config/ai-delivery/delivery-mcp-server && npm run dashboard`（**必须先设置 `DELIVERY_ROOT` 指向项目数据根**，如 PowerShell：`$env:DELIVERY_ROOT="C:\path\to\proj\.delivery"`）
+> - 停止：`node ~/.config/ai-delivery/delivery-mcp-server/install.js --stop-dashboard` 或 `cd ~/.config/ai-delivery/delivery-mcp-server && npm run dashboard:stop`
 
 ```bash
-cd delivery-mcp-server
+cd ~/.config/ai-delivery/delivery-mcp-server
+$env:DELIVERY_ROOT = "C:\path\to\proj\.delivery"   # 必须设置（数据根）
 npm run dashboard
 # 输出: AI 交付任务看板已启动: http://localhost:8787
 ```
 
 **必须向用户提示**：
-- 看板地址：`http://localhost:8787`（端口被占用时查看 `.delivery/dashboard.port` 或启动日志的实际端口）
+- 看板地址：`http://localhost:8787`（端口被占用时查看 `<项目>/.delivery/dashboard.port` 或启动日志的实际端口）
 - 说明：所有任务的新建与状态变化都可以在这个页面看到；`task.create` / `stage.complete` 等工具返回中也附带 `dashboard_url` 和 `view_hint`，可直接用浏览器打开查看对应任务。
 
-> dashboard 会自动读取**项目根目录**的 `.delivery`（即 delivery-mcp-server 的父目录），无需额外配置。若想指定其他数据目录，设置环境变量 `DELIVERY_ROOT`。
+> dashboard 读取数据根的顺序：`DELIVERY_ROOT` 环境变量 > 当前目录 `.delivery`。从全局目录启动时**必须**设置 `DELIVERY_ROOT`（install.js 的 `--dashboard` 会自动注入）。
 
-#### 8. 将 delivery 相关文件加入 .gitignore
+#### 9. 将任务数据加入 .gitignore
 
-`delivery-mcp-server` 是从本仓库拷贝的**工具本体**（含 node_modules/dist），不属于目标项目的源码，应忽略。在**目标项目根目录**执行：
+在**目标项目根目录**执行（脚本已自动完成，手动安装需补）：
 
 ```bash
 # .gitignore 不存在则创建；已存在则仅当无该条目时幂等追加
-grep -qxF 'delivery-mcp-server' .gitignore 2>/dev/null || echo 'delivery-mcp-server' >> .gitignore
+grep -qxF '.delivery/' .gitignore 2>/dev/null || echo '.delivery/' >> .gitignore
 ```
 
-> 注意：`.delivery/`（任务数据）**不要**整目录忽略——它是目标项目的交付记录，建议纳入版本管理。
+> 注意：`.delivery/` 是任务数据根（含团队配置与任务记录），新模型下**建议忽略**（属于工具运行数据，可随时重建；`.delivery/config/` 若想自定义流程/门禁模板，可另行提交到仓库）。**工具本体已不在项目内**，无需再忽略 `delivery-mcp-server`。
 > **邮件配置（SMTP 服务器 + 授权码）属于当前用户个人**，`email.set` 写入用户主目录 `~/.config/ai-delivery/user.json`，不会出现在项目目录中，因此无需也不应提交到仓库。
 
 ---
@@ -297,22 +319,22 @@ grep -qxF 'delivery-mcp-server' .gitignore 2>/dev/null || echo 'delivery-mcp-ser
 ### 2. 跑通一个完整示例（可选）
 
 ```bash
-cd delivery-mcp-server
+cd ~/.config/ai-delivery/delivery-mcp-server
 npm run example
 ```
 
 ### 3. 启动浏览器任务看板（可选）
 
 ```bash
-cd delivery-mcp-server
-npm run dashboard
+# 在项目根目录执行（自动注入 DELIVERY_ROOT）：
+node ~/.config/ai-delivery/delivery-mcp-server/install.js --dashboard
 # 打开 http://localhost:8787
 ```
 
-后台启动（独立进程 + 日志）：`node delivery-mcp-server/install.js --dashboard`
-停止看板：`node delivery-mcp-server/install.js --stop-dashboard` 或 `cd delivery-mcp-server && npm run dashboard:stop`
+后台启动（独立进程 + 日志）：如上 `--dashboard`
+停止看板：`node ~/.config/ai-delivery/delivery-mcp-server/install.js --stop-dashboard`
 
-> dashboard 会自动读取**项目根目录**的 `.delivery`（即 delivery-mcp-server 的父目录），无需额外配置。若想指定其他数据目录，设置环境变量 `DELIVERY_ROOT`。
+> dashboard 数据根：`DELIVERY_ROOT` 环境变量 > 当前目录 `.delivery`。从全局目录直接启动（`npm run dashboard`）时**必须**设置 `DELIVERY_ROOT` 指向项目数据根。
 
 ---
 
@@ -338,28 +360,27 @@ npm run dashboard
 
 ### 方式一：一键更新（推荐）
 
-已安装的项目可以直接用安装脚本更新到最新版：
+> **注意**：新模型下工具本体在**全局目录**，更新命令在**项目根目录**执行：
 
 ```bash
-# 在目标项目根目录执行
-node delivery-mcp-server/install.js --release
+node ~/.config/ai-delivery/delivery-mcp-server/install.js --release
 ```
 
-脚本会自动下载最新 Release → 覆盖 `delivery-mcp-server/` 工具本体 + `delivery-*.md` 角色配置 → 重新构建。**保留 `.delivery` 任务数据**与 `opencode.json` 中的自定义配置。加 `--lang zh|en` 可切换安装语言（否则沿用 `.install-lang` 记忆的语言）。
+脚本会自动：查询并下载最新 Release 预构建 zip → 停止旧进程 → 覆盖全局工具本体 + 角色 Agent → `npm install --omit=dev`（预构建包无需构建）。**保留 `.delivery` 任务数据**与 `opencode.json` 中的自定义配置。加 `--lang zh|en` 可切换安装语言（否则沿用全局 `active.json` 记忆的语言）。
 
-> **版本对比自动更新**：已存在 `delivery-mcp-server` 时，`--release` / `--force-update` / **本地版本低于源码版本** 三种情况会自动删除旧版并覆盖，其余情况跳过。
+> **版本对比自动更新**：已存在全局安装时，`--release` / `--force-update` / **本地版本低于源码版本** 三种情况会自动删除旧版并覆盖，其余情况跳过。
 > **Windows 手动更新**（脚本不可用时）：
 > ```powershell
-> # 下载并解压最新 Release 后，在目标项目根目录执行
-> Copy-Item -Recurse -Force "$env:TEMP\ai-delivery-system\delivery-mcp-server" .\delivery-mcp-server
-> Copy-Item -Force "$env:TEMP\ai-delivery-system\.opencode\agent\delivery-*.md" .\.opencode\agent\
-> cd delivery-mcp-server; npm install; npm run build
+> # 下载并解压最新 Release 预构建包后
+> Copy-Item -Recurse -Force "$env:TEMP\ai-delivery-system\delivery-mcp-server" "$env:USERPROFILE\.config\ai-delivery\delivery-mcp-server"
+> Copy-Item -Force "$env:TEMP\ai-delivery-system\.opencode\agent\delivery-*.en.md" "$env:USERPROFILE\.config\opencode\agents\"   # 或 *.zh.md
+> cd "$env:USERPROFILE\.config\ai-delivery\delivery-mcp-server"; npm install --omit=dev
 > ```
 
 ### 方式二：MCP 工具更新
 
 - **每次启动自动检测**：OpenCode 启动拉起 MCP server 时，server 自动异步检测新版本（基于 GitHub Releases），检测到新版本会在启动日志打印提示；无网络时静默跳过，不影响启动。
-- **手动更新**：用 `update.check` 查看版本状态（可选 `force` 强制重新检测），然后运行 `node delivery-mcp-server/install.js --release` 完成更新。
+- **手动更新**：用 `update.check` 查看版本状态（可选 `force` 强制重新检测），然后在项目根目录运行 `node ~/.config/ai-delivery/delivery-mcp-server/install.js --release` 完成更新。
 
 更新后需**重启 OpenCode** 生效。可用环境变量 `DELIVERY_UPDATE_CHECK=0` 关闭自动检测。
 
@@ -368,7 +389,7 @@ node delivery-mcp-server/install.js --release
 ## 七、常见问题
 
 **Q：OpenCode 里工具找不到？**
-A：确认已 `npm run build` 生成 `dist/server.js`，且 `opencode.json` 的 `command` 路径正确，然后重启 OpenCode。
+A：确认全局 `~/.config/ai-delivery/delivery-mcp-server/dist/server.js` 已构建，且 `opencode.json` 的 `command` 用的是**绝对路径**，然后重启 OpenCode。
 
 **Q：`task.create` 被拦截返回 `config_required`？**
 A：未配置当前人或团队名册。按第四节执行 `user.set` 和 `team.set`。
@@ -380,42 +401,55 @@ A：团队名册的成员 roles 并集未覆盖全部 8 个角色。按返回的
 A：目标项目根目录下的 `.delivery/tasks/`，纯文本文件，可追踪、可版本管理。
 
 **Q：dashboard 读不到任务数据？**
-A：确认 `delivery-mcp-server` 装在**项目根目录**下（install.md 第三步），dashboard 会自动读取项目根 `.delivery`。若 server 在别处，设置环境变量 `DELIVERY_ROOT` 指向项目根目录。
+A：从全局目录启动 dashboard 时**必须**设置 `DELIVERY_ROOT` 指向项目数据根（`node ~/.config/ai-delivery/delivery-mcp-server/install.js --dashboard` 会自动注入，前台 `npm run dashboard` 需手动设置）。
 
 **Q：想换存储位置？**
 A：设置环境变量 `DELIVERY_ROOT` 指向目标目录。
+
+**Q：升级了版本但 OpenCode 还在用旧代码？**
+A：更新后 MCP server 进程会被停止，需**重启 OpenCode** 才会以新代码启动。
 
 ---
 
 ## 八、卸载
 
+> **注意**：卸载命令在**项目根目录**执行。新模型下工具本体在全局目录，卸载分"项目解绑"与"全局清理"两层。
+
 ### 方式一：一键卸载（推荐）
 
 ```bash
-# 在目标项目根目录执行（自动停止运行中的进程并清理）
-node delivery-mcp-server/uninstall.js
+# 在目标项目根目录执行（自动停止运行中的进程，移除项目注册）
+node ~/.config/ai-delivery/delivery-mcp-server/uninstall.js
 
 # 同时删除 .delivery/ 任务数据（默认保留）
-node delivery-mcp-server/uninstall.js --purge-data
+node ~/.config/ai-delivery/delivery-mcp-server/uninstall.js --purge-data
 
-# 同时删除 .opencode/agent/delivery-*.md（默认保留，可能被自定义过）
-node delivery-mcp-server/uninstall.js --purge-agents
+# 同时删除全局安装 ~/.config/ai-delivery/delivery-mcp-server/（影响所有项目，默认保留）
+node ~/.config/ai-delivery/delivery-mcp-server/uninstall.js --purge-server
+
+# 同时删除全局角色 Agent ~/.config/opencode/agents/delivery-*.md（影响所有项目，默认保留）
+node ~/.config/ai-delivery/delivery-mcp-server/uninstall.js --purge-agents
+
+# 以上全部（数据 + 全局安装 + 全局 agent）
+node ~/.config/ai-delivery/delivery-mcp-server/uninstall.js --purge-all
 
 # 预览将要执行的操作
-node delivery-mcp-server/uninstall.js --dry-run
+node ~/.config/ai-delivery/delivery-mcp-server/uninstall.js --dry-run
 ```
 
+> 若项目内还保留旧版按项目安装的 `delivery-mcp-server/`，也可用 `node delivery-mcp-server/uninstall.js`（旧脚本）解绑当前项目。
+
 脚本会自动：
-1. 停止运行中的 dashboard 与 MCP server 进程
-2. 删除 `delivery-mcp-server/` 目录
-3. 保留 `.opencode/agent/delivery-*.md` 角色配置（可能被自定义过，默认不删；加 `--purge-agents` 才删除）
-4. 移除 `opencode.json` 中的 `mcp.delivery` 配置
-5. 保留 `.delivery/` 任务数据目录（默认不删；加 `--purge-data` 才删除）
+1. 停止运行中的 dashboard（按 `.delivery/dashboard.port` 端口）与 MCP server 进程
+2. 移除 `opencode.json` 中的 `mcp.delivery` 配置（mcp 对象为空时一并删除）
+3. 移除 `.gitignore` 中的 `.delivery/` 条目
+4. 保留 `.delivery/` 任务数据目录（默认不删；加 `--purge-data` 才删除）
+5. 保留全局安装与全局 agent（默认不删，**影响所有项目**；加 `--purge-server` / `--purge-agents` 才删除）
 
 ### 方式二：手动卸载
 
 1. 停止 dashboard（Ctrl+C 关闭看板窗口）和退出 OpenCode（释放 MCP server）
 2. 从 `opencode.json` 移除 `mcp.delivery` 配置
-3. 删除 `delivery-mcp-server/` 目录
-4. `.opencode/agent/delivery-*.md` 保留（可能被自定义过，如确实要删除只删 delivery 前缀文件）
-5. `.delivery/` 目录保留（任务数据，如确实要删除再手动删）
+3. 从 `.gitignore` 移除 `.delivery/` 条目
+4. `.delivery/` 目录保留（任务数据，如确实要删除再手动删）
+5. 全局清理（可选，**影响所有项目**）：删除 `~/.config/ai-delivery/delivery-mcp-server/` 与 `~/.config/opencode/agents/delivery-*.md`

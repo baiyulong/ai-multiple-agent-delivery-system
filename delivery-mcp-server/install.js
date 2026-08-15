@@ -2,36 +2,46 @@
 /**
  * AI 交付任务系统 · 一键安装脚本（Windows / Linux / macOS 通用）
  *
+ * 新安装模型（用户目录 + 发布期预构建）：
+ * - 工具本体全局安装到 ~/.config/ai-delivery/delivery-mcp-server/（一份，跨项目共享）
+ * - 角色 Agent 全局安装到 ~/.config/opencode/agents/（项目 .opencode/agent/ 同名可覆盖）
+ * - 项目内只注册：opencode.json 的 mcp.delivery（绝对路径 + DELIVERY_ROOT 环境变量）
+ *   与 .gitignore 追加 .delivery/（任务数据根）
+ * - --release 下载 GitHub Release 预构建 zip（dist + web-dist/{zh,en} + config + templates），
+ *   安装端只执行 npm install --omit=dev，不再构建
+ *
  * 用法：
- *   # 从源码仓库安装（在仓库根目录执行）
- *   node delivery-mcp-server/install.js
- *   # 从源码仓库安装到指定项目
+ *   node delivery-mcp-server/install.js                 # 从源码仓库安装到当前目录所在项目
  *   node delivery-mcp-server/install.js /path/to/project
- *   # 从 GitHub Release 下载最新稳定版安装（推荐）
- *   node install.js --release
- *   # 已安装的项目更新到最新版
- *   cd delivery-mcp-server && node install.js --release
- *   node install.js --repo /path/to/source  # 指定本地源码路径
- *   node install.js --no-dashboard       # 安装后不启动浏览器看板（默认启动）
- *   node install.js --lang en            # 指定安装语言 zh/en（默认 zh；更新时自动沿用原语言）
- *   node install.js --dry-run            # 只打印将要执行的操作，不改动文件
- *   node install.js --force              # 目标目录不是 git 仓库时也继续
+ *   node install.js --release                            # 从 GitHub Release 预构建包安装/更新
+ *   node install.js --repo /path/to/source               # 指定本地源码路径
+ *   node install.js --no-dashboard                       # 安装后不启动浏览器看板（默认不启动）
+ *   node install.js --lang en                            # 指定安装语言 zh/en（默认 zh；更新时自动沿用原语言）
+ *   node install.js --dry-run                            # 只打印将要执行的操作，不改动文件
+ *   node install.js --force                              # 目标目录不是 git 仓库时也继续
  *
  * 安全性：
  *   - 拒绝把本仓库自身当作安装目标
  *   - agent 文件只新增 delivery-*.md，绝不覆盖目标项目已有文件
- *   - opencode.json 只合并新增 mcp.delivery，保留目标项目全部字段
- *   - .gitignore 幂等追加（忽略工具本体 delivery-mcp-server；邮件配置属当前用户个人，存于用户主目录，不进项目仓库）
+ *   - opencode.json 只合并 mcp.delivery，保留目标项目全部字段
+ *   - .gitignore 幂等追加（忽略任务数据根 .delivery/；邮件配置属当前用户个人，存于用户主目录，不进项目仓库）
  */
 import { cp, mkdir, readFile, realpath, writeFile, rm, readdir, readlink } from 'node:fs/promises';
 import { existsSync, createWriteStream } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { dirname, join, sep } from 'node:path';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 const SCRIPT_DIR = dirname(dirname(fileURLToPath(import.meta.url))); // 仓库根目录（脚本在 delivery-mcp-server/ 中，取其父目录）
 const AGENT_PREFIX = 'delivery-';
+
+// 全局安装目录（可用环境变量覆盖，便于测试）：
+//   DELIVERY_INSTALL_ROOT  → 工具本体根（默认 ~/.config/ai-delivery）
+//   DELIVERY_AGENTS_DIR    → 全局 agent 目录（默认 ~/.config/opencode/agents）
+const GLOBAL_ROOT = process.env.DELIVERY_INSTALL_ROOT ?? join(homedir(), '.config', 'ai-delivery');
+const GLOBAL_SERVER_DIR = join(GLOBAL_ROOT, 'delivery-mcp-server');
+const GLOBAL_AGENTS_DIR = process.env.DELIVERY_AGENTS_DIR ?? join(homedir(), '.config', 'opencode', 'agents');
 
 // ---------- 参数解析 ----------
 const args = process.argv.slice(2);
@@ -51,32 +61,33 @@ const FLAG_FORCE_UPDATE = args.includes('--force-update'); // 强制覆盖已安
 const FLAG_RELEASE = args.includes('--release');
 const FLAG_DASH = args.includes('--dashboard'); // 显式开启才后台启动看板（默认不自动启动）
 const FLAG_STOP_DASH = args.includes('--stop-dashboard'); // 仅停止看板进程，不执行安装
-const FLAG_SKIP_BUILD = args.includes('--skip-build'); // 跳过 npm run build（断点续跑：拷贝/依赖完成但构建中断后重跑）
+const FLAG_SKIP_BUILD = args.includes('--skip-build'); // 跳过 npm run build（仅源码安装模式有意义；--release 预构建包无构建步骤）
 
 const GITHUB_OWNER = 'baiyulong';
 const GITHUB_REPO = 'ai-multiple-agent-delivery-system';
 const VALID_LANGS = ['zh', 'en'];
 
 // ---------- 语言选择 ----------
-/** 解析安装语言：--lang 参数 > 已安装语言（.install-lang 或 active.json）> 交互询问 > 默认 zh */
+/** 解析安装语言：--lang 参数 > 全局已安装语言（active.json）> 旧项目 .install-lang（兼容）> 交互询问 > 默认 zh */
 async function resolveInstallLang() {
   if (FLAG_LANG) {
     if (VALID_LANGS.includes(FLAG_LANG)) return FLAG_LANG;
     warn(`无效的 --lang 值 "${FLAG_LANG}"（仅支持 zh/en），回退到 zh。`);
     return 'zh';
   }
-  // 更新场景：沿用目标项目已安装的语言
+  // 全局已安装语言（新模型）
+  try {
+    const active = await readJsonSafe(join(GLOBAL_SERVER_DIR, 'config', 'lang', 'active.json'));
+    if (active && VALID_LANGS.includes(active.lang)) return active.lang;
+  } catch {
+    // 首次安装，无记忆
+  }
+  // 旧模型兼容：目标项目 .install-lang
   try {
     const stored = (await readFile(join(targetReal, '.install-lang'), 'utf-8')).trim();
     if (VALID_LANGS.includes(stored)) return stored;
   } catch {
-    // 首次安装，无记忆文件
-  }
-  try {
-    const active = await readJsonSafe(join(targetReal, 'delivery-mcp-server', 'config', 'lang', 'active.json'));
-    if (active && VALID_LANGS.includes(active.lang)) return active.lang;
-  } catch {
-    // 无 active.json，继续
+    // 无记忆文件
   }
   // 首次安装且非 dry-run：交互询问（非 TTY 或 dry-run 时用默认 zh）
   if (!FLAG_DRY && process.stdin.isTTY) {
@@ -94,7 +105,7 @@ async function resolveInstallLang() {
   return 'zh';
 }
 
-/** 在已拷贝的 delivery-mcp-server 中写入 active.json，并删除另一语言的内置资源（单语言安装） */
+/** 在全局 delivery-mcp-server 中写入 active.json，并删除另一语言的内置资源与 web 产物（单语言安装） */
 async function applyLanguage(serverDir, lang) {
   const other = lang === 'zh' ? 'en' : 'zh';
   const activeFile = join(serverDir, 'config', 'lang', 'active.json');
@@ -103,6 +114,7 @@ async function applyLanguage(serverDir, lang) {
     join(serverDir, 'config', 'architectures', other),
     join(serverDir, 'templates', other),
     join(serverDir, 'config', 'lang', `${other}.json`),
+    join(serverDir, 'web-dist', other), // 预构建 web 产物只保留所选语言
   ];
   if (FLAG_DRY) {
     log(`  - 将写入 ${activeFile}（{"lang": "${lang}"}）`);
@@ -178,13 +190,18 @@ async function gitIgnoreAdd(file, lines) {
   return true;
 }
 
-async function copyDirSafe(src, dest) {
+/**
+ * 拷贝目录（跳过 node_modules/.git）。
+ * keepDist=true 用于 --release 预构建包：保留 dist/ 与 web-dist/（已是构建产物）；
+ * 源码安装时 keepDist=false 跳过 dist/（需重新构建，web-dist 源码里本来就没有）。
+ */
+async function copyDirSafe(src, dest, { keepDist = false } = {}) {
   if (!FLAG_DRY) await mkdir(dest, { recursive: true });
   const { readdir } = await import('node:fs/promises');
   const entries = await readdir(src, { withFileTypes: true });
   for (const ent of entries) {
-    // 跳过工具自身会重新生成的目录/构建产物
-    if (ent.name === 'node_modules' || ent.name === 'dist' || ent.name === '.git') continue;
+    if (ent.name === 'node_modules' || ent.name === '.git') continue;
+    if (!keepDist && ent.name === 'dist') continue;
     const s = join(src, ent.name);
     const d = join(dest, ent.name);
     if (FLAG_DRY) {
@@ -328,11 +345,11 @@ function runCapture(cmd, args, opts = {}) {
 /**
  * Windows：按命令行关键字查找进程 PID（PowerShell Get-CimInstance，避免 wmic 的
  * `%` 通配符被 cmd 环境变量展开为空、以及 wmic 在新版 Windows 废弃的问题）。
+ * 关键字匹配 `delivery-mcp-server` 与 `server.js` 双条件，兼容相对/绝对/正反斜杠路径。
  */
-async function findPidsByCommandLineWin(keyword) {
+async function findPidsByCommandLineWin() {
   try {
-    // 命令行含引号时按普通字符匹配，关键字为脚本内固定串，无注入风险
-    const script = `Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*${keyword}*' } | Select-Object -ExpandProperty ProcessId`;
+    const script = `Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*delivery-mcp-server*' -and $_.CommandLine -like '*server.js*' } | Select-Object -ExpandProperty ProcessId`;
     const out = await runCapture('powershell', ['-NoProfile', '-NonInteractive', '-Command', script]);
     return out
       .split('\n')
@@ -371,8 +388,9 @@ function killPid(pid) {
   }
 }
 
+/** 停止运行中的 MCP server（全局安装）与目标项目 dashboard 进程 */
 async function stopTargetProcesses(targetDir) {
-  log('\n[1/5] 停止目标项目中运行中的进程');
+  log('\n[1/5] 停止运行中的进程');
 
   // 读取 dashboard.port 获取端口
   let dashboardPort = '8787';
@@ -397,7 +415,7 @@ async function stopTargetProcesses(targetDir) {
       }
 
       // 停止 MCP server 进程（按命令行关键字，PowerShell 精确匹配避免误杀安装脚本）
-      const mcpPids = await findPidsByCommandLineWin('delivery-mcp-server/dist/server.js');
+      const mcpPids = await findPidsByCommandLineWin();
       for (const pid of mcpPids) {
         log(`  停止 MCP server 进程 (PID: ${pid})`);
         killPid(pid);
@@ -415,9 +433,9 @@ async function stopTargetProcesses(targetDir) {
         stopped = true;
       }
 
-      // 停止 MCP server 进程
+      // 停止 MCP server 进程（命令行含 delivery-mcp-server 与 server.js）
       const result2 = await new Promise((resolve, reject) => {
-        const child = spawn('sh', ['-c', 'ps aux | grep "delivery-mcp-server/dist/server.js" | grep -v grep | awk \'{print $2}\''], { stdio: ['ignore', 'pipe', 'ignore'] });
+        const child = spawn('sh', ['-c', 'ps aux | grep "delivery-mcp-server" | grep "server.js" | grep -v grep | awk \'{print $2}\''], { stdio: ['ignore', 'pipe', 'ignore'] });
         let output = '';
         child.stdout?.on('data', (d) => (output += d));
         child.on('exit', () => resolve(output));
@@ -450,11 +468,13 @@ async function startDashboardDetached(serverDir, projectRoot) {
   const out = createWriteStream(logFile, { flags: 'a' });
   // 注意：stdio 数组不能直接传流对象（未打开前 fd 为空会抛 ERR_INVALID_ARG_VALUE），
   // 改用 'pipe' 并在子进程输出上手动 pipe 到日志文件。
+  // 注入 DELIVERY_ROOT：dashboard 从全局目录启动，必须显式指定项目数据根（新模型无"server 父目录=项目根"启发式）
   const child = spawn(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['run', 'dashboard'], {
     cwd: serverDir,
     detached: true,
     stdio: ['ignore', 'pipe', 'pipe'],
     shell: process.platform === 'win32',
+    env: { ...process.env, DELIVERY_ROOT: join(projectRoot, '.delivery') },
   });
   child.stdout?.pipe(out);
   child.stderr?.pipe(out);
@@ -466,7 +486,7 @@ async function startDashboardDetached(serverDir, projectRoot) {
   if (port) {
     ok(`看板已后台启动：http://localhost:${port}（日志：${logFile}）`);
   } else {
-    warn(`看板进程已后台启动，但 10 秒内未检测到端口监听（日志：${logFile}）。可手动运行 cd delivery-mcp-server && npm run dashboard 排查。`);
+    warn(`看板进程已后台启动，但 10 秒内未检测到端口监听（日志：${logFile}）。可手动运行 node ${join(GLOBAL_SERVER_DIR, 'dist', 'dashboard.js')} 排查。`);
   }
 }
 
@@ -526,13 +546,44 @@ async function stopDashboardProcess(targetDir) {
   else skip(`未发现端口 ${dashboardPort} 上运行中的 dashboard`);
 }
 
-// ---------- 0. 从 GitHub Release 下载（可选） ----------
+// ---------- 0. 从 GitHub Release 下载预构建 zip（可选） ----------
+/** 解压 zip（Windows 用 PowerShell Expand-Archive；Unix 用 unzip，兜底 python3） */
+async function extractZip(zipFile, destDir) {
+  await mkdir(destDir, { recursive: true });
+  if (process.platform === 'win32') {
+    const script = `Expand-Archive -LiteralPath '${zipFile.replace(/'/g, "''")}' -DestinationPath '${destDir.replace(/'/g, "''")}' -Force`;
+    const res = await runCapture('powershell', ['-NoProfile', '-NonInteractive', '-Command', script]).catch(() => '');
+    if (existsSync(join(destDir, 'delivery-mcp-server')) || (await readdir(destDir).catch(() => [])).length > 0) return true;
+    return false;
+  }
+  try {
+    await new Promise((resolve, reject) => {
+      const child = spawn('unzip', ['-q', '-o', zipFile, '-d', destDir], { stdio: 'inherit' });
+      child.on('error', reject);
+      child.on('exit', (code) => (code === 0 ? resolve() : reject(new Error(`unzip 退出码 ${code}`))));
+    });
+    return true;
+  } catch {
+    try {
+      await new Promise((resolve, reject) => {
+        const child = spawn('python3', ['-m', 'zipfile', '-e', zipFile, destDir], { stdio: 'inherit' });
+        child.on('error', reject);
+        child.on('exit', (code) => (code === 0 ? resolve() : reject(new Error(`python3 zipfile 退出码 ${code}`))));
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+}
+
 async function downloadFromRelease() {
   const apiUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`;
-  log(`\n[0] 从 GitHub Release 下载最新稳定版`);
+  log(`\n[0] 从 GitHub Release 下载最新稳定版（预构建包）`);
   log(`    仓库：${GITHUB_OWNER}/${GITHUB_REPO}`);
 
   let tag;
+  let assetUrl;
   try {
     const res = await fetch(apiUrl, {
       headers: { 'User-Agent': 'delivery-install' },
@@ -546,33 +597,36 @@ async function downloadFromRelease() {
     const data = await res.json();
     if (!data || typeof data.tag_name !== 'string') throw new Error('Release 缺少 tag_name');
     tag = data.tag_name;
+    // 查找预构建 zip asset（workflow 上传，如 ai-delivery-v0.2.26.zip）
+    const asset = (data.assets ?? []).find((a) => typeof a.browser_download_url === 'string' && a.browser_download_url.endsWith('.zip'));
+    if (!asset) throw new Error(`Release ${tag} 缺少预构建 zip asset（.github/workflows/release.yml 是否已跑通？）`);
+    assetUrl = asset.browser_download_url;
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     warn(`获取 Release 信息失败：${msg}。请检查网络或改用 --repo 指定本地路径。`);
     return null;
   }
 
-  const archiveUrl = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/archive/refs/tags/${tag}.tar.gz`;
   const tmpDir = join(tmpdir(), `delivery-install-${Date.now()}`);
   if (!FLAG_DRY) tempDirs.push(tmpDir);
-  const archiveFile = join(tmpDir, 'release.tar.gz');
+  const archiveFile = join(tmpDir, 'release.zip');
 
   if (!FLAG_DRY) await mkdir(tmpDir, { recursive: true });
 
   try {
     log(`    版本：${tag}`);
-    log(`    下载：${archiveUrl}`);
-    const res = await fetch(archiveUrl, {
+    log(`    下载：${assetUrl}`);
+    const res = await fetch(assetUrl, {
       headers: { 'User-Agent': 'delivery-install' },
       signal: AbortSignal.timeout(60000),
       redirect: 'follow',
     });
     if (!res.ok) throw new Error(`下载失败：HTTP ${res.status}`);
     const buf = Buffer.from(await res.arrayBuffer());
-    // gzip 魔数校验：防止拿到 HTML 错误页 / 被 PowerShell curl 别名损坏的文件
-    if (buf.length < 2 || buf[0] !== 0x1f || buf[1] !== 0x8b) {
+    // zip 魔数校验：防止拿到 HTML 错误页 / 被 PowerShell curl 别名损坏的文件
+    if (buf.length < 4 || buf[0] !== 0x50 || buf[1] !== 0x4b || buf[2] !== 0x03 || buf[3] !== 0x04) {
       const preview = buf.length > 120 ? buf.subarray(0, 120).toString('utf-8') : buf.toString('utf-8');
-      throw new Error(`下载内容不是有效的 gzip（前 2 字节 0x${buf.length ? buf[0].toString(16) : '?'} 0x${buf.length > 1 ? buf[1].toString(16) : '?'}）。内容预览：${preview.slice(0, 80)}`);
+      throw new Error(`下载内容不是有效的 zip（前 4 字节 0x${buf.length ? buf[0].toString(16) : '?'} 0x${buf.length > 1 ? buf[1].toString(16) : '?'} 0x${buf.length > 2 ? buf[2].toString(16) : '?'} 0x${buf.length > 3 ? buf[3].toString(16) : '?'}）。内容预览：${preview.slice(0, 80)}`);
     }
     if (FLAG_DRY) {
       log(`  - 将下载 ${buf.length} 字节到 ${archiveFile}`);
@@ -590,13 +644,9 @@ async function downloadFromRelease() {
   if (FLAG_DRY) {
     log(`  - 将解压到 ${extractDir}`);
   } else {
-    await mkdir(extractDir, { recursive: true });
     try {
-      await new Promise((resolve, reject) => {
-        const child = spawn('tar', ['-xzf', archiveFile, '-C', extractDir], { stdio: 'inherit' });
-        child.on('error', reject);
-        child.on('exit', (code) => (code === 0 ? resolve() : reject(new Error(`tar 退出码 ${code}`))));
-      });
+      const extracted = await extractZip(archiveFile, extractDir);
+      if (!extracted) throw new Error('zip 解压失败（无有效内容）');
       ok('解压完成');
     } catch (e) {
       warn(`解压失败：${e instanceof Error ? e.message : String(e)}。请手动下载 Release 包并解压后用 --repo 指定路径。`);
@@ -604,30 +654,17 @@ async function downloadFromRelease() {
     }
   }
 
-  // GitHub 解压后目录名可能是 {repo}-{tag}（tag 带 v，如 v0.2.11），也可能是
-  // {repo}-{tag去掉v}（如 0.2.11）。不猜名字，直接扫描解压目录下
-  // 含 delivery-mcp-server/package.json 的子目录，兼容任意命名格式。
+  // 预构建 zip 内含 delivery-mcp-server/ 与 .opencode/agent/（与仓库布局一致）
   if (FLAG_DRY) {
-    log(`  - 解压目录：${extractDir} 下含 delivery-mcp-server 的子目录`);
-    return join(extractDir, `${GITHUB_REPO}-${tag.replace(/^v/i, '')}`);
+    log(`  - 解压目录：${extractDir}（含 delivery-mcp-server 与 .opencode/agent）`);
+    return extractDir;
   }
-  const { readdir } = await import('node:fs/promises');
-  let entries = [];
-  try {
-    entries = await readdir(extractDir, { withFileTypes: true });
-  } catch {
-    entries = [];
-  }
-  const found = entries.find(
-    (e) => e.isDirectory() && existsSync(join(extractDir, e.name, 'delivery-mcp-server', 'package.json')),
-  );
-  if (!found) {
-    warn(`解压后未找到含 delivery-mcp-server 的目录（${extractDir}）。请手动下载 Release 包解压后用 --repo 指定路径。`);
+  if (!existsSync(join(extractDir, 'delivery-mcp-server', 'package.json'))) {
+    warn(`解压后未找到 delivery-mcp-server/package.json（${extractDir}）。请手动下载 Release 包解压后用 --repo 指定路径。`);
     return null;
   }
-  const extractedPath = join(extractDir, found.name);
-  ok(`源码路径：${extractedPath}`);
-  return extractedPath;
+  ok(`源码路径：${extractDir}`);
+  return extractDir;
 }
 
 // ---------- 1. 校验目标目录 ----------
@@ -642,16 +679,11 @@ if (FLAG_STOP_DASH) {
   process.exit(0);
 }
 
-// --dashboard 且当前项目已安装：原地后台启动看板，不重复安装
+// --dashboard 且全局已安装：原地后台启动看板，不重复安装
 // （区分"首次安装"与"更新/看板管理"场景，允许在当前目录执行）
-if (
-  FLAG_DASH &&
-  !FLAG_RELEASE &&
-  repoPath === SCRIPT_DIR &&
-  existsSync(join(targetDir, 'delivery-mcp-server', 'package.json'))
-) {
-  log('\n[看板] 当前项目已安装 delivery-mcp-server，直接后台启动看板');
-  await startDashboardDetached(join(targetDir, 'delivery-mcp-server'), targetDir);
+if (FLAG_DASH && !FLAG_RELEASE && repoPath === SCRIPT_DIR && existsSync(join(GLOBAL_SERVER_DIR, 'package.json'))) {
+  log('\n[看板] 全局已安装 delivery-mcp-server，直接后台启动看板');
+  await startDashboardDetached(GLOBAL_SERVER_DIR, targetDir);
   process.exit(0);
 }
 
@@ -688,14 +720,16 @@ const installLang = await resolveInstallLang();
 log(`\n安装语言 / Language：${installLang === 'zh' ? '中文 (zh)' : 'English (en)'}`);
 
 // ---------- 1.5 停止运行中的进程（更新时避免文件锁定） ----------
-if (existsSync(join(targetReal, 'delivery-mcp-server'))) {
+if (existsSync(GLOBAL_SERVER_DIR)) {
   await stopTargetProcesses(targetReal);
 }
 
-// ---------- 2. 拷贝 delivery-mcp-server ----------
-log(`\n[1/6] 拷贝 delivery-mcp-server → ${targetReal}`);
+// ---------- 2. 拷贝 delivery-mcp-server 到全局目录 ----------
+log(`\n[1/6] 安装 delivery-mcp-server → ${GLOBAL_SERVER_DIR}`);
 const srcServer = join(repoReal, 'delivery-mcp-server');
-const dstServer = join(targetReal, 'delivery-mcp-server');
+const dstServer = GLOBAL_SERVER_DIR;
+// --release 预构建包保留 dist/web-dist；源码安装跳过 dist（重新构建）
+const keepDist = FLAG_RELEASE;
 if (existsSync(srcServer)) {
   if (existsSync(dstServer)) {
     // 判断是否需要覆盖更新：--release 更新、--force-update 强制覆盖、
@@ -717,41 +751,38 @@ if (existsSync(srcServer)) {
       } else {
         log(`  - 将删除旧版 ${dstServer} 并拷贝新版`);
       }
-      await copyDirSafe(srcServer, dstServer);
+      await copyDirSafe(srcServer, dstServer, { keepDist });
       ok('delivery-mcp-server 已更新' + versionNote);
     } else {
-      skip('delivery-mcp-server');
+      skip('delivery-mcp-server（全局目录）');
       if (!existsSync(join(dstServer, 'package.json'))) {
-        warn('目标目录的 delivery-mcp-server 不完整（缺少 package.json），建议删除后重装。');
+        warn('全局目录的 delivery-mcp-server 不完整（缺少 package.json），建议 --force-update 重装。');
       }
     }
   } else {
-    await copyDirSafe(srcServer, dstServer);
-    ok('delivery-mcp-server 已拷贝');
+    await copyDirSafe(srcServer, dstServer, { keepDist });
+    ok('delivery-mcp-server 已安装到全局目录');
   }
 } else {
   warn(`仓库路径下未找到 delivery-mcp-server（${srcServer}），请用 --repo 指定正确的仓库路径。`);
 }
 
-// ---------- 2.5 应用安装语言（单语言安装） ----------
+// ---------- 2.5 应用安装语言（单语言安装，写入全局目录） ----------
 log(`\n[语言] 应用安装语言：${installLang}`);
 if (FLAG_DRY) {
   log(`  - 将在 ${dstServer} 写入 config/lang/active.json（{"lang": "${installLang}"}）`);
-  log(`  - 将删除另一语言内置资源：config/gates/${installLang === 'zh' ? 'en' : 'zh'}/、config/architectures/${installLang === 'zh' ? 'en' : 'zh'}/、templates/${installLang === 'zh' ? 'en' : 'zh'}/、config/lang/${installLang === 'zh' ? 'en' : 'zh'}.json`);
-  log(`  - 将写入语言记忆文件 ${join(targetReal, '.install-lang')}`);
+  log(`  - 将删除另一语言内置资源：config/gates/${installLang === 'zh' ? 'en' : 'zh'}/、config/architectures/${installLang === 'zh' ? 'en' : 'zh'}/、templates/${installLang === 'zh' ? 'en' : 'zh'}/、config/lang/${installLang === 'zh' ? 'en' : 'zh'}.json、web-dist/${installLang === 'zh' ? 'en' : 'zh'}/`);
 } else if (existsSync(dstServer)) {
   await applyLanguage(dstServer, installLang);
-  await writeFile(join(targetReal, '.install-lang'), installLang + '\n', 'utf-8').catch(() => {});
 } else {
   warn(`未找到 ${dstServer}，跳过语言配置。`);
 }
 
-// ---------- 3. 拷贝 agent 配置（只新增 delivery-*） ----------
-log(`\n[2/6] 拷贝角色 Agent 配置（delivery-*.${installLang}.md → delivery-*.md${FLAG_RELEASE ? '，更新模式覆盖已有文件' : '，不覆盖已有文件'}）`);
+// ---------- 3. 拷贝 agent 配置到全局 agents 目录（只新增 delivery-*） ----------
+log(`\n[2/6] 拷贝角色 Agent 配置 → ${GLOBAL_AGENTS_DIR}（delivery-*.${installLang}.md → delivery-*.md${FLAG_RELEASE ? '，更新模式覆盖已有文件' : '，不覆盖已有文件'}）`);
 const srcAgents = join(repoReal, '.opencode', 'agent');
-const dstAgents = join(targetReal, '.opencode', 'agent');
 if (existsSync(srcAgents)) {
-  if (!FLAG_DRY) await mkdir(dstAgents, { recursive: true });
+  if (!FLAG_DRY) await mkdir(GLOBAL_AGENTS_DIR, { recursive: true });
   const { readdir } = await import('node:fs/promises');
   let files = await readdir(srcAgents);
   files = files.filter((f) => f.endsWith('.md') && f.startsWith(AGENT_PREFIX) && f.includes(`.${installLang}.md`));
@@ -759,7 +790,7 @@ if (existsSync(srcAgents)) {
   for (const f of files) {
     // 去掉语言后缀：delivery-orchestrator.zh.md → delivery-orchestrator.md
     const dstName = f.replace(`.${installLang}.md`, '.md');
-    const dst = join(dstAgents, dstName);
+    const dst = join(GLOBAL_AGENTS_DIR, dstName);
     if (existsSync(dst) && !FLAG_RELEASE) {
       skip(`agent/${dstName}`);
     } else if (FLAG_DRY) {
@@ -776,19 +807,24 @@ if (existsSync(srcAgents)) {
   warn(`仓库路径下未找到 .opencode/agent（${srcAgents}）`);
 }
 
-// ---------- 4. 合并 opencode.json ----------
-log(`\n[3/6] 注册 MCP 到 opencode.json（合并，保留已有配置）`);
+// ---------- 4. 合并 opencode.json（注册 MCP：绝对路径 + DELIVERY_ROOT） ----------
+log(`\n[3/6] 注册 MCP 到 opencode.json（绝对路径 + DELIVERY_ROOT 环境变量）`);
 const opencodeFile = join(targetReal, 'opencode.json');
 const opencodeConfig = (await readJsonSafe(opencodeFile)) ?? {};
-const hasDeliveryMcp = !!(opencodeConfig.mcp && opencodeConfig.mcp.delivery);
-if (hasDeliveryMcp) {
-  skip('opencode.json 中已存在 mcp.delivery');
+const serverEntry = join(dstServer, 'dist', 'server.js');
+const delivery = {
+  type: 'local',
+  command: ['node', serverEntry],
+  environment: { DELIVERY_ROOT: join(targetReal, '.delivery') },
+  enabled: true,
+};
+const existingDelivery = opencodeConfig.mcp && opencodeConfig.mcp.delivery;
+if (existingDelivery && Array.isArray(existingDelivery.command) && existingDelivery.command[1] === serverEntry) {
+  skip('opencode.json 中 mcp.delivery 已指向全局安装（路径一致）');
 } else {
-  const delivery = {
-    type: 'local',
-    command: ['node', 'delivery-mcp-server/dist/server.js'],
-    enabled: true,
-  };
+  if (existingDelivery) {
+    log(`  - 更新已有 mcp.delivery（旧命令 ${JSON.stringify(existingDelivery.command)} → 全局路径）`);
+  }
   if (FLAG_DRY) {
     log('  - 将写入 mcp.delivery = ' + JSON.stringify(delivery));
   } else {
@@ -800,34 +836,61 @@ if (hasDeliveryMcp) {
   }
 }
 
-// ---------- 5. .gitignore ----------
-log(`\n[4/6] 追加 .gitignore（忽略工具本体 delivery-mcp-server 与安装语言记忆文件）`);
+// ---------- 5. .gitignore（忽略任务数据根 .delivery/） ----------
+log(`\n[4/6] 追加 .gitignore（忽略任务数据根 .delivery/）`);
 const gitignoreFile = join(targetReal, '.gitignore');
-await gitIgnoreAdd(gitignoreFile, ['delivery-mcp-server', '.install-lang']);
+await gitIgnoreAdd(gitignoreFile, ['.delivery/']);
 ok('.gitignore 已处理（若此前无条目）');
 
-// ---------- 6. npm install + build ----------
-log(`\n[5/6] 安装依赖并构建（npm install && npm run build）`);
-if (!FLAG_DRY && existsSync(dstServer)) {
-  try {
-    log('  - npm install（依赖安装通常需 1–3 分钟，请勿中断）...');
-    await run('install', dstServer);
-    if (FLAG_SKIP_BUILD) {
-      log('  - 已跳过构建（--skip-build）。请稍后手动执行 npm run build，或再次运行 install.js 完成构建。');
-    } else {
-      log('  - npm run build（首次构建可能需 1–2 分钟，请勿中断）...');
-      // VITE_LANG 注入 web 构建：构建期单语言（web 端 import.meta.env.VITE_LANG）
-      await run('run build', dstServer, { VITE_LANG: installLang });
-      ok('构建完成：delivery-mcp-server/dist/server.js');
+// ---------- 6. 依赖安装 ----------
+if (FLAG_RELEASE) {
+  // 预构建包：只装运行期依赖（--omit=dev），不构建
+  log(`\n[5/6] 安装运行期依赖（预构建包，npm install --omit=dev）`);
+  if (!FLAG_DRY && existsSync(dstServer)) {
+    try {
+      log('  - npm install --omit=dev（通常 10–30 秒，请勿中断）...');
+      await run('install --omit=dev', dstServer);
+      ok('运行期依赖安装完成（预构建 dist 已就绪，无需构建）');
+    } catch (e) {
+      warn(`依赖安装失败：${e.message}。可稍后在 ${dstServer} 手动执行 npm install --omit=dev。`);
     }
-  } catch (e) {
-    warn(`依赖安装/构建失败：${e.message}。可稍后在 ${dstServer} 手动执行 npm install && npm run build。`);
+  } else if (FLAG_DRY) {
+    log('  - 将执行 npm install --omit=dev（delivery-mcp-server 目录）');
   }
-} else if (FLAG_DRY) {
-  log('  - 将执行 npm install && npm run build（delivery-mcp-server 目录）');
+} else {
+  // 源码安装：npm install + build
+  log(`\n[5/6] 安装依赖并构建（npm install && npm run build）`);
+  if (!FLAG_DRY && existsSync(dstServer)) {
+    try {
+      log('  - npm install（依赖安装通常需 1–3 分钟，请勿中断）...');
+      await run('install', dstServer);
+      if (FLAG_SKIP_BUILD) {
+        log('  - 已跳过构建（--skip-build）。请稍后手动执行 npm run build，或再次运行 install.js 完成构建。');
+      } else {
+        log('  - npm run build（首次构建可能需 1–2 分钟，请勿中断）...');
+        // VITE_LANG 注入 web 构建：构建期单语言（web 端 import.meta.env.VITE_LANG）
+        await run('run build', dstServer, { VITE_LANG: installLang });
+        ok('构建完成：delivery-mcp-server/dist/server.js');
+      }
+    } catch (e) {
+      warn(`依赖安装/构建失败：${e.message}。可稍后在 ${dstServer} 手动执行 npm install && npm run build。`);
+    }
+  } else if (FLAG_DRY) {
+    log('  - 将执行 npm install && npm run build（delivery-mcp-server 目录）');
+  }
 }
 
-// ---------- 7. 可选启动看板 ----------
+// ---------- 7. 旧模型迁移提示 ----------
+if (existsSync(join(targetReal, 'delivery-mcp-server'))) {
+  warn(`
+检测到项目内存在旧版按项目安装的 delivery-mcp-server/（新模型已改为全局安装到 ${GLOBAL_SERVER_DIR}）。
+任务数据 ${join(targetReal, '.delivery')} 会原地保留，不受影响。
+可手动删除项目内旧目录以清理：
+  rm -rf ${join(targetReal, 'delivery-mcp-server')}
+  （旧 opencode.json 中的 mcp.delivery 已在本步骤更新为全局绝对路径）`);
+}
+
+// ---------- 8. 可选启动看板 ----------
 if (FLAG_DASH && !FLAG_DRY && existsSync(dstServer)) {
   log(`\n[6/6] 后台启动浏览器任务看板（--dashboard）`);
   await startDashboardDetached(dstServer, targetReal);
@@ -860,13 +923,21 @@ ${FLAG_RELEASE ? '0. 本次为 --release 更新：旧 MCP server 进程已停止
    （个人级，存于用户主目录，跨项目沿用，不进项目仓库）
 5. 选择 delivery-orchestrator Agent 开始交付任务
 
+本机信息：
+  全局安装目录：${GLOBAL_SERVER_DIR}
+  全局 agent 目录：${GLOBAL_AGENTS_DIR}
+  项目数据根：${join(targetReal, '.delivery')}
+
 启动看板：
-  node delivery-mcp-server/install.js --dashboard   # 后台启动（推荐）
-  cd delivery-mcp-server && npm run dashboard        # 前台启动
+  node ${join(GLOBAL_SERVER_DIR, 'install.js')} --dashboard   # 后台启动（推荐，需在项目根目录执行）
+  node ${join(GLOBAL_SERVER_DIR, 'dist', 'dashboard.js')}     # 前台启动（先设置 DELIVERY_ROOT=<项目>/.delivery）
   →  http://localhost:8787
 停止看板：
-  node delivery-mcp-server/install.js --stop-dashboard
-  cd delivery-mcp-server && npm run dashboard:stop
+  node ${join(GLOBAL_SERVER_DIR, 'install.js')} --stop-dashboard
+  或 cd ${GLOBAL_SERVER_DIR} && npm run dashboard:stop
+
+更新到新版本：
+  node ${join(GLOBAL_SERVER_DIR, 'install.js')} --release     # 在项目根目录执行
 `);
 
 if (FLAG_DRY) {

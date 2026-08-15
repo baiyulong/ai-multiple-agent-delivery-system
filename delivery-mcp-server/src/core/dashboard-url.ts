@@ -8,21 +8,16 @@
  * 看板前端使用 hash 路由定位任务详情：/#/task/<taskId>。
  */
 import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import { resolveDeliveryRoot } from './paths.js';
 
 /**
- * 与 dashboard.ts 的 resolveDashboardRoot 保持一致：
- * DELIVERY_ROOT > 项目根（delivery-mcp-server 的父目录）> cwd/.delivery
- * dashboard.port 写在 dashboard 实际使用的数据根里，这里必须读同一个文件。
+ * 与 dashboard.ts 的 resolveDashboardRoot 保持一致（用户目录安装模型）：
+ * DELIVERY_ROOT 环境变量（install.js 注册 MCP 时注入 <项目>/.delivery）> cwd/.delivery。
+ * server/dashboard 均装在用户目录，不再用"server 父目录=项目根"启发式。
  */
 function resolveDashboardRoot(): string {
-  if (process.env.DELIVERY_ROOT) return resolveDeliveryRoot();
-  // dashboard-url.ts 位于 <项目根>/delivery-mcp-server/src/core/dashboard-url.ts
-  const coreDir = dirname(import.meta.dirname); // <项目根>/delivery-mcp-server/src 或 dist
-  const serverDir = dirname(coreDir); // <项目根>/delivery-mcp-server
-  const projectRoot = dirname(serverDir); // <项目根>
-  return join(projectRoot, '.delivery');
+  return resolveDeliveryRoot();
 }
 
 function resolvePort(): string {
