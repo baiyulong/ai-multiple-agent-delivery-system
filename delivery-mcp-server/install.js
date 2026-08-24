@@ -639,9 +639,11 @@ async function downloadFromRelease() {
   try {
     log(`    版本：${tag}`);
     log(`    下载：${assetUrl}`);
+    // 下载超时：默认 5 分钟（弱网环境下载几 MB 的 zip 也可能很慢），可用 DELIVERY_DOWNLOAD_TIMEOUT_MS 覆盖
+    const downloadTimeoutMs = parseInt(process.env.DELIVERY_DOWNLOAD_TIMEOUT_MS ?? '', 10) || 300000;
     const res = await fetch(assetUrl, {
       headers: { 'User-Agent': 'delivery-install' },
-      signal: AbortSignal.timeout(60000),
+      signal: AbortSignal.timeout(downloadTimeoutMs),
       redirect: 'follow',
     });
     if (!res.ok) throw new Error(`下载失败：HTTP ${res.status}`);
