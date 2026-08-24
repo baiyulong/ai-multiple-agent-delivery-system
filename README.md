@@ -346,6 +346,8 @@ node ~/.config/ai-delivery/delivery-mcp-server/install.js --release
 | 参数 | 说明 |
 |---|---|
 | `--release` | 从 GitHub Releases 下载最新稳定版预构建包并更新（升级默认用它） |
+| `--prerelease` | 安装最新 prerelease 版本（Releases 列表中最新的 pre-release；`--release` 的 latest 永不含 prerelease，两者互不影响） |
+| `--prebuilt <dir>` | 使用本地预构建包目录安装（布局同 release zip 解压后），跳过下载。测试安装逻辑用，见[测试与验证](#测试与验证) |
 | `--force-update` | 强制覆盖已安装的 delivery-mcp-server（不比较版本） |
 | `--dashboard` | 升级后后台启动浏览器看板（日志 `.delivery/dashboard.log`） |
 | `--dry-run` | 只打印将要执行的操作，不改动文件 |
@@ -380,6 +382,38 @@ npm run build     # 构建
 ```
 
 E2E 验收覆盖 PRD 第 16 章五个场景：CRUD 全流程闭环、缺失上游阻塞、门禁失败、阶段推进、交付包导出，以及返工流程与问题阻塞。
+
+### 测试安装逻辑（不发布 Release）
+
+安装脚本支持环境变量隔离与本地预构建包，无需发布正式 Release 即可完整测试：
+
+```bash
+# 1. 隔离全局目录，不污染本机真实安装
+export DELIVERY_INSTALL_ROOT=/tmp/delivery-test/global
+export DELIVERY_AGENTS_DIR=/tmp/delivery-test/agents
+
+# 2. 方式 A：本地复刻预构建包（同 release.yml 打包步骤）后直装，跳过下载
+#    目录布局：delivery-mcp-server/{dist,web-dist/{zh,en},config,templates,package*.json,install.js,uninstall.js} + .opencode/agent/
+node delivery-mcp-server/install.js --prebuilt /tmp/delivery-test/prebuilt /tmp/delivery-test/proj
+
+# 3. 方式 B：指向 fork 仓库测完整下载链路（fork → 推 v* tag → workflow 自动出 Release）
+export DELIVERY_GITHUB_OWNER=<fork-owner>
+export DELIVERY_GITHUB_REPO=<fork-repo>
+node delivery-mcp-server/install.js --release /tmp/delivery-test/proj
+```
+
+目标项目需是 git 仓库（或加 `--force`）；先 `--dry-run` 可预览全部步骤不落盘。
+
+### 发布 prerelease 测试版（不影响正式版）
+
+推含 `-rc`/`-beta`/`-alpha`/`-test` 后缀的 tag（如 `v0.2.26-rc.1`），workflow 会自动构建并发布为 **pre-release**（[release.yml](.github/workflows/release.yml) 自动标记）：
+
+```bash
+git tag v0.2.26-rc.1 && git push origin v0.2.26-rc.1   # → GitHub 出 prerelease
+node delivery-mcp-server/install.js --prerelease          # 安装最新 prerelease（测试者执行）
+```
+
+普通用户的 `--release` 走 `releases/latest`（永不含 prerelease），完全不受影响；测完推正式 tag `v0.2.26` 即可。也可直接对 AI 说"帮我安装 prerelease 版本"（AI 按 install.md 执行 `--prerelease`）。
 
 ---
 

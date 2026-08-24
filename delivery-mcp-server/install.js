@@ -14,7 +14,9 @@
  *   node delivery-mcp-server/install.js                 # 从源码仓库安装到当前目录所在项目
  *   node delivery-mcp-server/install.js /path/to/project
  *   node install.js --release                            # 从 GitHub Release 预构建包安装/更新
+ *   node install.js --prerelease                         # 安装最新 prerelease 版本（含 -rc/-beta 等预发布 tag）
  *   node install.js --repo /path/to/source               # 指定本地源码路径
+ *   node install.js --prebuilt /path/to/extracted-zip    # 使用本地预构建包目录（跳过下载，测试用）
  *   node install.js --no-dashboard                       # 安装后不启动浏览器看板（默认不启动）
  *   node install.js --lang en                            # 指定安装语言 zh/en（默认 zh；更新时自动沿用原语言）
  *   node install.js --dry-run                            # 只打印将要执行的操作，不改动文件
@@ -25,6 +27,12 @@
  *   - agent 文件只新增 delivery-*.md，绝不覆盖目标项目已有文件
  *   - opencode.json 只合并 mcp.delivery，保留目标项目全部字段
  *   - .gitignore 幂等追加（忽略任务数据根 .delivery/；邮件配置属当前用户个人，存于用户主目录，不进项目仓库）
+ *
+ * 测试用覆盖（详见 README）：
+ *   DELIVERY_INSTALL_ROOT  → 工具本体全局根（默认 ~/.config/ai-delivery）
+ *   DELIVERY_AGENTS_DIR    → 全局 agent 目录（默认 ~/.config/opencode/agents）
+ *   DELIVERY_GITHUB_OWNER / DELIVERY_GITHUB_REPO → 覆盖 Release 下载指向（指向 fork 仓库测完整下载链路）
+ *   DELIVERY_RELEASE_DIR   → 等价于 --prebuilt（本地预构建包目录，跳过下载）
  */
 import { cp, mkdir, readFile, realpath, writeFile, rm, readdir, readlink } from 'node:fs/promises';
 import { existsSync, createWriteStream } from 'node:fs';
@@ -53,18 +61,24 @@ function takeValue(flag) {
 let repoPath = takeValue('--repo') ?? SCRIPT_DIR;
 const tempDirs = []; // 本次运行创建的临时目录，安装成功后统一清理
 const FLAG_LANG = takeValue('--lang'); // 安装语言：zh | en（省略时交互询问或沿用已安装语言）——必须在 targetArg 之前解析，避免 en 被当作目标目录
+const FLAG_PREBUILT = takeValue('--prebuilt') ?? process.env.DELIVERY_RELEASE_DIR ?? null; // 本地预构建包目录（布局同 release zip 解压后），跳过下载走预构建安装路径——同样必须在 targetArg 之前解析
 const targetArg = args.find((a) => !a.startsWith('--'));
 const targetDir = targetArg ?? process.cwd();
 const FLAG_DRY = args.includes('--dry-run');
 const FLAG_FORCE = args.includes('--force');
 const FLAG_FORCE_UPDATE = args.includes('--force-update'); // 强制覆盖已安装文件（不比较版本）
 const FLAG_RELEASE = args.includes('--release');
+const FLAG_PRERELEASE = args.includes('--prerelease'); // 安装最新 prerelease 版本（GitHub 上标记为 pre-release 的版本；隐含 release 下载模式，不影响 --release 默认取 latest 稳定版）
 const FLAG_DASH = args.includes('--dashboard'); // 显式开启才后台启动看板（默认不自动启动）
 const FLAG_STOP_DASH = args.includes('--stop-dashboard'); // 仅停止看板进程，不执行安装
 const FLAG_SKIP_BUILD = args.includes('--skip-build'); // 跳过 npm run build（仅源码安装模式有意义；--release 预构建包无构建步骤）
 
-const GITHUB_OWNER = 'baiyulong';
-const GITHUB_REPO = 'ai-multiple-agent-delivery-system';
+// 预构建安装模式（--release/--prerelease 下载 或 --prebuilt 本地目录）：保留 dist/web-dist、只装运行期依赖、agent 覆盖更新
+const IS_PREBUILT_INSTALL = FLAG_RELEASE || FLAG_PRERELEASE || !!FLAG_PREBUILT;
+
+// Release 下载指向（可用环境变量覆盖，测试时指向 fork 仓库，避免发布正式 Release）
+const GITHUB_OWNER = process.env.DELIVERY_GITHUB_OWNER ?? 'baiyulong';
+const GITHUB_REPO = process.env.DELIVERY_GITHUB_REPO ?? 'ai-multiple-agent-delivery-system';
 const VALID_LANGS = ['zh', 'en'];
 
 // ---------- 语言选择 ----------
@@ -578,8 +592,11 @@ async function extractZip(zipFile, destDir) {
 }
 
 async function downloadFromRelease() {
-  const apiUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`;
-  log(`\n[0] 从 GitHub Release 下载最新稳定版（预构建包）`);
+  // --prerelease 走列表接口（含 pre-release 版本，按时间倒序）；默认走 latest 接口（GitHub 的 latest 永不含 prerelease）
+  const apiUrl = FLAG_PRERELEASE
+    ? `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases`
+    : `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`;
+  log(`\n[0] 从 GitHub Release 下载最新${FLAG_PRERELEASE ? ' prerelease' : '稳定版'}（预构建包）`);
   log(`    仓库：${GITHUB_OWNER}/${GITHUB_REPO}`);
 
   let tag;
@@ -594,7 +611,13 @@ async function downloadFromRelease() {
       return null;
     }
     if (!res.ok) throw new Error(`GitHub API 响应 ${res.status}`);
-    const data = await res.json();
+    let data = await res.json();
+    if (Array.isArray(data)) {
+      // prerelease 模式：列表按创建时间倒序，取第一个标记为 pre-release 的版本
+      const rel = data.find((r) => r && r.prerelease === true);
+      if (!rel) throw new Error('Releases 列表中没有 prerelease 版本（发布时需在 GitHub 上勾选 pre-release，或用含 -rc/-beta/-alpha/-test 后缀的 tag）');
+      data = rel;
+    }
     if (!data || typeof data.tag_name !== 'string') throw new Error('Release 缺少 tag_name');
     tag = data.tag_name;
     // 查找预构建 zip asset（workflow 上传，如 ai-delivery-v0.2.26.zip）
@@ -680,15 +703,24 @@ if (FLAG_STOP_DASH) {
 }
 
 // --dashboard 且全局已安装：原地后台启动看板，不重复安装
-// （区分"首次安装"与"更新/看板管理"场景，允许在当前目录执行）
-if (FLAG_DASH && !FLAG_RELEASE && repoPath === SCRIPT_DIR && existsSync(join(GLOBAL_SERVER_DIR, 'package.json'))) {
+// （区分"首次安装"与"更新/看板管理"场景，允许在当前目录执行；--prebuilt 属安装场景，排除）
+if (FLAG_DASH && !FLAG_RELEASE && !FLAG_PRERELEASE && !FLAG_PREBUILT && repoPath === SCRIPT_DIR && existsSync(join(GLOBAL_SERVER_DIR, 'package.json'))) {
   log('\n[看板] 全局已安装 delivery-mcp-server，直接后台启动看板');
   await startDashboardDetached(GLOBAL_SERVER_DIR, targetDir);
   process.exit(0);
 }
 
-// 从 GitHub Release 下载（可选）
-if (FLAG_RELEASE) {
+// --prebuilt：使用本地预构建包目录（布局与 release zip 解压后一致），跳过下载（测试用）
+if (FLAG_PREBUILT) {
+  const prebuiltReal = await realpath(FLAG_PREBUILT).catch(() => FLAG_PREBUILT);
+  if (!existsSync(join(prebuiltReal, 'delivery-mcp-server', 'package.json'))) {
+    console.error(`\n错误：--prebuilt 目录 ${prebuiltReal} 下未找到 delivery-mcp-server/package.json。`);
+    console.error('  目录布局应与 release zip 解压后一致（delivery-mcp-server/ + .opencode/agent/）。\n');
+    process.exit(1);
+  }
+  log(`\n[0] 使用本地预构建包：${prebuiltReal}（跳过 Release 下载）`);
+  repoPath = prebuiltReal;
+} else if (FLAG_RELEASE || FLAG_PRERELEASE) {
   const releasePath = await downloadFromRelease();
   if (releasePath) {
     repoPath = releasePath;
@@ -728,13 +760,13 @@ if (existsSync(GLOBAL_SERVER_DIR)) {
 log(`\n[1/6] 安装 delivery-mcp-server → ${GLOBAL_SERVER_DIR}`);
 const srcServer = join(repoReal, 'delivery-mcp-server');
 const dstServer = GLOBAL_SERVER_DIR;
-// --release 预构建包保留 dist/web-dist；源码安装跳过 dist（重新构建）
-const keepDist = FLAG_RELEASE;
+// 预构建包（--release / --prebuilt）保留 dist/web-dist；源码安装跳过 dist（重新构建）
+const keepDist = IS_PREBUILT_INSTALL;
 if (existsSync(srcServer)) {
   if (existsSync(dstServer)) {
-    // 判断是否需要覆盖更新：--release 更新、--force-update 强制覆盖、
+    // 判断是否需要覆盖更新：预构建模式更新、--force-update 强制覆盖、
     // 或本地版本低于源码版本（自动更新，解决"已存在则跳过"导致版本不更新）
-    let shouldUpdate = FLAG_RELEASE || FLAG_FORCE_UPDATE;
+    let shouldUpdate = IS_PREBUILT_INSTALL || FLAG_FORCE_UPDATE;
     let versionNote = '';
     if (!shouldUpdate) {
       const localVer = await readPackageVersion(dstServer);
@@ -779,7 +811,7 @@ if (FLAG_DRY) {
 }
 
 // ---------- 3. 拷贝 agent 配置到全局 agents 目录（只新增 delivery-*） ----------
-log(`\n[2/6] 拷贝角色 Agent 配置 → ${GLOBAL_AGENTS_DIR}（delivery-*.${installLang}.md → delivery-*.md${FLAG_RELEASE ? '，更新模式覆盖已有文件' : '，不覆盖已有文件'}）`);
+log(`\n[2/6] 拷贝角色 Agent 配置 → ${GLOBAL_AGENTS_DIR}（delivery-*.${installLang}.md → delivery-*.md${IS_PREBUILT_INSTALL ? '，更新模式覆盖已有文件' : '，不覆盖已有文件'}）`);
 const srcAgents = join(repoReal, '.opencode', 'agent');
 if (existsSync(srcAgents)) {
   if (!FLAG_DRY) await mkdir(GLOBAL_AGENTS_DIR, { recursive: true });
@@ -791,7 +823,7 @@ if (existsSync(srcAgents)) {
     // 去掉语言后缀：delivery-orchestrator.zh.md → delivery-orchestrator.md
     const dstName = f.replace(`.${installLang}.md`, '.md');
     const dst = join(GLOBAL_AGENTS_DIR, dstName);
-    if (existsSync(dst) && !FLAG_RELEASE) {
+    if (existsSync(dst) && !IS_PREBUILT_INSTALL) {
       skip(`agent/${dstName}`);
     } else if (FLAG_DRY) {
       log(`  - 将拷贝 agent/${dstName}${existsSync(dst) ? '（覆盖）' : ''}`);
@@ -843,7 +875,7 @@ await gitIgnoreAdd(gitignoreFile, ['.delivery/']);
 ok('.gitignore 已处理（若此前无条目）');
 
 // ---------- 6. 依赖安装 ----------
-if (FLAG_RELEASE) {
+if (IS_PREBUILT_INSTALL) {
   // 预构建包：只装运行期依赖（--omit=dev），不构建
   log(`\n[5/6] 安装运行期依赖（预构建包，npm install --omit=dev）`);
   if (!FLAG_DRY && existsSync(dstServer)) {
@@ -915,7 +947,7 @@ if (!FLAG_DRY) {
 // ---------- 后续指引 ----------
 log(`
 安装完成。接下来：
-${FLAG_RELEASE ? '0. 本次为 --release 更新：旧 MCP server 进程已停止，新版本需重启 OpenCode 后才会以新代码启动（不会自动重启，请务必重启 OpenCode）\n' : ''}1. 重启 OpenCode（加载新 agent 与 MCP 配置，MCP server 会随之启动）
+${IS_PREBUILT_INSTALL ? '0. 本次为预构建包更新（--release / --prebuilt）：旧 MCP server 进程已停止，新版本需重启 OpenCode 后才会以新代码启动（不会自动重启，请务必重启 OpenCode）\n' : ''}1. 重启 OpenCode（加载新 agent 与 MCP 配置，MCP server 会随之启动）
 2. 配置当前人：   user.set  { "name": "你的姓名", "email": "your@email.com" }
 3. 配置团队名册： team.set  { "name": "你的姓名", "email": "your@email.com", "roles": ["..."] }
    （全部成员 roles 并集需覆盖 8 个角色）

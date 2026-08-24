@@ -75,6 +75,7 @@ node delivery-mcp-server/install.js --repo /tmp/ai-delivery-system /path/to/proj
 node delivery-mcp-server/install.js                          # 安装到当前目录所在项目
 node delivery-mcp-server/install.js /path/to/proj           # 安装到指定项目
 node delivery-mcp-server/install.js --release               # 从 GitHub Release 下载最新稳定版（更新/安装）
+node delivery-mcp-server/install.js --prerelease            # 安装最新 prerelease 版本（预发布测试用，见下方"安装 prerelease 版本"）
 node delivery-mcp-server/install.js --repo ../clone /path/to/proj # 指定本地仓库路径
 node delivery-mcp-server/install.js --force-update          # 强制覆盖已安装的工具本体（不比较版本）
 node delivery-mcp-server/install.js --dashboard             # 安装后后台启动看板（detached，日志 <项目>/.delivery/dashboard.log）
@@ -82,6 +83,18 @@ node delivery-mcp-server/install.js --stop-dashboard        # 仅停止看板进
 node delivery-mcp-server/install.js --dry-run               # 只打印将要执行的操作，不改动文件
 node delivery-mcp-server/install.js --force                 # 目标目录不是 git 仓库时也继续
 ```
+
+#### 安装 prerelease 版本（预发布测试）
+
+用户要求安装 **prerelease / 预发布 / 测试版**（如 `v0.2.26-rc.1`）时，加 `--prerelease`：
+
+```bash
+node delivery-mcp-server/install.js --prerelease            # 或与 --release 同用：--release --prerelease
+```
+
+- `--prerelease` 从 GitHub Releases 列表取**最新的 pre-release 版本**（`--release` 默认只取 latest 稳定版，永远看不到 prerelease）。
+- 其余安装步骤与 `--release` 完全一致（预构建包、覆盖更新、只装运行期依赖）。
+- 仓库无 prerelease 时会明确报错；此时告知用户先发布 prerelease（推 `v*` tag 且 tag 含 `-rc`/`-beta`/`-alpha`/`-test` 后缀会自动标记为 pre-release）。
 
 **安装语言（双语）**：系统内置中文（`zh`）与英文（`en`）两个版本。安装脚本会按此顺序确定语言：`--lang` 参数 > 全局已安装语言（`<全局>/delivery-mcp-server/config/lang/active.json`）> 旧项目 `.install-lang`（兼容旧版）> 交互询问 > 默认 `zh`：
 
@@ -367,6 +380,8 @@ node ~/.config/ai-delivery/delivery-mcp-server/install.js --release
 ```
 
 脚本会自动：查询并下载最新 Release 预构建 zip → 停止旧进程 → 覆盖全局工具本体 + 角色 Agent → `npm install --omit=dev`（预构建包无需构建）。**保留 `.delivery` 任务数据**与 `opencode.json` 中的自定义配置。加 `--lang zh|en` 可切换安装语言（否则沿用全局 `active.json` 记忆的语言）。
+
+> **更新到 prerelease 版本**：用户要求装预发布/测试版时，把上述命令换成 `node ~/.config/ai-delivery/delivery-mcp-server/install.js --prerelease`（从 Releases 列表取最新 pre-release；普通 `--release` 只取 latest 稳定版）。注意本机全局安装的 install.js 需 ≥ v0.2.26 才支持该参数，旧版可先从仓库源码执行：`node /path/to/ai-multiple-agent-delivery-system/delivery-mcp-server/install.js --prerelease`。
 
 > **版本对比自动更新**：已存在全局安装时，`--release` / `--force-update` / **本地版本低于源码版本** 三种情况会自动删除旧版并覆盖，其余情况跳过。
 > **Windows 手动更新**（脚本不可用时）：

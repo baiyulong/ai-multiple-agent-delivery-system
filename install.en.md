@@ -75,6 +75,7 @@ The script automatically:
 node delivery-mcp-server/install.js                          # Install into the project of the current directory
 node delivery-mcp-server/install.js /path/to/proj           # Install into a specific project
 node delivery-mcp-server/install.js --release               # Install/update from the latest stable GitHub Release
+node delivery-mcp-server/install.js --prerelease            # Install the latest prerelease version (pre-release testing, see below)
 node delivery-mcp-server/install.js --repo ../clone /path/to/proj # Specify a local repository path
 node delivery-mcp-server/install.js --force-update          # Force-overwrite the installed tool (no version comparison)
 node delivery-mcp-server/install.js --dashboard             # Start the dashboard in the background after install (detached, log <project>/.delivery/dashboard.log)
@@ -82,6 +83,18 @@ node delivery-mcp-server/install.js --stop-dashboard        # Only stop the dash
 node delivery-mcp-server/install.js --dry-run               # Only print operations that would run, change nothing
 node delivery-mcp-server/install.js --force                 # Continue even if the target directory is not a git repo
 ```
+
+#### Installing a prerelease version (pre-release testing)
+
+When the user asks to install a **prerelease / beta / test version** (e.g. `v0.2.26-rc.1`), add `--prerelease`:
+
+```bash
+node delivery-mcp-server/install.js --prerelease            # or combined: --release --prerelease
+```
+
+- `--prerelease` picks the **newest pre-release** from the GitHub Releases list (`--release` only fetches the latest stable release and never sees prereleases).
+- All other install steps are identical to `--release` (prebuilt package, overwrite update, runtime-only deps).
+- If the repo has no prerelease, the script reports a clear error; tell the user to publish one first (pushing a `v*` tag containing a `-rc`/`-beta`/`-alpha`/`-test` suffix marks it as pre-release automatically).
 
 **Language selection (bilingual):** the system ships Chinese (`zh`) and English (`en`) versions. The install script determines the language in this order: `--lang` flag > globally installed language (`<global>/delivery-mcp-server/config/lang/active.json`) > legacy project `.install-lang` (old versions) > interactive prompt > default `zh`:
 
@@ -367,6 +380,8 @@ node ~/.config/ai-delivery/delivery-mcp-server/install.js --release
 ```
 
 The script automatically: queries and downloads the latest Release prebuilt zip → stops old processes → overwrites the global tool + role Agents → `npm install --omit=dev` (no build needed for prebuilt packages). **`.delivery` task data** and custom config in `opencode.json` are **preserved**. Pass `--lang zh|en` to switch the installed language (otherwise the globally remembered `active.json` language is reused).
+
+> **Updating to a prerelease version**: when the user asks for a pre-release/test version, use `node ~/.config/ai-delivery/delivery-mcp-server/install.js --prerelease` instead (picks the newest pre-release from the Releases list; plain `--release` only fetches the latest stable release). Note the locally installed install.js must be ≥ v0.2.26 to support this flag; with older versions run from the repo source: `node /path/to/ai-multiple-agent-delivery-system/delivery-mcp-server/install.js --prerelease`.
 
 > **Version-comparison auto-update**: when the global install already exists, `--release` / `--force-update` / **local version lower than source version** automatically delete the old copy and overwrite; otherwise it is skipped.
 > **Windows manual update** (when the script is unavailable):
