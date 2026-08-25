@@ -13,8 +13,8 @@ export interface CreateTaskInput {
   createdBy: string;
   taskType: TaskType;
   stages: StageRecord[];
-  /** 任务级指派：role -> 成员邮箱数组（一个角色可指派多人） */
-  assignees?: Record<string, string[]>;
+  /** 任务级指派：role -> 负责人邮箱（每角色在本任务中只有一个负责人） */
+  assignees?: Record<string, string>;
 }
 
 const CONTEXT_SKELETON = '# 项目共享上下文\n';

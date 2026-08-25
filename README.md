@@ -2,7 +2,7 @@
 
 > **Language / 语言**: [中文](README.md) · [English](README.en.md)
 
-基于 **MCP (Model Context Protocol)** 的多角色 Agent 项目交付编排系统。它把项目交付拆成**七角色接力工作流**（产品经理 → UI/UX → 领域架构 → 工程实现 → QA → DevOps），通过**阶段门禁**保证每个交付物达标后才进入下一阶段，所有任务状态以纯文本文件保存在本地 `.delivery` 目录，无数据库。
+基于 **MCP (Model Context Protocol)** 的多角色 Agent 项目交付编排系统。它把项目交付拆成**多角色接力工作流**（产品经理 → UI/UX → 领域架构 → 工程实现 → 程序员 → QA，数据工程师按需协作），通过**阶段门禁**保证每个交付物达标后才进入下一阶段，所有任务状态以纯文本文件保存在本地 `.delivery` 目录，无数据库。
 
 适用于 OpenCode 等支持 MCP 的 AI 编程工具。
 
@@ -14,10 +14,10 @@
 
 | 痛点 | 表现 | 本系统的解法 |
 |---|---|---|
-| **交付流程不透明** | 需求→设计→开发→测试→发布，各阶段谁负责、卡在哪一步，全靠口头/文档传递 | 七角色接力工作流，阶段状态、负责人、阻塞问题全部落盘可查 |
+| **交付流程不透明** | 需求→设计→开发→测试→发布，各阶段谁负责、卡在哪一步，全靠口头/文档传递 | 多角色接力工作流，阶段状态、负责人、阻塞问题全部落盘可查 |
 | **交付物质量参差** | 每个角色产出的文档没有统一模板和验收标准，质量依赖个人发挥 | 17 个交付物模板 + 门禁规则硬校验（缺章节/含禁语/验收标准不足 → 打回） |
 | **阶段推进无门禁** | 交付物不达标就进入下一阶段，返工成本高 | 阶段完成前置校验：交付物存在、门禁通过、无阻塞问题，缺一不可 |
-| **角色职责不清** | 多角色协作时边界模糊，容易越权或漏项 | 8 个专职 Agent（1 总控 + 7 角色），每个角色有明确职责边界与交付物 |
+| **角色职责不清** | 多角色协作时边界模糊，容易越权或漏项 | 9 个专职 Agent（1 总控 + 8 角色），每个角色有明确职责边界与交付物 |
 | **跨角色一致性差** | 术语、状态、接口契约、测试用例各写各的，对不上 | 共享上下文（统一语言表）+ 一致性检查 + 问题阻塞机制 |
 | **进度不可追踪** | 任务做到哪一步、谁在等谁，只能靠问 | 浏览器任务看板：任务列表、阶段进度、门禁结果、交付物、待确认问题一目了然 |
 | **多机协作不便** | 数据库方案部署重、迁移难 | 纯文本文件存储（`.delivery/`），可版本管理、可追踪、可跨机器拷贝 |
@@ -49,11 +49,11 @@
 
 | 组成 | 路径 | 说明 |
 |---|---|---|
-| **MCP Server** | `delivery-mcp-server/` | 16 个工具：任务/阶段/交付物/门禁/上下文/问题 |
-| **流程模板** | `delivery-mcp-server/config/flows/` | crud（5 阶段）/ lightweight-ddd（6 阶段）/ full-ddd（7 阶段） |
+| **MCP Server** | `delivery-mcp-server/` | 17 个工具：任务/阶段/交付物/门禁/上下文/问题 |
+| **流程模板** | `delivery-mcp-server/config/flows/` | crud（6 阶段）/ lightweight-ddd（6 阶段）/ full-ddd（7 阶段） |
 | **门禁规则** | `delivery-mcp-server/config/gates/` | 17 个交付物类型的检查规则 |
 | **交付物模板** | `delivery-mcp-server/templates/` | 共享上下文 + 17 个交付物模板 |
-| **多角色 Agent** | `.opencode/agent/` | 8 个 OpenCode Agent（1 总控 + 7 角色） |
+| **多角色 Agent** | `.opencode/agent/` | 9 个 OpenCode Agent（1 总控 + 8 角色） |
 | **OpenCode 注册** | `opencode.json` | 将 MCP server 注册给 OpenCode |
 | **设计文档** | `AI 任务管理系统 PRD.md`、`自定义多角色 Agent 设计稿.md`、`AI 交付任务系统实现计划.md` | 需求、角色设计、实现计划 |
 
@@ -81,7 +81,7 @@ task.export_delivery_package 导出交付包
 - **门禁是硬约束**：交付物不达标，阶段无法完成，必须修订重提。
 - **上游依赖**：下游阶段在上游未完成时被阻塞，并自动指派对应角色补齐。
 - **问题阻塞**：角色有疑问可创建问题阻塞阶段，解决后解除。
-- **类型自适应**：简单 CRUD 用 5 阶段轻流程，复杂核心业务自动走完整 DDD 流程。
+- **类型自适应**：简单 CRUD 用 6 阶段轻流程，复杂核心业务自动走完整 DDD 流程。
 
 ---
 
@@ -164,7 +164,7 @@ node delivery-mcp-server/install.js --release
 总控 Agent 会依次：
 1. `task.create` 创建任务（自动识别类型为 crud / lightweight_ddd / full_ddd / analysis / bug_fix）
 2. 查看 `stage.get` 确定当前阶段与指派角色
-3. 调用对应角色 Agent（`delivery-product-manager` / `delivery-ux-designer` / `delivery-domain-architect` / `delivery-engineer` / `delivery-qa` / `delivery-devops`）生成交付物
+3. 调用对应角色 Agent（`delivery-product-manager` / `delivery-ux-designer` / `delivery-domain-architect` / `delivery-engineer` / `delivery-developer` / `delivery-qa`，需要查数据时 `delivery-data-engineer`）生成交付物
 4. `artifact.submit` 提交 → `gate.check` 门禁 → `stage.complete` 推进
 5. 全部完成后 `task.export_delivery_package` 导出交付包
 
@@ -206,9 +206,10 @@ node delivery-mcp-server/install.js --release
 | product-manager | 产品经理 | delivery-product-manager.md |
 | ux-designer | UI/UX 设计 | delivery-ux-designer.md |
 | domain-architect | 领域架构师 | delivery-domain-architect.md |
-| engineer | 工程实现 | delivery-engineer.md |
+| engineer | 工程实现（工程计划） | delivery-engineer.md |
+| developer | 程序员（编码实施） | delivery-developer.md |
+| data-engineer | 数据工程师（按需协作，无固定阶段） | delivery-data-engineer.md |
 | qa | 质量测试 | delivery-qa.md |
-| devops | 平台与 DevOps | delivery-devops.md |
 
 看板顶部会显示当前团队成员（姓名/邮箱/角色），未配置时显示提示条。
 
@@ -252,8 +253,9 @@ npm run dashboard
 
 | 工具 | 说明 |
 |---|---|
-| `task.create` | 创建任务，自动识别类型并初始化流程；可指定 assignees（各角色负责人）、skip_stages（跳过不需要的阶段） |
-| `task.assign` | 为任务指定/改派某角色负责人（role -> 成员邮箱） |
+| `task.create` | 创建任务，自动识别类型并初始化流程；可指定 assignees（预固化各角色唯一负责人）、skip_stages（跳过不需要的阶段） |
+| `task.assign` | 为任务设置/改派某角色负责人（role -> 成员邮箱，每角色在本任务只有一个负责人，覆盖式修改） |
+| `task.role_candidates` | 查询某角色的候选负责人（团队中承担该角色的成员）与当前固化负责人 |
 | `task.get` | 获取任务详情（任务/阶段/交付物/待确认问题） |
 | `task.detect_type` | 仅做类型识别 |
 | `task.get_flow` | 查看任务类型对应的流程模板 |

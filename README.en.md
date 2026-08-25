@@ -2,7 +2,7 @@
 
 > **Language / 语言**: [English](README.en.md) · [中文](README.md)
 
-A **multi-role Agent delivery orchestration system** built on **MCP (Model Context Protocol)**. It breaks project delivery into a **seven-role relay workflow** (Product Manager → UI/UX → Domain Architecture → Engineering → QA → DevOps), enforces **stage gates** so every artifact must pass before the next stage begins, and stores all task state as plain-text files in a local `.delivery` directory — no database required.
+A **multi-role Agent delivery orchestration system** built on **MCP (Model Context Protocol)**. It breaks project delivery into a **multi-role relay workflow** (Product Manager → UI/UX → Domain Architecture → Engineering → Developer → QA, with a Data Engineer joining on demand), enforces **stage gates** so every artifact must pass before the next stage begins, and stores all task state as plain-text files in a local `.delivery` directory — no database required.
 
 Works with MCP-capable AI coding tools such as **OpenCode**.
 
@@ -14,10 +14,10 @@ This system targets **team development**. When a team develops with AI assistanc
 
 | Pain point | Symptom | How this system solves it |
 |---|---|---|
-| **Opaque delivery flow** | Who owns each stage (requirements→design→dev→test→release) and where it's stuck is communicated only verbally/on paper | Seven-role relay workflow; stage status, owners, and blocking questions all persisted and inspectable |
+| **Opaque delivery flow** | Who owns each stage (requirements→design→dev→test→release) and where it's stuck is communicated only verbally/on paper | Multi-role relay workflow; stage status, owners, and blocking questions all persisted and inspectable |
 | **Inconsistent artifact quality** | No unified template or acceptance criteria per role; quality depends on individual skill | 17 artifact templates + hard gate checks (missing sections / forbidden wording / insufficient acceptance criteria → rejected) |
 | **No gate before stage advance** | Substandard artifacts move to the next stage; costly rework | Stage completion pre-checks: artifacts exist, gate passed, no blocking questions — all required |
-| **Unclear role boundaries** | Blurred boundaries in multi-role collaboration; overstepping or omissions | 8 dedicated Agents (1 orchestrator + 7 roles), each with explicit responsibilities and artifacts |
+| **Unclear role boundaries** | Blurred boundaries in multi-role collaboration; overstepping or omissions | 9 dedicated Agents (1 orchestrator + 8 roles), each with explicit responsibilities and artifacts |
 | **Poor cross-role consistency** | Terms, statuses, API contracts, and test cases written independently don't match | Shared context (ubiquitous language) + consistency checks + question blocking mechanism |
 | **Untrackable progress** | What stage is a task at, who is waiting on whom — only by asking | Browser task dashboard: task list, stage progress, gate results, artifacts, pending questions at a glance |
 | **Awkward multi-machine collaboration** | Database deployments are heavy and hard to migrate | Plain-text file storage (`.delivery/`), versionable, trackable, copyable across machines |
@@ -49,11 +49,11 @@ In one sentence: **turn "AI team delivery" from "hoping prompts work" into an en
 
 | Component | Path | Description |
 |---|---|---|
-| **MCP Server** | `delivery-mcp-server/` | 16 tools: task/stage/artifact/gate/context/question |
-| **Flow templates** | `delivery-mcp-server/config/flows/` | crud (5 stages) / lightweight-ddd (6 stages) / full-ddd (7 stages) |
+| **MCP Server** | `delivery-mcp-server/` | 17 tools: task/stage/artifact/gate/context/question |
+| **Flow templates** | `delivery-mcp-server/config/flows/` | crud (6 stages) / lightweight-ddd (6 stages) / full-ddd (7 stages) |
 | **Gate rules** | `delivery-mcp-server/config/gates/` | Check rules for 17 artifact types |
 | **Artifact templates** | `delivery-mcp-server/templates/` | Shared context + 17 artifact templates |
-| **Multi-role Agents** | `.opencode/agent/` | 8 OpenCode Agents (1 orchestrator + 7 roles) |
+| **Multi-role Agents** | `.opencode/agent/` | 9 OpenCode Agents (1 orchestrator + 8 roles) |
 | **OpenCode registration** | `opencode.json` | Registers the MCP server with OpenCode |
 | **Design documents** | `AI 任务管理系统 PRD.md`, `自定义多角色 Agent 设计稿.md`, `AI 交付任务系统实现计划.md` | Requirements, role design, implementation plan |
 
@@ -81,7 +81,7 @@ Core design:
 - **Gates are hard constraints**: if an artifact doesn't meet the standard, the stage cannot complete; it must be revised and resubmitted.
 - **Upstream dependencies**: downstream stages are blocked while upstream is incomplete, and the corresponding role is auto-assigned to fill the gap.
 - **Question blocking**: roles can create questions that block a stage; resolving them unblocks it.
-- **Type adaptation**: simple CRUD uses a lightweight 5-stage flow; complex core business auto-runs the full DDD flow.
+- **Type adaptation**: simple CRUD uses a lightweight 6-stage flow; complex core business auto-runs the full DDD flow.
 
 ---
 
@@ -164,7 +164,7 @@ Open OpenCode, select the **delivery-orchestrator** Agent, and describe your req
 The orchestrator will, in order:
 1. `task.create` create the task (auto-detect type: crud / lightweight_ddd / full_ddd / analysis / bug_fix)
 2. Check `stage.get` to determine the current stage and assigned role
-3. Call the corresponding role Agent (`delivery-product-manager` / `delivery-ux-designer` / `delivery-domain-architect` / `delivery-engineer` / `delivery-qa` / `delivery-devops`) to produce artifacts
+3. Call the corresponding role Agent (`delivery-product-manager` / `delivery-ux-designer` / `delivery-domain-architect` / `delivery-engineer` / `delivery-developer` / `delivery-qa`; `delivery-data-engineer` when data lookups are needed) to produce artifacts
 4. `artifact.submit` → `gate.check` gate → `stage.complete` advance
 5. When everything is done, `task.export_delivery_package` exports the delivery package
 
@@ -208,7 +208,8 @@ All role Agent files are prefixed with `delivery-` to avoid conflicts with same-
 | domain-architect | delivery-domain-architect.md |
 | engineer | delivery-engineer.md |
 | qa | delivery-qa.md |
-| devops | delivery-devops.md |
+| developer | delivery-developer.md |
+| data-engineer | delivery-data-engineer.md |
 
 The dashboard header shows current team members (name/email/roles); if not configured, a hint bar is shown.
 
@@ -252,8 +253,9 @@ Configuration:
 
 | Tool | Description |
 |---|---|
-| `task.create` | Creates a task, auto-detects type and initializes the flow; can specify assignees (per-role owners) and skip_stages |
-| `task.assign` | Assigns/reassigns a role owner for a task (role -> member email) |
+| `task.create` | Creates a task, auto-detects type and initializes the flow; can specify assignees (pre-fixed single assignee per role) and skip_stages |
+| `task.assign` | Sets/reassigns a role's owner for a task (role -> member email; exactly one assignee per role per task; overwrites on repeat) |
+| `task.role_candidates` | Queries candidate assignees for a role (team members holding it) and the current fixed assignee |
 | `task.get` | Gets task details (task/stages/artifacts/pending questions) |
 | `task.detect_type` | Type detection only |
 | `task.get_flow` | Views the flow template for a task type |

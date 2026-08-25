@@ -158,7 +158,7 @@ function downloadPackage(format: 'md' | 'html') {
 
     <!-- 阶段进度 -->
     <Card :title="t('detail.stages')" :bordered="false" style="margin-bottom: 16px">
-      <StageProgress :stages="stages" :current-stage="currentStage" :team="team" :user="user" />
+      <StageProgress :stages="stages" :current-stage="currentStage" :team="team" :user="user" :task-assignees="task?.assignees" />
     </Card>
 
     <!-- 门禁摘要 -->

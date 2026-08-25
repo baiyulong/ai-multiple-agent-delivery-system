@@ -38,11 +38,20 @@
       "allow_skip": false
     },
     {
+      "stage": "implementation",
+      "role": "developer",
+      "required_artifact_type": "implementation_record",
+      "required_artifact_types": ["implementation_record"],
+      "required_previous_stages": ["engineering_design"],
+      "gate_rules": ["implementation_record"],
+      "allow_skip": false
+    },
+    {
       "stage": "qa_validation",
       "role": "qa",
       "required_artifact_type": "qa_test_plan",
       "required_artifact_types": ["qa_test_plan"],
-      "required_previous_stages": ["engineering_design"],
+      "required_previous_stages": ["implementation"],
       "gate_rules": ["qa_test_plan"],
       "allow_skip": false
     }

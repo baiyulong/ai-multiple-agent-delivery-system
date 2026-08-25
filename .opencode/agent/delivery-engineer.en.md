@@ -62,8 +62,10 @@ module
 ## 9. Integration Test Suggestions
 ## 10. Technical Risks
 ## 11. Test Inputs for QA
-## 12. Deployment Inputs for Platform/DevOps
+## 12. Implementation Inputs for Developer
 ```
+
+> You only produce the engineering implementation plan, not the code: once the plan passes its gate, the Developer (developer) implements the coding in the implementation stage following Section 12 and outputs the implementation record.
 
 ## General Constraints
 

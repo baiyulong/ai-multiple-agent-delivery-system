@@ -12,10 +12,10 @@
     "Integration Test Plan",
     "Performance Considerations",
     "Handoff Notes for QA",
-    "Handoff Notes for Platform/DevOps"
+    "Handoff Notes for Developer"
   ],
   "aliases": {
-    "Handoff Notes for Platform/DevOps": ["Handoff Notes for PlatformDevOps", "Handoff Notes for Platform / DevOps"]
+    "Handoff Notes for Developer": ["Handoff Notes for Platform/DevOps", "Handoff Notes for PlatformDevOps", "Handoff Notes for Platform / DevOps"]
   },
   "non_empty_sections": ["Recommended Module Structure", "API Design"],
   "pass_threshold": 60

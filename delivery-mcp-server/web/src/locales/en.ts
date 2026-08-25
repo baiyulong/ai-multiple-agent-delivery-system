@@ -32,7 +32,9 @@ export default {
   'stage.name.product_requirement': 'Product Requirement',
   'stage.name.ux_design': 'UX Design',
   'stage.name.domain_review': 'Domain Review',
+  'stage.name.domain_design': 'Domain Design',
   'stage.name.engineering_design': 'Engineering Design',
+  'stage.name.implementation': 'Implementation',
   'stage.name.qa_validation': 'QA Validation',
 
   // ── Role names ──
@@ -40,8 +42,9 @@ export default {
   'role.ux-designer': 'UX Designer',
   'role.domain-architect': 'Domain Architect',
   'role.engineer': 'Engineer',
+  'role.developer': 'Developer',
+  'role.data-engineer': 'Data Engineer',
   'role.qa': 'QA',
-  'role.platform-devops': 'Platform DevOps',
   'role.domain-expert': 'Domain Expert',
 
   // ── Artifact types ──
@@ -50,8 +53,8 @@ export default {
   'artifactType.ux_interaction_card': 'UX Interaction Card',
   'artifactType.ddd_applicability_review': 'DDD Applicability Review',
   'artifactType.engineering_plan': 'Engineering Plan',
+  'artifactType.implementation_record': 'Implementation Record',
   'artifactType.qa_test_plan': 'Test Plan',
-  'artifactType.release_checklist': 'Release Checklist',
   'artifactType.user_stories': 'User Stories',
   'artifactType.acceptance_criteria': 'Acceptance Criteria',
   'artifactType.business_rules': 'Business Rules',

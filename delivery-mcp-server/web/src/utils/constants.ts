@@ -38,7 +38,9 @@ export const STAGE_NAME_MAP: Record<string, string> = {
   product_requirement: t('stage.name.product_requirement'),
   ux_design: t('stage.name.ux_design'),
   domain_review: t('stage.name.domain_review'),
+  domain_design: t('stage.name.domain_design'),
   engineering_design: t('stage.name.engineering_design'),
+  implementation: t('stage.name.implementation'),
   qa_validation: t('stage.name.qa_validation'),
 };
 
@@ -47,8 +49,9 @@ export const ROLE_NAME_MAP: Record<string, string> = {
   'ux-designer': t('role.ux-designer'),
   'domain-architect': t('role.domain-architect'),
   engineer: t('role.engineer'),
+  developer: t('role.developer'),
+  'data-engineer': t('role.data-engineer'),
   qa: t('role.qa'),
-  'platform-devops': t('role.platform-devops'),
   'domain-expert': t('role.domain-expert'),
 };
 
@@ -58,8 +61,8 @@ export const ARTIFACT_TYPE_MAP: Record<string, string> = {
   ux_interaction_card: t('artifactType.ux_interaction_card'),
   ddd_applicability_review: t('artifactType.ddd_applicability_review'),
   engineering_plan: t('artifactType.engineering_plan'),
+  implementation_record: t('artifactType.implementation_record'),
   qa_test_plan: t('artifactType.qa_test_plan'),
-  release_checklist: t('artifactType.release_checklist'),
   user_stories: t('artifactType.user_stories'),
   acceptance_criteria: t('artifactType.acceptance_criteria'),
   business_rules: t('artifactType.business_rules'),

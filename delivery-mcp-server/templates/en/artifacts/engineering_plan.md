@@ -50,4 +50,4 @@ module
 
 ## 11. Handoff Notes for QA
 
-## 12. Handoff Notes for Platform/DevOps
+## 12. Handoff Notes for Developer

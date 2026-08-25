@@ -6,7 +6,7 @@ import {
   ROLE_NAME_MAP,
   STAGE_NAME_MAP,
 } from './constants';
-import type { TeamResponse, UserResponse, TeamMember, TeamRole } from '@/api/types';
+import type { TeamResponse, UserResponse, TeamMember } from '@/api/types';
 
 /** 格式化 ISO 时间为友好显示 */
 export function formatTime(iso: string | null | undefined): string {
@@ -60,14 +60,20 @@ export function artifactTypeName(type: string): string {
   return ARTIFACT_TYPE_MAP[type] || type;
 }
 
-/** 该阶段的负责人（团队名册中认领该角色的成员） */
+/** 该阶段在本任务的负责人（任务 assignees 中固化的唯一负责人；未固化返回 []） */
 export function stageAssignees(
   role: string,
   team: TeamResponse | null,
+  taskAssignees?: Record<string, string> | null,
 ): TeamMember[] {
+  const email = taskAssignees?.[role];
+  if (!email) return [];
   if (!team || !team.configured || !team.members || team.members.length === 0)
-    return [];
-  return team.members.filter((m) => (m.roles || []).includes(role as TeamRole));
+    return [{ name: email, email, roles: [] }];
+  const member = team.members.find(
+    (m) => m.email.toLowerCase() === email.toLowerCase(),
+  );
+  return member ? [member] : [{ name: email, email, roles: [] }];
 }
 
 /** 当前操作人是否负责该角色 */

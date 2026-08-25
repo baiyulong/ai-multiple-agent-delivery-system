@@ -40,12 +40,13 @@ npm run dashboard # 启动浏览器任务看板 http://localhost:8787
 - **更新手动触发**：用 `update.check` 查询版本状态（可选 `force` 强制重新检测），然后在项目根目录运行 `node ~/.config/ai-delivery/delivery-mcp-server/install.js --release` 完成更新（停进程 → 下载预构建包 → 覆盖全局安装 → 安装依赖，**保留 `.delivery/` 任务数据**）。
 - 更新后需**重启 OpenCode** 生效。可用环境变量 `DELIVERY_UPDATE_CHECK=0` 禁用自动检测。
 
-## MCP 工具（25 个）
+## MCP 工具（26 个）
 
 | 工具 | 说明 |
 |---|---|
-| `task.create` | 创建任务，自动识别类型并初始化流程；可指定 assignees（各角色负责人）、skip_stages（跳过不需要的阶段） |
-| `task.assign` | 为任务指定/改派某角色负责人（role -> 成员邮箱） |
+| `task.create` | 创建任务，自动识别类型并初始化流程；可指定 assignees（预固化各角色唯一负责人）、skip_stages（跳过不需要的阶段） |
+| `task.assign` | 为任务设置/改派某角色负责人（role -> 成员邮箱，每角色在本任务只有一个负责人，覆盖式修改） |
+| `task.role_candidates` | 查询某角色的候选负责人（团队中承担该角色的成员）与当前固化负责人 |
 | `task.get` | 获取任务详情、阶段、交付物、门禁记录 |
 | `task.delete` | 删除任务（永久，不可恢复；须 confirmed_by=true 显式确认） |
 | `task.detect_type` | 仅做类型识别（不创建任务） |

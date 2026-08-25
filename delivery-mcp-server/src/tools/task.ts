@@ -14,7 +14,7 @@ import { resolveDeliveryRoot, taskDir } from '../core/paths.js';
 import { dashboardUrl } from '../core/dashboard-url.js';
 import { MVP_TASK_TYPES, type TaskType } from '../core/types.js';
 import { FLOW_FILE_NAMES } from '../core/flow-engine.js';
-import { isTeamConfigured, normalizeAssignees, normalizeAssigneeList, validateAssignees } from '../core/store/team-store.js';
+import { isTeamConfigured, normalizeAssignees, validateAssignees, findMembersByRole, resolveAssignee } from '../core/store/team-store.js';
 import { isUserConfigured } from '../core/store/user-store.js';
 import { setStageStatus } from '../core/store/stage-store.js';
 import { t } from '../core/i18n.js';
@@ -38,7 +38,7 @@ export function registerTaskTools(server: McpServer, ctx: () => ToolContext) {
           .optional()
           .describe(t('tool.task.create.task_type')),
         assignees: z
-          .record(z.string(), z.union([z.string().email(), z.array(z.string().email())]))
+          .record(z.string(), z.string().email())
           .optional()
           .describe(t('tool.task.create.assignees')),
         skip_stages: z
@@ -145,18 +145,49 @@ export function registerTaskTools(server: McpServer, ctx: () => ToolContext) {
           return fail('invalid_assignee', t('tool.task.assign.invalid_assignee', { details: invalid.map((i) => `${i.role}=${i.email}(${i.reason})`).join('、') }), { invalid });
         }
 
-        const current = normalizeAssigneeList(task.assignees?.[args.role]);
-        const merged = [...new Set([...current, args.email])];
-        task.assignees = { ...(task.assignees ?? {}), [args.role]: merged };
+        task.assignees = { ...(task.assignees ?? {}), [args.role]: args.email };
         await saveTask(root, task);
 
         return ok({
           task_id: task.task_id,
           assignees: task.assignees,
-          assigned: { role: args.role, emails: merged },
+          assigned: { role: args.role, email: args.email },
         });
       } catch (e) {
         return fail('assign_failed', t('tool.task.assign.failed', { msg: (e as Error).message }));
+      }
+    },
+  );
+
+  server.registerTool(
+    'task.role_candidates',
+    {
+      description: t('tool.task.role_candidates.description'),
+      inputSchema: {
+        task_id: z.string().describe(t('tool.task.role_candidates.task_id')),
+        role: z.string().describe(t('tool.task.role_candidates.role')),
+      },
+    },
+    async (args) => {
+      try {
+        const root = resolveDeliveryRoot(ctx().root);
+        const task = await getTask(root, args.task_id);
+        if (!task) return fail('task_not_found', t('error.task_not_found', { id: args.task_id }));
+
+        const candidates = await findMembersByRole(root, args.role);
+        const assignee = await resolveAssignee(root, task.assignees, args.role);
+
+        return ok({
+          task_id: task.task_id,
+          role: args.role,
+          current_assignee: assignee,
+          candidates: candidates.map((m) => ({ name: m.name, email: m.email })),
+          hint: assignee
+            ? t('tool.task.role_candidates.hint_assigned', { role: args.role, name: assignee.name, email: assignee.email })
+            : t('tool.task.role_candidates.hint_unassigned', { role: args.role }),
+        });
+      } catch (e) {
+        return fail('role_candidates_failed', t('tool.task.role_candidates.failed', { msg: (e as Error).message }));
       }
     },
   );

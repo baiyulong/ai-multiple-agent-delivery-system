@@ -127,8 +127,9 @@ export type TeamRole =
   | 'ux-designer'
   | 'domain-architect'
   | 'engineer'
-  | 'qa'
-  | 'devops';
+  | 'developer'
+  | 'data-engineer'
+  | 'qa';
 
 export interface TeamMember {
   name: string;

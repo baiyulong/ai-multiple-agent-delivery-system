@@ -10,7 +10,7 @@
 
 ## 1. What This Is
 
-A **MCP-based** multi-role Agent delivery orchestration system. It breaks project delivery into a **seven-role relay workflow** (Product Manager → UI/UX → Domain Architecture → Engineering → QA → DevOps), and enforces **stage gates** so every artifact must pass before the next stage begins. Task state is stored as plain-text files in a local `.delivery` directory — no database required.
+A **MCP-based** multi-role Agent delivery orchestration system. It breaks project delivery into a **multi-role relay workflow** (Product Manager → UI/UX → Domain Architecture → Engineering → Developer → QA, with a Data Engineer joining on demand), and enforces **stage gates** so every artifact must pass before the next stage begins. Task state is stored as plain-text files in a local `.delivery` directory — no database required.
 
 Works with **OpenCode** and other MCP-capable AI coding tools.
 
@@ -267,7 +267,7 @@ Call the MCP tool `team.set`:
 }
 ```
 
-> **Important constraint**: the union of **all members' roles** in the team roster must cover all **8 roles** (see table below). If a role is missing, `team.set` returns `roles_incomplete` and lists the missing roles; keep adding members or extending roles until all 8 are covered.
+> **Important constraint**: the union of **all members' roles** in the team roster must cover all **9 roles** (see table below). If a role is missing, `team.set` returns `roles_incomplete` and lists the missing roles; keep adding members or extending roles until all 9 are covered.
 > The current user's roles = the roles matched for the `user.set` email in the team roster.
 
 | Role key | Agent file name |
@@ -278,10 +278,13 @@ Call the MCP tool `team.set`:
 | ux-designer | delivery-ux-designer.md |
 | domain-architect | delivery-domain-architect.md |
 | engineer | delivery-engineer.md |
+| developer | delivery-developer.md |
+| data-engineer | delivery-data-engineer.md |
 | qa | delivery-qa.md |
-| devops | delivery-devops.md |
 
 > All role Agents are prefixed `delivery-` to avoid conflicts with same-named agents already in the target project (e.g. `engineer.md`). **The role key (roles value in team.json) and the Agent file name are two different concepts**: role keys never change; Agent file names carry the prefix.
+
+> **Role assignee mechanism**: a role **can be held by multiple team members** (just register them with the same role via team.set), but **each role has exactly one assignee per task**. Whenever a stage completes, the system returns the candidate members for the next stage's role; the user picks one and it is fixed onto the task via `task.assign`. An assignee can be changed anytime via `task.assign` (overwrite semantics); use `task.role_candidates` to list candidates before changing.
 
 ### 3. Configure email notifications (optional, current-user personal level)
 

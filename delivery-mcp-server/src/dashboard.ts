@@ -259,7 +259,7 @@ interface TaskListItem {
   status: string;
   current_stage: string | null;
   created_by?: string;
-  assignees?: Record<string, string | string[]>;
+  assignees?: Record<string, string>;
   created_at: string;
   updated_at: string;
   completed_stages: number;
@@ -272,11 +272,8 @@ function isMyTask(task: TaskListItem, userEmail: string | null | undefined): boo
   const email = userEmail.toLowerCase();
   if (task.created_by && task.created_by.toLowerCase() === email) return true;
   const assignees = task.assignees ?? {};
-  for (const raw of Object.values(assignees)) {
-    const list = Array.isArray(raw) ? raw : [raw];
-    for (const e of list) {
-      if (e && e.toLowerCase() === email) return true;
-    }
+  for (const e of Object.values(assignees)) {
+    if (e && e.toLowerCase() === email) return true;
   }
   return false;
 }

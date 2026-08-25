@@ -6,11 +6,13 @@ import {
   validCrudSpecCard,
   validDddReview,
   validEngineeringPlan,
+  validImplementationRecord,
   validQaTestPlan,
   validUxInteractionCard,
   validUbiquitousLanguageCodeMap,
   buildTechnicalArchitecture,
 } from './helpers.js';
+import { upsertMember } from '../../src/core/store/team-store.js';
 
 /**
  * E2E 验收测试：PRD 第 16 章五个验收场景 + 返工流程（12.3）+ 问题阻塞/解除（7.9）。
@@ -146,7 +148,7 @@ describe('PRD 16.5：交付包导出', () => {
     });
     const taskId = created.task_id as string;
 
-    // 依次完成 CRUD 五个阶段（domain_review 需提交 3 个交付物）
+    // 依次完成 CRUD 六个阶段（domain_review 需提交 3 个交付物；implementation 由 developer 提交实现记录）
     const stages = [
       { stage: 'product_requirement', types: [{ type: 'crud_spec_card', content: validCrudSpecCard() }] },
       { stage: 'ux_design', types: [{ type: 'ux_interaction_card', content: validUxInteractionCard() }] },
@@ -159,6 +161,7 @@ describe('PRD 16.5：交付包导出', () => {
         ],
       },
       { stage: 'engineering_design', types: [{ type: 'engineering_plan', content: validEngineeringPlan() }] },
+      { stage: 'implementation', types: [{ type: 'implementation_record', content: validImplementationRecord() }] },
       { stage: 'qa_validation', types: [{ type: 'qa_test_plan', content: validQaTestPlan() }] },
     ];
     for (const s of stages) {
@@ -420,6 +423,111 @@ describe('PRD 7.9 / 8.8：问题阻塞与解除', () => {
 
     const complete2 = await h.call('stage.complete', { task_id: taskId, stage: 'engineering_design', confirmed_by: 'Yulong' });
     expect(complete2.status).toBe('completed');
+
+    await h.cleanup();
+  });
+});
+
+describe('角色负责人固化：一个角色多人承担，任务中只固化一个负责人', () => {
+  it('阶段完成后返回候选成员 → 用户选择 → task.assign 固化（可覆盖修改）', async () => {
+    const h = await createHarness();
+    // ux-designer 角色由两人承担（harness 默认成员只有 product-manager/engineer）
+    await upsertMember(h.root, { name: '小美', email: 'ux1@example.com', roles: ['ux-designer'] });
+    await upsertMember(h.root, { name: '小林', email: 'ux2@example.com', roles: ['ux-designer'] });
+
+    const created = await h.call('task.create', {
+      title: '供应商分类维护',
+      description: '维护供应商分类',
+      created_by: 'u',
+    });
+    const taskId = created.task_id as string;
+
+    // 未固化负责人：stage.get 返回候选与 assignment_required
+    const stageBefore = await h.call('stage.get', { task_id: taskId, stage: 'product_requirement' });
+    expect(stageBefore.assignment_required).toBe(true);
+    expect(stageBefore.assignee).toBeNull();
+    expect(stageBefore.candidates.map((m: { email: string }) => m.email)).toEqual(['test@example.com']);
+
+    // 提交 + 门禁 + 完成第一阶段
+    const submit = await h.call('artifact.submit', {
+      task_id: taskId,
+      stage: 'product_requirement',
+      role: 'product-manager',
+      artifact_type: 'crud_spec_card',
+      content: validCrudSpecCard(),
+    });
+    const gate = await h.call('gate.check', { task_id: taskId, stage: 'product_requirement', artifact_id: submit.artifact_id });
+    expect(gate.result).toBe('passed');
+
+    // 完成后返回下一阶段（ux_design）角色的候选成员
+    const complete = await h.call('stage.complete', { task_id: taskId, stage: 'product_requirement', confirmed_by: 'Yulong' });
+    expect(complete.status).toBe('completed');
+    expect(complete.next_stage).toBe('ux_design');
+    expect(complete.next_role).toBe('ux-designer');
+    expect(complete.next_role_assignment_required).toBe(true);
+    expect(complete.next_role_assignee).toBeNull();
+    expect(complete.next_role_candidates.map((m: { email: string }) => m.email)).toEqual(['ux1@example.com', 'ux2@example.com']);
+    expect(complete.next_role_assignment_hint).toContain('ux-designer');
+
+    // task.role_candidates 查询候选与当前负责人
+    const cands = await h.call('task.role_candidates', { task_id: taskId, role: 'ux-designer' });
+    expect(cands.current_assignee).toBeNull();
+    expect(cands.candidates).toHaveLength(2);
+
+    // task.assign 固化负责人；重复调用覆盖（单负责人语义）
+    const assign1 = await h.call('task.assign', { task_id: taskId, role: 'ux-designer', email: 'ux1@example.com' });
+    expect(assign1.assigned).toEqual({ role: 'ux-designer', email: 'ux1@example.com' });
+    const assign2 = await h.call('task.assign', { task_id: taskId, role: 'ux-designer', email: 'ux2@example.com' });
+    expect(assign2.assigned).toEqual({ role: 'ux-designer', email: 'ux2@example.com' });
+    expect(assign2.assignees['ux-designer']).toBe('ux2@example.com');
+
+    // 固化后 stage.get 返回负责人且不再要求指派
+    const stageAfter = await h.call('stage.get', { task_id: taskId, stage: 'ux_design' });
+    expect(stageAfter.assignment_required).toBe(false);
+    expect(stageAfter.assignee).toEqual({ name: '小林', email: 'ux2@example.com' });
+    expect(stageAfter.candidates).toBeNull();
+
+    // task.role_candidates 反映已固化负责人
+    const cands2 = await h.call('task.role_candidates', { task_id: taskId, role: 'ux-designer' });
+    expect(cands2.current_assignee).toEqual({ name: '小林', email: 'ux2@example.com' });
+
+    // 非团队成员 / 角色不符的指派被拒绝
+    const bad = await h.call('task.assign', { task_id: taskId, role: 'ux-designer', email: 'nobody@example.com' });
+    expect(bad.ok).toBe(false);
+    expect(bad.code).toBe('invalid_assignee');
+    const wrongRole = await h.call('task.assign', { task_id: taskId, role: 'qa', email: 'ux2@example.com' });
+    expect(wrongRole.ok).toBe(false);
+    expect(wrongRole.code).toBe('invalid_assignee');
+
+    await h.cleanup();
+  });
+
+  it('task.create 预指派的角色负责人：阶段完成推进时不再要求选择', async () => {
+    const h = await createHarness();
+    await upsertMember(h.root, { name: '小美', email: 'ux1@example.com', roles: ['ux-designer'] });
+
+    const created = await h.call('task.create', {
+      title: '供应商分类维护',
+      description: '维护供应商分类',
+      created_by: 'u',
+      assignees: { 'product-manager': 'test@example.com', 'ux-designer': 'ux1@example.com' },
+    });
+    const taskId = created.task_id as string;
+    expect(created.assignees).toEqual({ 'product-manager': 'test@example.com', 'ux-designer': 'ux1@example.com' });
+
+    const submit = await h.call('artifact.submit', {
+      task_id: taskId,
+      stage: 'product_requirement',
+      role: 'product-manager',
+      artifact_type: 'crud_spec_card',
+      content: validCrudSpecCard(),
+    });
+    await h.call('gate.check', { task_id: taskId, stage: 'product_requirement', artifact_id: submit.artifact_id });
+
+    const complete = await h.call('stage.complete', { task_id: taskId, stage: 'product_requirement', confirmed_by: 'Yulong' });
+    expect(complete.next_role_assignment_required).toBe(false);
+    expect(complete.next_role_assignee).toEqual({ name: '小美', email: 'ux1@example.com' });
+    expect(complete.next_role_candidates).toBeNull();
 
     await h.cleanup();
   });

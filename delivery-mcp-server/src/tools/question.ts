@@ -7,7 +7,7 @@ import { resolveDeliveryRoot } from '../core/paths.js';
 import { nowIso } from '../core/time.js';
 import { notifyPerson, notifyRole, nextStepsFooter } from '../core/notify.js';
 import { exportTaskDocuments } from '../core/exporter.js';
-import { normalizeAssigneeList } from '../core/store/team-store.js';
+import { normalizeAssignee } from '../core/store/team-store.js';
 import { fail, ok, type ToolContext } from './common.js';
 import { t } from '../core/i18n.js';
 
@@ -94,7 +94,7 @@ export function registerQuestionTools(server: McpServer, ctx: () => ToolContext)
           args.assigned_to_role,
           t('email.subject.question_pending', { title: task.title, count: openForRole.length }),
           `${lines.join('\n')}${docHint}${nextStepsFooter(args.task_id)}`,
-          { assignees: normalizeAssigneeList(task.assignees?.[args.assigned_to_role]) },
+          { assignees: normalizeAssignee(task.assignees?.[args.assigned_to_role]) ? [normalizeAssignee(task.assignees?.[args.assigned_to_role])!] : [] },
         );
 
         return ok({
@@ -168,7 +168,7 @@ export function registerQuestionTools(server: McpServer, ctx: () => ToolContext)
             t('email.line.answer', { answer: args.answer }),
             t('email.line.resolved_by', { by: args.resolved_by ?? t('email.line.resolved_by_unknown') }),
           ].join('\n') + nextStepsFooter(args.task_id),
-          { assignees: normalizeAssigneeList(task.assignees?.[q.raised_by]) },
+          { assignees: normalizeAssignee(task.assignees?.[q.raised_by]) ? [normalizeAssignee(task.assignees?.[q.raised_by])!] : [] },
         );
 
         // 额外通知解决人本人（resolved_by 为邮箱/姓名/角色时解析；best-effort）

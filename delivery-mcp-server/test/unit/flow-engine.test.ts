@@ -18,7 +18,7 @@ describe('flow-engine', () => {
     const root = await mkdtemp(join(tmpdir(), 'delivery-flow-'));
     const flow = await loadFlowTemplate(root, 'crud');
     expect(flow).not.toBeNull();
-    expect(flow?.flow).toHaveLength(5);
+    expect(flow?.flow).toHaveLength(6);
     expect(flow?.flow[0]?.stage).toBe('product_requirement');
 
     const stages = buildStagesFromFlow(flow!);

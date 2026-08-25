@@ -8,18 +8,19 @@ const ALL_ROLES = [
   'ux-designer',
   'domain-architect',
   'engineer',
+  'developer',
+  'data-engineer',
   'qa',
-  'devops',
 ];
 
 /**
- * team.set 8 角色覆盖校验（tools/team.ts）。
- * 校验基于"当前配置 + 本次成员"合并后的 roles 并集是否覆盖全部 8 角色。
+ * team.set 9 角色覆盖校验（tools/team.ts）。
+ * 校验基于"当前配置 + 本次成员"合并后的 roles 并集是否覆盖全部 9 角色。
  */
-describe('team.set 8 角色覆盖校验', () => {
-  it('并集未覆盖全部 8 角色 → roles_incomplete，不写入', async () => {
+describe('team.set 9 角色覆盖校验', () => {
+  it('并集未覆盖全部 9 角色 → roles_incomplete，不写入', async () => {
     const h = await createHarness();
-    // harness 已有 Test User（product-manager, engineer），再加一个 qa 仍缺 5 角色
+    // harness 已有 Test User（product-manager, engineer），再加一个 qa 仍缺多个角色
     const res = await h.call('team.set', {
       name: 'QA',
       email: 'qa@example.com',
@@ -36,7 +37,7 @@ describe('team.set 8 角色覆盖校验', () => {
     await h.cleanup();
   });
 
-  it('补全全部 8 角色后写入成功', async () => {
+  it('补全全部 9 角色后写入成功', async () => {
     const h = await createHarness();
     const res = await h.call('team.set', {
       name: 'Full Team',

@@ -32,7 +32,9 @@ export default {
   'stage.name.product_requirement': '产品需求',
   'stage.name.ux_design': '交互设计',
   'stage.name.domain_review': '领域评审',
+  'stage.name.domain_design': '领域设计',
   'stage.name.engineering_design': '工程设计',
+  'stage.name.implementation': '编码实施',
   'stage.name.qa_validation': 'QA 验证',
 
   // ── 角色名称 ──
@@ -40,8 +42,9 @@ export default {
   'role.ux-designer': 'UX 设计师',
   'role.domain-architect': '领域架构师',
   'role.engineer': '工程师',
+  'role.developer': '程序员',
+  'role.data-engineer': '数据工程师',
   'role.qa': 'QA',
-  'role.platform-devops': '平台运维',
   'role.domain-expert': '领域专家',
 
   // ── 交付物类型 ──
@@ -50,8 +53,8 @@ export default {
   'artifactType.ux_interaction_card': '交互设计卡',
   'artifactType.ddd_applicability_review': 'DDD 适用性评审',
   'artifactType.engineering_plan': '工程方案',
+  'artifactType.implementation_record': '实现记录',
   'artifactType.qa_test_plan': '测试方案',
-  'artifactType.release_checklist': '发布清单',
   'artifactType.user_stories': '用户故事',
   'artifactType.acceptance_criteria': '验收标准',
   'artifactType.business_rules': '业务规则',

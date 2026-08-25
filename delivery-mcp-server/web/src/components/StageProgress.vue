@@ -19,6 +19,7 @@ const props = defineProps<{
   currentStage: string | null;
   team: TeamResponse | null;
   user: UserResponse | null;
+  taskAssignees?: Record<string, string> | null;
 }>();
 
 interface StepInfo {
@@ -42,8 +43,8 @@ const steps = computed<StepInfo[]>(() =>
     const statusLabel = STAGE_STATUS_MAP[s.status] || s.status;
     const icon = s.status === 'completed' ? '✓' : String(idx + 1);
 
-    // 负责人渲染逻辑
-    const assignees = stageAssignees(s.role, props.team);
+    // 负责人渲染逻辑（本任务固化的唯一负责人；未固化显示"未指派"）
+    const assignees = stageAssignees(s.role, props.team, props.taskAssignees);
     let assigneesHtml = '';
     if (assignees.length === 0) {
       if (

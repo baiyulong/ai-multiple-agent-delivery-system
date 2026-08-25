@@ -952,7 +952,7 @@ log(`
 ${IS_PREBUILT_INSTALL ? '0. 本次为预构建包更新（--release / --prebuilt）：旧 MCP server 进程已停止，新版本需重启 OpenCode 后才会以新代码启动（不会自动重启，请务必重启 OpenCode）\n' : ''}1. 重启 OpenCode（加载新 agent 与 MCP 配置，MCP server 会随之启动）
 2. 配置当前人：   user.set  { "name": "你的姓名", "email": "your@email.com" }
 3. 配置团队名册： team.set  { "name": "你的姓名", "email": "your@email.com", "roles": ["..."] }
-   （全部成员 roles 并集需覆盖 8 个角色）
+   （全部成员 roles 并集需覆盖 9 个角色）
 4. 可选配置个人邮件： email.set { "user": "your@qq.com", "pass": "SMTP 授权码" }  ← 只填邮箱+授权码即可
    （个人级，存于用户主目录，跨项目沿用，不进项目仓库）
 5. 选择 delivery-orchestrator Agent 开始交付任务

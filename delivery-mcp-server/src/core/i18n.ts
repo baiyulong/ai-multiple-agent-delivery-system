@@ -63,8 +63,9 @@ export function roleLabels(): Record<string, string> {
     'ux-designer': roleLabel('ux-designer'),
     'domain-architect': roleLabel('domain-architect'),
     engineer: roleLabel('engineer'),
+    developer: roleLabel('developer'),
+    'data-engineer': roleLabel('data-engineer'),
     qa: roleLabel('qa'),
-    devops: roleLabel('devops'),
   };
 }
 

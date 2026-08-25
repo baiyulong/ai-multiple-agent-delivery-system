@@ -10,7 +10,7 @@
 
 ## 一、这是什么
 
-一个基于 **MCP** 的多角色 Agent 项目交付编排系统。把项目交付拆成**七角色接力工作流**（产品经理 → UI/UX → 领域架构 → 工程实现 → QA → DevOps），通过**阶段门禁**保证每个交付物达标后才进入下一阶段。任务状态以纯文本文件保存在本地 `.delivery` 目录，无数据库。
+一个基于 **MCP** 的多角色 Agent 项目交付编排系统。把项目交付拆成**多角色接力工作流**（产品经理 → UI/UX → 领域架构 → 工程实现 → 程序员 → QA，数据工程师按需协作），通过**阶段门禁**保证每个交付物达标后才进入下一阶段。任务状态以纯文本文件保存在本地 `.delivery` 目录，无数据库。
 
 适用于 **OpenCode** 等支持 MCP 的 AI 编程工具。
 
@@ -267,7 +267,7 @@ grep -qxF '.delivery/' .gitignore 2>/dev/null || echo '.delivery/' >> .gitignore
 }
 ```
 
-> **重要约束**：团队名册的**全部成员 roles 并集必须覆盖全部 8 个角色**（见下表）。若缺角色，`team.set` 会返回 `roles_incomplete` 并列出缺失角色，需继续添加成员或为现有成员补角色，直到 8 个角色全部覆盖。
+> **重要约束**：团队名册的**全部成员 roles 并集必须覆盖全部 9 个角色**（见下表）。若缺角色，`team.set` 会返回 `roles_incomplete` 并列出缺失角色，需继续添加成员或为现有成员补角色，直到 9 个角色全部覆盖。
 > 当前操作人的角色 = `user.set` 的邮箱在团队名册中匹配到的 roles。
 
 | 角色 key | 中文名 | Agent 文件名 |
@@ -277,11 +277,14 @@ grep -qxF '.delivery/' .gitignore 2>/dev/null || echo '.delivery/' >> .gitignore
 | product-manager | 产品经理 | delivery-product-manager.md |
 | ux-designer | UI/UX 设计 | delivery-ux-designer.md |
 | domain-architect | 领域架构师 | delivery-domain-architect.md |
-| engineer | 工程实现 | delivery-engineer.md |
+| engineer | 工程实现（工程计划） | delivery-engineer.md |
+| developer | 程序员（编码实施） | delivery-developer.md |
+| data-engineer | 数据工程师（按需协作，无固定阶段） | delivery-data-engineer.md |
 | qa | 质量测试 | delivery-qa.md |
-| devops | 平台与 DevOps | delivery-devops.md |
 
 > 所有角色 Agent 均以 `delivery-` 前缀命名，避免与目标项目已有的同名 agent（如 `engineer.md`）冲突。**角色 key（team.json 中的 roles 值）与 Agent 文件名是两个概念**：角色 key 不变，Agent 文件名带前缀。
+
+> **角色负责人机制**：团队中**一个角色可由多名成员承担**（多人在 team.set 中登记同一角色即可），但**一个任务中每个角色只有一个负责人**。任务创建后每个阶段完成时，系统会返回下一阶段角色的候选成员，由用户选择后调用 `task.assign` 固化到任务上；之后可随时用 `task.assign` 单独修改某角色的负责人（覆盖式），修改前可用 `task.role_candidates` 查看候选。
 
 ### 3. 配置邮件通知（可选，当前用户个人级）
 

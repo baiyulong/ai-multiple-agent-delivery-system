@@ -9,7 +9,7 @@ import {
 } from '../core/flow-engine.js';
 import { getStages, getTask } from '../core/store/task-store.js';
 import { setStageStatus } from '../core/store/stage-store.js';
-import { normalizeAssigneeList, resolveAssignees } from '../core/store/team-store.js';
+import { findMembersByRole, resolveAssignee } from '../core/store/team-store.js';
 import { getLatestGateRecord } from '../core/store/gate-store.js';
 import { resolveDeliveryRoot } from '../core/paths.js';
 import { dashboardUrl } from '../core/dashboard-url.js';
@@ -55,6 +55,11 @@ export function registerStageTools(server: McpServer, ctx: () => ToolContext) {
 
         const canStart = missingUpstream.length === 0 && (await blockingQuestions).length === 0;
 
+        const assignee = await resolveAssignee(root, task.assignees, stage.role);
+        const candidates = assignee
+          ? null
+          : (await findMembersByRole(root, stage.role)).map((m) => ({ name: m.name, email: m.email }));
+
         return ok({
           stage: stage.stage,
           role: stage.role,
@@ -64,7 +69,9 @@ export function registerStageTools(server: McpServer, ctx: () => ToolContext) {
           can_start: canStart,
           missing_upstream: missingUpstream,
           assigned_agent: missingUpstream[0]?.assigned_agent ?? null,
-          assignees: resolveAssignees(root, task.assignees, stage.role),
+          assignee,
+          candidates,
+          assignment_required: !assignee,
           suggested_action: canStart ? 'generate_and_submit' : 'call_agent_to_complete_upstream',
           blocking_questions: await blockingQuestions,
         });
@@ -163,6 +170,7 @@ export function registerStageTools(server: McpServer, ctx: () => ToolContext) {
             : '';
 
         // 通知下一阶段角色（best-effort，不影响主逻辑）
+        const nextAssignee = nextDef ? await resolveAssignee(root, task.assignees, nextDef.role) : null;
         let email: { sent: boolean; to: string[]; reason?: string } | undefined;
         if (nextDef?.role) {
           email = await notifyRole(
@@ -176,15 +184,31 @@ export function registerStageTools(server: McpServer, ctx: () => ToolContext) {
               t('email.line.next_stage', { stage: next?.stage ?? t('email.line.next_stage_none') }),
               t('email.line.next_role', { role: nextDef.role }),
             ].join('\n') + docHint + nextStepsFooter(args.task_id),
-            { assignees: normalizeAssigneeList(task.assignees?.[nextDef.role]) },
+            { assignees: nextAssignee ? [nextAssignee.email] : [] },
           );
         }
+
+        // 下一阶段角色负责人：未固化时返回候选成员，供 AI 询问用户选择后调用 task.assign 固化
+        const assignmentRequired = Boolean(nextDef && next?.stage && !nextAssignee);
+        const nextCandidates = assignmentRequired
+          ? (await findMembersByRole(root, nextDef!.role)).map((m) => ({ name: m.name, email: m.email }))
+          : null;
 
         return ok({
           stage: args.stage,
           status: 'completed',
           next_stage: next?.stage ?? null,
           next_role: nextDef?.role ?? null,
+          next_role_assignee: nextAssignee,
+          next_role_assignment_required: assignmentRequired,
+          next_role_candidates: nextCandidates,
+          next_role_assignment_hint: assignmentRequired
+            ? t('tool.stage.complete.assignment_hint', {
+                stage: next!.stage,
+                role: nextDef!.role,
+                candidates: nextCandidates!.map((m) => `${m.name}(${m.email})`).join('、'),
+              })
+            : null,
           task_status: task.status,
           completed_by: args.completed_by ?? null,
           confirmed_by: args.confirmed_by,

@@ -1,0 +1,23 @@
+{
+  "artifact_type": "implementation_record",
+  "required_sections": [
+    "Implementation Scope",
+    "Code Change List",
+    "Engineering Plan Compliance",
+    "Key Implementation Decisions",
+    "API and Data Changes",
+    "Self-Test Records",
+    "Known Issues and Remaining Items",
+    "Test Inputs for QA"
+  ],
+  "aliases": {},
+  "non_empty_sections": ["Implementation Scope", "Code Change List"],
+  "min_list_items": [
+    {
+      "section": "Code Change List",
+      "min": 1,
+      "message": "Code change list must contain at least 1 item"
+    }
+  ],
+  "pass_threshold": 60
+}
