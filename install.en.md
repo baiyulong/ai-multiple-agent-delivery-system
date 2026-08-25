@@ -413,7 +413,7 @@ A: Make sure the global `~/.config/ai-delivery/delivery-mcp-server/dist/server.j
 A: The current user or team roster isn't configured. Run `user.set` and `team.set` per section 4.
 
 **Q: `team.set` returns `roles_incomplete`?**
-A: The union of members' roles in the team roster doesn't cover all 8 roles. Follow the returned `missing_roles` and add members or extend roles until all 8 are covered.
+A: The union of members' roles in the team roster doesn't cover all 9 roles. Follow the returned `missing_roles` and add members or extend roles until all 9 are covered.
 
 **Q: Where is the task data stored?**
 A: `.delivery/tasks/` under the target project root — plain-text files, trackable and versionable.
@@ -426,6 +426,9 @@ A: Set the env var `DELIVERY_ROOT` to the target directory.
 
 **Q: Updated the version but OpenCode still runs the old code?**
 A: The MCP server process is stopped on update; **restart OpenCode** for it to start with the new code.
+
+**Q: `--release` / `--prerelease` download fails (fetch failed) behind a corporate proxy?**
+A: Node's built-in fetch ignores `https_proxy`-style proxy variables; the script has a built-in fallback: on fetch network errors it automatically retries with the system curl (curl honors proxy env vars natively). Troubleshooting order: ① make sure `https_proxy` points to a reachable proxy (error messages distinguish "connect timeout / connection refused / DNS failure / SSL handshake failure"; SSL failures often mean an untrusted MITM proxy cert — set `CURL_CA_BUNDLE`); ② for slow links set `DELIVERY_DOWNLOAD_TIMEOUT_MS` (ms, default 300000); ③ force a download tool with `DELIVERY_DOWNLOAD_TOOL=fetch|curl|auto` (default auto: fetch first, curl fallback); ④ as a last resort, download the Release zip manually and install offline with `--prebuilt <dir>`.
 
 ---
 

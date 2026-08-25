@@ -413,7 +413,7 @@ A：确认全局 `~/.config/ai-delivery/delivery-mcp-server/dist/server.js` 已�
 A：未配置当前人或团队名册。按第四节执行 `user.set` 和 `team.set`。
 
 **Q：`team.set` 返回 `roles_incomplete`？**
-A：团队名册的成员 roles 并集未覆盖全部 8 个角色。按返回的 `missing_roles` 继续添加成员或为现有成员补角色，直到 8 个角色全部覆盖。
+A：团队名册的成员 roles 并集未覆盖全部 9 个角色。按返回的 `missing_roles` 继续添加成员或为现有成员补角色，直到 9 个角色全部覆盖。
 
 **Q：任务数据存在哪里？**
 A：目标项目根目录下的 `.delivery/tasks/`，纯文本文件，可追踪、可版本管理。
@@ -426,6 +426,9 @@ A：设置环境变量 `DELIVERY_ROOT` 指向目标目录。
 
 **Q：升级了版本但 OpenCode 还在用旧代码？**
 A：更新后 MCP server 进程会被停止，需**重启 OpenCode** 才会以新代码启动。
+
+**Q：企业代理环境下 `--release` / `--prerelease` 下载失败（fetch failed）？**
+A：Node 内置 fetch 不读取 `https_proxy` 等代理环境变量，脚本已内置回退：fetch 网络层失败时自动改用系统 curl 下载（curl 原生遵循代理）。排查顺序：① 确认 `https_proxy` 指向可达代理（错误信息会区分"连接超时 / 连接被拒绝 / DNS 失败 / SSL 握手失败"，SSL 失败常见于代理证书不受信，可设 `CURL_CA_BUNDLE`）；② 超时可设 `DELIVERY_DOWNLOAD_TIMEOUT_MS`（毫秒，默认 300000）；③ 可用 `DELIVERY_DOWNLOAD_TOOL=fetch|curl|auto` 强制指定下载方式（默认 auto，fetch 优先失败回退 curl）；④ 仍失败可手动下载 Release zip 解压后用 `--prebuilt <目录>` 离线安装。
 
 ---
 

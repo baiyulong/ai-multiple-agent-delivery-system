@@ -33,6 +33,11 @@
  *   DELIVERY_AGENTS_DIR    → 全局 agent 目录（默认 ~/.config/opencode/agents）
  *   DELIVERY_GITHUB_OWNER / DELIVERY_GITHUB_REPO → 覆盖 Release 下载指向（指向 fork 仓库测完整下载链路）
  *   DELIVERY_RELEASE_DIR   → 等价于 --prebuilt（本地预构建包目录，跳过下载）
+ *
+ * 网络相关：
+ *   内置 fetch 网络层失败时自动回退系统 curl（企业代理环境：Node fetch 不读 https_proxy，curl 原生遵循）
+ *   DELIVERY_DOWNLOAD_TOOL        → fetch|curl|auto（默认 auto：fetch 优先，失败回退 curl）
+ *   DELIVERY_DOWNLOAD_TIMEOUT_MS  → 下载超时毫秒（默认 300000）
  */
 import { cp, mkdir, readFile, realpath, writeFile, rm, readdir, readlink } from 'node:fs/promises';
 import { existsSync, createWriteStream } from 'node:fs';
@@ -591,6 +596,125 @@ async function extractZip(zipFile, destDir) {
   }
 }
 
+// ---------- 网络下载（代理友好：内置 fetch 失败自动回退系统 curl） ----------
+// 背景：Node 内置 fetch（undici）不读取 https_proxy 等代理环境变量，企业代理环境下会 fetch failed；
+// 而系统 curl 原生遵循代理配置。因此 fetch 网络层失败时自动回退 curl。
+// 可用 DELIVERY_DOWNLOAD_TOOL=fetch|curl|auto（默认 auto）强制指定下载方式。
+
+const PROXY_ENV_KEYS = ['https_proxy', 'HTTPS_PROXY', 'http_proxy', 'HTTP_PROXY', 'all_proxy', 'ALL_PROXY'];
+
+function proxyEnvValue() {
+  for (const k of PROXY_ENV_KEYS) {
+    const v = process.env[k];
+    if (v) return { key: k, value: v };
+  }
+  return null;
+}
+
+/** 将 fetch 异常归类：timeout（超时）/ dns / refused（连接被拒绝或重置）/ network（其他） */
+function classifyFetchError(e) {
+  const code = e?.cause?.code ?? e?.code ?? '';
+  if (e?.name === 'TimeoutError' || e?.name === 'AbortError' || code === 'UND_ERR_CONNECT_TIMEOUT' || code === 'ETIMEDOUT') return 'timeout';
+  if (code === 'ENOTFOUND' || code === 'EAI_AGAIN') return 'dns';
+  if (code === 'ECONNREFUSED' || code === 'ECONNRESET' || code === 'UND_ERR_SOCKET' || code === 'EPROTO' || code === 'ECONNABORTED') return 'refused';
+  return 'network';
+}
+
+/** 生成面向用户的错误描述（区分超时 / 连接失败 / DNS，并在配置代理时说明 fetch 不走代理） */
+function describeFetchError(e, timeoutMs) {
+  const kind = classifyFetchError(e);
+  const head =
+    kind === 'timeout' ? `连接超时（超过 ${Math.round(timeoutMs / 1000)} 秒）`
+    : kind === 'dns' ? '域名解析失败（ENOTFOUND，可能被网络策略拦截或 DNS 不可用）'
+    : kind === 'refused' ? '连接被拒绝/重置（可能被网络策略拦截，或代理不可用）'
+    : '网络错误';
+  const proxy = proxyEnvValue();
+  const tail = proxy ? `；检测到代理环境变量 ${proxy.key}=${proxy.value}，Node 内置 fetch 不走系统代理` : '';
+  return `fetch failed：${head}${tail}`;
+}
+
+/** curl 退出码 → 中文分类提示（与 fetch 错误对齐，区分超时与资源不存在） */
+function describeCurlExit(code, stderr) {
+  const detail = stderr ? `，stderr: ${stderr.split('\n')[0].slice(0, 120)}` : '';
+  if (code === 28) return `curl 连接/下载超时${detail}`;
+  if (code === 6) return `curl 域名解析失败${detail}`;
+  if (code === 7) return `curl 连接被拒绝${detail}`;
+  if (code === 35 || code === 60 || code === 56) return `curl SSL/代理握手失败（企业代理常见：代理证书不受信，可设 CURL_CA_BUNDLE）${detail}`;
+  return `curl 退出码 ${code}${detail}`;
+}
+
+/** 用系统 curl 下载（遵循 https_proxy 等代理环境变量）。返回 { status, buf }；失败抛带分类信息的 Error */
+async function curlFetch(url, timeoutMs, headers = []) {
+  const maxTime = Math.max(1, Math.ceil(timeoutMs / 1000));
+  const headerArgs = headers.flatMap((h) => ['-H', h]);
+  return new Promise((resolve, reject) => {
+    // 直接 spawn（不经过 shell），避免 Windows PowerShell 的 curl 别名（Invoke-WebRequest）干扰
+    const child = spawn('curl', ['-sSL', '--max-time', String(maxTime), ...headerArgs, '-w', '\n%{http_code}', url], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      windowsHide: true,
+    });
+    const out = [];
+    const err = [];
+    child.stdout.on('data', (d) => out.push(d));
+    child.stderr.on('data', (d) => err.push(d));
+    child.on('error', (e) => reject(new Error(`系统 curl 不可用（${e.code === 'ENOENT' ? '未安装 curl' : e.message}）`)));
+    child.on('exit', (code) => {
+      const buf = Buffer.concat(out);
+      // -w 输出在 body 末尾：最后一个换行字节之后是 HTTP 状态码。
+      // 必须在 Buffer（字节）层面查找——body 含多字节 UTF-8 时字符串索引与字节索引不一致
+      const idx = buf.lastIndexOf(0x0a);
+      if (code !== 0 || idx < 0) {
+        reject(new Error(describeCurlExit(code ?? -1, Buffer.concat(err).toString('utf-8'))));
+        return;
+      }
+      const status = parseInt(buf.subarray(idx + 1).toString('utf-8').trim(), 10);
+      if (!Number.isFinite(status)) {
+        reject(new Error(`curl 输出无法解析 HTTP 状态码（退出码 ${code}）`));
+        return;
+      }
+      resolve({ status, buf: buf.subarray(0, idx) });
+    });
+  });
+}
+
+/**
+ * 统一下载入口：fetch 优先（快路径），网络层失败自动回退系统 curl（走代理）。
+ * 返回 { status, buf, via }；仅在两条路径都失败时抛错（错误信息已分类）。
+ * DELIVERY_DOWNLOAD_TOOL=fetch|curl 可强制指定（默认 auto）。
+ */
+async function httpDownload(url, timeoutMs, extraHeaders = {}) {
+  const tool = (process.env.DELIVERY_DOWNLOAD_TOOL ?? 'auto').toLowerCase();
+  const headers = { 'User-Agent': 'delivery-install', ...extraHeaders };
+  const headerList = Object.entries(headers).map(([k, v]) => `${k}: ${v}`);
+
+  let fetchError = null;
+  if (tool !== 'curl') {
+    try {
+      const res = await fetch(url, { headers, signal: AbortSignal.timeout(timeoutMs), redirect: 'follow' });
+      const buf = Buffer.from(await res.arrayBuffer());
+      return { status: res.status, buf, via: 'fetch' };
+    } catch (e) {
+      if (tool === 'fetch') throw new Error(describeFetchError(e, timeoutMs));
+      fetchError = e; // 记录后回退 curl
+    }
+  }
+
+  const proxy = proxyEnvValue();
+  if (fetchError && proxy) {
+    log(`    内置 fetch 失败（${describeFetchError(fetchError, timeoutMs)}），自动回退系统 curl（遵循代理）`);
+  } else if (fetchError) {
+    log(`    内置 fetch 失败（${describeFetchError(fetchError, timeoutMs)}），自动回退系统 curl`);
+  }
+
+  try {
+    const r = await curlFetch(url, timeoutMs, headerList);
+    return { ...r, via: 'curl' };
+  } catch (curlErr) {
+    const fetchPart = fetchError ? describeFetchError(fetchError, timeoutMs) : '未尝试';
+    throw new Error(`下载失败（fetch: ${fetchPart}；curl: ${curlErr.message}）`);
+  }
+}
+
 async function downloadFromRelease() {
   // --prerelease 走列表接口（含 pre-release 版本，按时间倒序）；默认走 latest 接口（GitHub 的 latest 永不含 prerelease）
   const apiUrl = FLAG_PRERELEASE
@@ -602,16 +726,15 @@ async function downloadFromRelease() {
   let tag;
   let assetUrl;
   try {
-    const res = await fetch(apiUrl, {
-      headers: { 'User-Agent': 'delivery-install' },
-      signal: AbortSignal.timeout(10000),
-    });
-    if (res.status === 404) {
-      warn('尚无 Release，请稍后重试或改用 git clone 源码安装。');
+    // API 查询：fetch 优先，网络层失败自动回退 curl（代理环境友好）
+    const { status, buf, via } = await httpDownload(apiUrl, 15000, { Accept: 'application/vnd.github+json' });
+    if (status === 404) {
+      warn('尚无 Release（HTTP 404：资源不存在），请稍后重试或改用 git clone 源码安装。');
       return null;
     }
-    if (!res.ok) throw new Error(`GitHub API 响应 ${res.status}`);
-    let data = await res.json();
+    if (status !== 200) throw new Error(`GitHub API 响应 ${status}`);
+    if (via === 'curl') log('    （API 查询经系统 curl 完成）');
+    let data = JSON.parse(buf.toString('utf-8'));
     if (Array.isArray(data)) {
       // prerelease 模式：列表按创建时间倒序，取第一个标记为 pre-release 的版本
       const rel = data.find((r) => r && r.prerelease === true);
@@ -626,7 +749,8 @@ async function downloadFromRelease() {
     assetUrl = asset.browser_download_url;
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    warn(`获取 Release 信息失败：${msg}。请检查网络或改用 --repo 指定本地路径。`);
+    warn(`获取 Release 信息失败：${msg}`);
+    warn('  排查建议：① 若为公司代理环境，确认 https_proxy 指向可达的代理（本脚本已自动回退系统 curl）；② 直接浏览器访问 GitHub Release 页面确认仓库存在；③ 或改用 --repo 指定本地源码路径离线安装。');
     return null;
   }
 
@@ -641,13 +765,12 @@ async function downloadFromRelease() {
     log(`    下载：${assetUrl}`);
     // 下载超时：默认 5 分钟（弱网环境下载几 MB 的 zip 也可能很慢），可用 DELIVERY_DOWNLOAD_TIMEOUT_MS 覆盖
     const downloadTimeoutMs = parseInt(process.env.DELIVERY_DOWNLOAD_TIMEOUT_MS ?? '', 10) || 300000;
-    const res = await fetch(assetUrl, {
-      headers: { 'User-Agent': 'delivery-install' },
-      signal: AbortSignal.timeout(downloadTimeoutMs),
-      redirect: 'follow',
-    });
-    if (!res.ok) throw new Error(`下载失败：HTTP ${res.status}`);
-    const buf = Buffer.from(await res.arrayBuffer());
+    const { status, buf, via } = await httpDownload(assetUrl, downloadTimeoutMs);
+    if (status === 404) {
+      throw new Error(`下载失败：HTTP 404（资源不存在——Release ${tag} 的 zip asset 可能已被删除，请到 GitHub Release 页面确认）`);
+    }
+    if (status !== 200) throw new Error(`下载失败：HTTP ${status}`);
+    if (via === 'curl') log(`    （下载经系统 curl 完成，${buf.length} 字节）`);
     // zip 魔数校验：防止拿到 HTML 错误页 / 被 PowerShell curl 别名损坏的文件
     if (buf.length < 4 || buf[0] !== 0x50 || buf[1] !== 0x4b || buf[2] !== 0x03 || buf[3] !== 0x04) {
       const preview = buf.length > 120 ? buf.subarray(0, 120).toString('utf-8') : buf.toString('utf-8');
@@ -661,6 +784,7 @@ async function downloadFromRelease() {
     }
   } catch (e) {
     warn(`下载失败：${e instanceof Error ? e.message : String(e)}`);
+    warn('  排查建议：① 超时可加大 DELIVERY_DOWNLOAD_TIMEOUT_MS（默认 300 秒）；② 代理环境确认 https_proxy 可达（fetch 与 curl 均已尝试）；③ 手动下载 Release zip 解压后用 --prebuilt 指定目录。');
     return null;
   }
 
