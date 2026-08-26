@@ -14,6 +14,7 @@ import { registerQuestionTools } from '../../src/tools/question.js';
 import { registerTeamTools } from '../../src/tools/team.js';
 import { registerUserTools } from '../../src/tools/user.js';
 import { registerEmailTools } from '../../src/tools/email.js';
+import { registerDashboardTools } from '../../src/tools/dashboard.js';
 import { upsertMember } from '../../src/core/store/team-store.js';
 import { writeCurrentUser } from '../../src/core/store/user-store.js';
 
@@ -44,6 +45,7 @@ export async function createHarness(): Promise<TestHarness> {
   registerTeamTools(server, ctx);
   registerUserTools(server, ctx);
   registerEmailTools(server, ctx);
+  registerDashboardTools(server, ctx);
 
   const client = new Client({ name: 'test-client', version: '0.0.0' });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();

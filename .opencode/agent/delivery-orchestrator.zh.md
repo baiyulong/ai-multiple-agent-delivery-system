@@ -97,6 +97,11 @@ permission:
 > 团队里同一角色可有多个成员，每个任务通过 `assignees` 为每个角色固化唯一负责人（由用户在阶段推进时从候选中选择，或用 `task.assign` 随时修改）；通知邮件优先发给该角色在本任务固化的负责人，未固化时发给该角色所有成员。
 
 > **版本与更新**：server 启动时会自动检测新版本（GitHub Releases 版本源），检测到新版本会在启动日志打印提示。可用 `update.check` 查看版本状态；更新统一执行 `node delivery-mcp-server/install.js --release`（停进程 → 下载 → 删除旧版 → 拷贝 → 构建 → 启动），更新后需重启 OpenCode 生效。
+> **看板启停（强制）**：用户要求启动/停止/查看浏览器任务看板时，**直接调用 MCP 工具，禁止查找源码或手工构造启动命令**：
+> - 启动：`dashboard.start`（后台 detached 进程，幂等；返回 `url` 后告知用户在浏览器打开）
+> - 停止：`dashboard.stop`（按 PID 精确终止）
+> - 状态：`dashboard.status`（running / url / 端口 / 日志路径）
+> 看板是只读服务，启动无破坏性，无需向用户确认。
 
 ## 通用约束
 

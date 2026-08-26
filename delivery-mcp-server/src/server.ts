@@ -16,6 +16,7 @@ import { registerTeamTools } from './tools/team.js';
 import { registerUserTools } from './tools/user.js';
 import { registerEmailTools } from './tools/email.js';
 import { registerUpdateTools } from './tools/update.js';
+import { registerDashboardTools } from './tools/dashboard.js';
 import { startBackgroundUpdateCheck } from './core/updater.js';
 
 const root = resolveDeliveryRoot();
@@ -44,6 +45,7 @@ async function main(): Promise<void> {
   registerUserTools(server, ctx);
   registerEmailTools(server, ctx);
   registerUpdateTools(server, ctx);
+  registerDashboardTools(server, ctx);
 
   const transport = new StdioServerTransport();
   await server.connect(transport);

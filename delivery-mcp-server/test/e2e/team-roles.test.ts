@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeRoleKey } from '../../src/core/store/team-store.js';
+import { writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { normalizeRoleKey, readTeamConfig, validateAssignees } from '../../src/core/store/team-store.js';
 import { createHarness } from './helpers.js';
 
 const ALL_ROLES = [
@@ -63,5 +65,94 @@ describe('角色 key 归一化（旧 key 兼容）', () => {
     // 其他旧 key 兼容不受影响
     expect(normalizeRoleKey('platform-devops')).toBe('devops');
     expect(normalizeRoleKey('qa')).toBe('qa');
+  });
+});
+
+describe('团队名册旧 key 存量数据兼容（读取/写入侧归一化）', () => {
+  it('team.json 含旧 key domain-architect → 读取侧归一化为 architect，task.create 指派成功', async () => {
+    const h = await createHarness();
+    // 直接落盘一份含旧 key 的名册（模拟旧版本写入的存量数据）
+    await writeFile(
+      join(h.root, 'config', 'team.json'),
+      JSON.stringify({
+        members: [
+          { name: 'Test User', email: 'test@example.com', roles: ['product-manager', 'engineer'] },
+          { name: 'Legacy Arch', email: 'legacy@example.com', roles: ['domain-architect', 'qa'] },
+        ],
+        updated_at: new Date().toISOString(),
+      }),
+      'utf-8',
+    );
+
+    // 读取侧归一化
+    const config = await readTeamConfig(h.root);
+    const legacy = config?.members.find((m) => m.email === 'legacy@example.com');
+    expect(legacy?.roles).toEqual(['architect', 'qa']);
+
+    // 规范键指派成功（修复前：role_not_in_member_roles 永远失败）
+    const res = await h.call('task.create', {
+      title: 'legacy key assign',
+      description: '测试旧 key 存量名册下的角色指派',
+      assignees: { architect: 'legacy@example.com' },
+    });
+    expect(res.task_id).toBeTruthy();
+    expect(res.assignees).toMatchObject({ architect: 'legacy@example.com' });
+    await h.cleanup();
+  });
+
+  it('旧 key 指派输入（domain-architect）同样成功（双向兼容）', async () => {
+    const h = await createHarness();
+    await writeFile(
+      join(h.root, 'config', 'team.json'),
+      JSON.stringify({
+        members: [
+          { name: 'Test User', email: 'test@example.com', roles: ['product-manager', 'engineer', 'architect'] },
+        ],
+        updated_at: new Date().toISOString(),
+      }),
+      'utf-8',
+    );
+    const res = await h.call('task.create', {
+      title: 'legacy input key',
+      description: '测试旧 key 作为指派输入',
+      assignees: { 'domain-architect': 'test@example.com' },
+    });
+    expect(res.task_id).toBeTruthy();
+    // 归一化后落盘为规范键
+    expect(res.assignees).toMatchObject({ architect: 'test@example.com' });
+    await h.cleanup();
+  });
+
+  it('upsertMember 写入侧归一化：旧 key 落盘为规范 key', async () => {
+    const h = await createHarness();
+    const { upsertMember } = await import('../../src/core/store/team-store.js');
+    await upsertMember(h.root, { name: 'W', email: 'w@example.com', roles: ['domain-architect', 'qa'] as never });
+    const config = await readTeamConfig(h.root);
+    const m = config?.members.find((x) => x.email === 'w@example.com');
+    expect(m?.roles).toEqual(['architect', 'qa']);
+    await h.cleanup();
+  });
+});
+
+describe('validateAssignees 报错自诊断', () => {
+  it('role_not_in_member_roles 携带 normalized_role / member_roles / hint', async () => {
+    const h = await createHarness();
+    // harness 预置：Test User 担任 product-manager / engineer
+    const invalid = await validateAssignees(h.root, { qa: 'test@example.com' });
+    expect(invalid).toHaveLength(1);
+    const item = invalid[0]!;
+    expect(item.reason).toBe('role_not_in_member_roles');
+    expect(item.normalized_role).toBe('qa');
+    expect(item.member_roles).toEqual(['product-manager', 'engineer']);
+    expect(item.hint).toContain('qa');
+    await h.cleanup();
+  });
+
+  it('unknown_role 携带合法角色清单 hint', async () => {
+    const h = await createHarness();
+    const invalid = await validateAssignees(h.root, { 'no-such-role': 'test@example.com' });
+    expect(invalid[0]?.reason).toBe('unknown_role');
+    expect(invalid[0]?.hint).toContain('architect');
+    await h.cleanup();
   });
 });

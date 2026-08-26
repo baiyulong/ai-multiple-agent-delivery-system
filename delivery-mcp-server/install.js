@@ -21,8 +21,9 @@
  *   node install.js --lang en                            # 指定安装语言 zh/en（默认 zh；更新时自动沿用原语言）
  *   node install.js --dry-run                            # 只打印将要执行的操作，不改动文件
  *   node install.js --force                              # 目标目录不是 git 仓库时也继续
- *   node install.js --prune-project-agents               # 同时删除项目级 .opencode/agent/delivery-*.md（旧版本升级遗留，
+ *   node install.js --prune-project-agents               # 升级清理：删除项目级 .opencode/agent/delivery-*.md（旧版本升级遗留，
  *                                                          # 会屏蔽全局 agent 更新；项目背景应存 context.set_project_background）
+ *                                                          # 及全局 agents 目录中历史版本废弃的 agent 文件（如 delivery-devops.md）
  *
  * 安全性：
  *   - 拒绝把本仓库自身当作安装目标
@@ -50,6 +51,11 @@ import { fileURLToPath } from 'node:url';
 
 const SCRIPT_DIR = dirname(dirname(fileURLToPath(import.meta.url))); // 仓库根目录（脚本在 delivery-mcp-server/ 中，取其父目录）
 const AGENT_PREFIX = 'delivery-';
+
+// 历史版本废弃的全局 agent 文件（角色已删除或更名；升级残留会作为"幽灵角色"被 OpenCode 加载）：
+//   delivery-devops.md            ≤ v0.2.26（DevOps 角色已删除）
+//   delivery-domain-architect.md  ≤ v0.2.27-rc.2（更名为 delivery-architect.md）
+const OBSOLETE_AGENT_FILES = ['delivery-devops.md', 'delivery-domain-architect.md'];
 
 // 全局安装目录（可用环境变量覆盖，便于测试）：
 //   DELIVERY_INSTALL_ROOT  → 工具本体根（默认 ~/.config/ai-delivery）
@@ -966,6 +972,37 @@ if (existsSync(srcAgents)) {
   else ok(`已拷贝 ${copied} 个角色 Agent（delivery-*.md）`);
 } else {
   warn(`仓库路径下未找到 .opencode/agent（${srcAgents}）`);
+}
+
+// ---------- 3.5 检测全局 agents 目录中的废弃 agent（历史版本升级残留，只新增不删除导致堆积） ----------
+const staleGlobalAgents = existsSync(GLOBAL_AGENTS_DIR)
+  ? (await readdir(GLOBAL_AGENTS_DIR)).filter((f) => OBSOLETE_AGENT_FILES.includes(f))
+  : [];
+if (staleGlobalAgents.length > 0) {
+  console.log('');
+  warn('================================================================');
+  warn(`⚠ 检测到 ${staleGlobalAgents.length} 个历史版本废弃的全局 agent 文件（升级残留）：`);
+  warn('================================================================');
+  for (const f of staleGlobalAgents) warn(`  ${join(GLOBAL_AGENTS_DIR, f)}`);
+  warn('这些文件对应已删除/更名的角色，但会被 OpenCode 继续当作有效角色加载（"幽灵角色"），');
+  warn('可能被 AI 误指派。确认无用后删除，二选一：');
+  warn('  a. 重跑安装命令并加 --prune-project-agents，自动删除（同时清理项目级遗留 agent）');
+  warn(`  b. 手动删除：rm ${join(GLOBAL_AGENTS_DIR, staleGlobalAgents.join(' '))}`);
+  if (FLAG_PRUNE_PROJECT_AGENTS) {
+    if (FLAG_DRY) {
+      ok(`（dry-run）将自动删除上述 ${staleGlobalAgents.length} 个废弃全局 agent 文件`);
+    } else {
+      let prunedGlobal = 0;
+      for (const f of staleGlobalAgents) {
+        await rm(join(GLOBAL_AGENTS_DIR, f), { force: true });
+        prunedGlobal++;
+      }
+      ok(`已自动删除 ${prunedGlobal} 个废弃全局 agent 文件，"幽灵角色"清理完毕`);
+    }
+  } else {
+    warn('  （本次未删除——若不确定文件是否有用，请先与用户确认后再删）');
+  }
+  console.log('');
 }
 
 // 项目级 .opencode/agent/delivery-*.md 会屏蔽全局 agent 更新（OpenCode 同名覆盖机制）。

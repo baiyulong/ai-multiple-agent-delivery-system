@@ -183,7 +183,17 @@
   "tool.email.providers.description": "List built-in email provider SMTP presets (host/port/secure and notes on enabling auth codes). For selecting a provider in email.set.",
   "tool.email.providers.failed": "Failed to list email providers: {msg}",
 
-  "tool.update.check.description": "Check whether a new version exists on GitHub Releases. Uses a local cache by default (does not re-request GitHub within TTL); pass force=true to force re-request. Silently returns network_error when offline, does not throw. When a new version exists, update manually from the project root: node ~/.config/ai-delivery/delivery-mcp-server/install.js --release.",
+      "tool.dashboard.hint.commands": "Dashboard control: ask the AI to start the dashboard (MCP tools dashboard.start / dashboard.stop / dashboard.status); or via CLI node install.js --dashboard (background start) / --stop-dashboard (stop). Default port 8787, overridable via DELIVERY_DASHBOARD_PORT.",
+"tool.dashboard.start.description": "Start the browser task dashboard in the background (detached process, survives the tool call; default port 8787, falls back to a random free port). Idempotent — returns the existing URL when already running. Tell the user the returned url. When asked to start the dashboard, ALWAYS use this tool instead of exploring source code or crafting manual start commands.",
+  "tool.dashboard.start.confirm": "Reserved parameter (no confirmation needed; the dashboard is read-only and non-destructive)",
+  "tool.dashboard.start.hint_started": "Dashboard started in the background; tell the user the url to view task progress in the browser.",
+  "tool.dashboard.start.hint_already_running": "Dashboard already running; just tell the user the url.",
+  "tool.dashboard.start.failed": "Failed to start dashboard: {msg}",
+  "tool.dashboard.stop.description": "Stop the running dashboard process (precise termination by PID, cleans up port records). For old-version dashboards without a PID record, returns a hint to use install.js --stop-dashboard.",
+  "tool.dashboard.stop.failed": "Failed to stop dashboard: {msg}",
+  "tool.dashboard.status.description": "Query dashboard status (running / url / port / PID / log path). Use this to check whether the dashboard is up.",
+  "tool.dashboard.status.failed": "Failed to query dashboard status: {msg}",
+"tool.update.check.description": "Check whether a new version exists on GitHub Releases. Uses a local cache by default (does not re-request GitHub within TTL); pass force=true to force re-request. Silently returns network_error when offline, does not throw. When a new version exists, update manually from the project root: node ~/.config/ai-delivery/delivery-mcp-server/install.js --release.",
   "tool.update.check.force": "Force re-request GitHub (ignore TTL cache)",
   "tool.update.check.failed": "Failed to check update: {msg}",
 

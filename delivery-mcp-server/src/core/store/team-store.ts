@@ -86,9 +86,17 @@ function teamConfigFile(root: string): string {
   return assertInside(root, join(root, 'config', 'team.json'));
 }
 
-/** 读取团队配置，未配置返回 null */
+/** 读取团队配置，未配置返回 null。member.roles 统一归一化（兼容旧版本写入的 domain-architect 等旧 key） */
 export async function readTeamConfig(root: string): Promise<TeamConfig | null> {
-  return readJson<TeamConfig>(teamConfigFile(root));
+  const config = await readJson<TeamConfig>(teamConfigFile(root));
+  if (!config || !Array.isArray(config.members)) return config;
+  // 读取侧归一化：旧 key（如 domain-architect）映射为规范 key，去重保序。
+  // 不回写文件（避免读操作产生写副作用），下次 team.set 写入时自然落盘为规范 key。
+  config.members = config.members.map((m) => ({
+    ...m,
+    roles: [...new Set((m.roles ?? []).map((r) => normalizeRoleKey(r)))] as TeamRole[],
+  }));
+  return config;
 }
 
 /** 写入团队配置 */
@@ -125,18 +133,22 @@ export async function findMemberByName(root: string, name: string): Promise<Team
   return config.members.find((m) => m.name.toLowerCase() === name.toLowerCase()) ?? null;
 }
 
-/** 新增或更新成员（按邮箱匹配；roles 覆盖为传入值） */
+/** 新增或更新成员（按邮箱匹配；roles 覆盖为传入值）。写入侧归一化 roles，防止继续产生旧 key 脏数据 */
 export async function upsertMember(
   root: string,
   member: TeamMember,
 ): Promise<{ config: TeamConfig; created: boolean }> {
   const existing = (await readTeamConfig(root)) ?? { members: [] as TeamMember[], updated_at: nowIso() };
-  const idx = existing.members.findIndex((m) => m.email.toLowerCase() === member.email.toLowerCase());
+  const normalized: TeamMember = {
+    ...member,
+    roles: [...new Set((member.roles ?? []).map((r) => normalizeRoleKey(r)))] as TeamRole[],
+  };
+  const idx = existing.members.findIndex((m) => m.email.toLowerCase() === normalized.email.toLowerCase());
   const created = idx < 0;
   if (created) {
-    existing.members.push(member);
+    existing.members.push(normalized);
   } else {
-    existing.members[idx] = member;
+    existing.members[idx] = normalized;
   }
   await writeTeamConfig(root, existing);
   return { config: existing, created };
@@ -149,42 +161,77 @@ export function normalizeAssignee(value: string | string[] | undefined): string 
   return undefined;
 }
 
-/** 归一化 assignees：role -> 负责人邮箱（每角色一个负责人；兼容旧数组格式取第一个，空值丢弃） */
+/** 归一化 assignees：role -> 负责人邮箱（每角色一个负责人；role key 归一化为规范 key，兼容旧数组格式取第一个，空值丢弃） */
 export function normalizeAssignees(
   assignees: Record<string, string | string[]> | undefined,
 ): Record<string, string> {
   const out: Record<string, string> = {};
   for (const [role, raw] of Object.entries(assignees ?? {})) {
     const email = normalizeAssignee(raw);
-    if (email) out[role] = email;
+    if (email) out[normalizeRoleKey(role)] = email;
   }
   return out;
 }
 
-/** 校验 assignees：每个 role 必须是合法角色 key，且 email 是团队成员并担任该角色。返回非法项列表 */
+/** 校验 assignees：每个 role 必须是合法角色 key，且 email 是团队成员并担任该角色。返回非法项列表（含诊断信息） */
 export async function validateAssignees(
   root: string,
   assignees: Record<string, string | string[]>,
-): Promise<Array<{ role: string; email: string; reason: string }>> {
-  const invalid: Array<{ role: string; email: string; reason: string }> = [];
+): Promise<
+  Array<{
+    role: string;
+    normalized_role?: string;
+    email: string;
+    reason: string;
+    member_roles?: string[];
+    hint?: string;
+  }>
+> {
+  const invalid: Array<{
+    role: string;
+    normalized_role?: string;
+    email: string;
+    reason: string;
+    member_roles?: string[];
+    hint?: string;
+  }> = [];
   for (const [role, raw] of Object.entries(assignees)) {
     const norm = normalizeRoleKey(role);
     const email = normalizeAssignee(raw) ?? '';
     if (!TEAM_ROLES.includes(norm as TeamRole)) {
-      invalid.push({ role, email: Array.isArray(raw) ? raw.join('、') : email, reason: 'unknown_role' });
+      invalid.push({
+        role,
+        normalized_role: norm,
+        email: Array.isArray(raw) ? raw.join('、') : email,
+        reason: 'unknown_role',
+        hint: `未知角色 key「${role}」，合法角色：${TEAM_ROLES.join('、')}`,
+      });
       continue;
     }
     if (!email) {
-      invalid.push({ role, email, reason: 'empty_email' });
+      invalid.push({ role, normalized_role: norm, email, reason: 'empty_email' });
       continue;
     }
     const member = await findMemberByEmail(root, email);
     if (!member) {
-      invalid.push({ role, email, reason: 'not_member' });
+      invalid.push({
+        role,
+        normalized_role: norm,
+        email,
+        reason: 'not_member',
+        hint: `邮箱 ${email} 不在团队名册（team.set 配置）中`,
+      });
       continue;
     }
     if (!member.roles.includes(norm as TeamRole)) {
-      invalid.push({ role, email, reason: 'role_not_in_member_roles' });
+      invalid.push({
+        role,
+        normalized_role: norm,
+        email,
+        reason: 'role_not_in_member_roles',
+        member_roles: member.roles,
+        hint: `成员 ${member.name} 的角色为 [${member.roles.join('、')}]，不包含 ${norm}；可用 team.set 为其追加该角色，或改指派担任 ${norm} 的成员`,
+      });
     }
   }
   return invalid;

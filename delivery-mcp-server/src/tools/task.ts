@@ -77,7 +77,7 @@ export function registerTaskTools(server: McpServer, ctx: () => ToolContext) {
         const assignees = normalizeAssignees(args.assignees);
         const invalid = await validateAssignees(root, assignees);
         if (invalid.length > 0) {
-          return fail('invalid_assignee', t('tool.task.create.invalid_assignee', { details: invalid.map((i) => `${i.role}=${i.email}(${i.reason})`).join('、') }), { invalid });
+          return fail('invalid_assignee', t('tool.task.create.invalid_assignee', { details: invalid.map((i) => `${i.role}=${i.email}(${i.reason})${i.hint ? `；${i.hint}` : ''}`).join('、') }), { invalid });
         }
 
         const task = await createTask(root, {
@@ -117,6 +117,7 @@ export function registerTaskTools(server: McpServer, ctx: () => ToolContext) {
           document_hint: documents?.hint ?? null,
           dashboard_url: dashboardUrl(),
           view_hint: t('tool.task.create.view_hint', { url: dashboardUrl() }),
+          dashboard_hint: t('tool.dashboard.hint.commands'),
         });
       } catch (e) {
         return fail('create_failed', t('tool.task.create.failed', { msg: (e as Error).message }));
@@ -142,7 +143,7 @@ export function registerTaskTools(server: McpServer, ctx: () => ToolContext) {
 
         const invalid = await validateAssignees(root, { [args.role]: args.email });
         if (invalid.length > 0) {
-          return fail('invalid_assignee', t('tool.task.assign.invalid_assignee', { details: invalid.map((i) => `${i.role}=${i.email}(${i.reason})`).join('、') }), { invalid });
+          return fail('invalid_assignee', t('tool.task.assign.invalid_assignee', { details: invalid.map((i) => `${i.role}=${i.email}(${i.reason})${i.hint ? `；${i.hint}` : ''}`).join('、') }), { invalid });
         }
 
         task.assignees = { ...(task.assignees ?? {}), [args.role]: args.email };

@@ -32,7 +32,17 @@ npm run dashboard # 启动浏览器任务看板 http://localhost:8787
 
 ## 浏览器任务看板
 
-`npm run dashboard` 启动本地只读看板，可视化浏览任务：列表/详情/阶段进度/门禁结果/交付物/问题/共享上下文/公共文档。首页标签导航"任务列表 / 公共文档"，公共文档跨任务聚合架构师的 `ubiquitous_language_code_map` 与 `technical_architecture` 交付物，按类型分组展开查看。端口由 `DELIVERY_DASHBOARD_PORT` 或 `PORT` 控制（默认 8787，被占用时自动回退随机端口并写入 `<数据根>/dashboard.port`），数据根默认当前目录 `.delivery`。
+**推荐启停方式（MCP 工具）**：对 AI 说「启动看板」即可，AI 会调用 `dashboard.start`（后台独立进程启动并返回地址）/ `dashboard.stop`（按 PID 精确停止）/ `dashboard.status`（查询运行状态）。
+
+命令行方式（等效）：
+
+```bash
+node install.js --dashboard      # 后台启动看板（自动注入 DELIVERY_ROOT，日志 <项目>/.delivery/dashboard.log）
+node install.js --stop-dashboard # 停止看板
+npm run dashboard                # 前台启动（需自行设置 DELIVERY_ROOT 指向项目数据根）
+```
+
+看板为本地只读服务，可视化浏览任务：列表/详情/阶段进度/门禁结果/交付物/问题/共享上下文/公共文档。首页标签导航"任务列表 / 公共文档"，公共文档跨任务聚合架构师的 `ubiquitous_language_code_map` 与 `technical_architecture` 交付物，按类型分组展开查看。端口由 `DELIVERY_DASHBOARD_PORT` 或 `PORT` 控制（默认 8787，被占用时自动回退随机端口并写入 `<数据根>/dashboard.port`），数据根默认当前目录 `.delivery`。
 
 ## 自动更新
 
@@ -40,7 +50,7 @@ npm run dashboard # 启动浏览器任务看板 http://localhost:8787
 - **更新手动触发**：用 `update.check` 查询版本状态（可选 `force` 强制重新检测），然后在项目根目录运行 `node ~/.config/ai-delivery/delivery-mcp-server/install.js --release` 完成更新（停进程 → 下载预构建包 → 覆盖全局安装 → 安装依赖，**保留 `.delivery/` 任务数据**）。
 - 更新后需**重启 OpenCode** 生效。可用环境变量 `DELIVERY_UPDATE_CHECK=0` 禁用自动检测。
 
-## MCP 工具（28 个）
+## MCP 工具（31 个）
 
 | 工具 | 说明 |
 |---|---|
@@ -149,7 +159,7 @@ src/
 │   ├── context-manager.ts # 共享上下文
 │   ├── exporter.ts        # 交付包导出
 │   └── store/             # 文件存储
-├── tools/                 # 16 个 MCP 工具
+├── tools/                 # 31 个 MCP 工具注册
 config/                    # 流程模板 + 门禁规则 + 预设架构
 templates/                 # 上下文与交付物模板
 test/                      # 单测 + E2E 验收

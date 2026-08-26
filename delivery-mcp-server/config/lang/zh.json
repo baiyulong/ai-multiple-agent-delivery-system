@@ -183,7 +183,17 @@
   "tool.email.providers.description": "列出内置支持的邮件服务商 SMTP 预设（host/port/secure 与开启授权码的注意事项）。供 email.set 选择 provider 使用。",
   "tool.email.providers.failed": "列出邮件服务商失败: {msg}",
 
-  "tool.update.check.description": "检查 GitHub Releases 是否有新版本。默认走本地缓存（TTL 内不重复请求 GitHub）；传 force=true 强制重新请求。无网络时静默返回 network_error，不抛错。有新版本时需手动执行更新：在项目根目录运行 node ~/.config/ai-delivery/delivery-mcp-server/install.js --release。",
+      "tool.dashboard.hint.commands": "看板启停：对 AI 说启动看板（MCP 工具 dashboard.start / dashboard.stop / dashboard.status）；或命令行 node install.js --dashboard（后台启动）/ --stop-dashboard（停止）。端口默认 8787，可用环境变量 DELIVERY_DASHBOARD_PORT 覆盖。",
+"tool.dashboard.start.description": "后台启动浏览器任务看板（detached 独立进程，不随本工具调用退出；端口默认 8787，被占用时自动换随机端口）。已在运行时幂等返回现有地址。启动后应把返回的 url 告知用户。AI 要求启动看板时必须用本工具，不要查找源码或手工构造启动命令。",
+  "tool.dashboard.start.confirm": "保留参数（无需确认，看板为只读服务，启动无破坏性）",
+  "tool.dashboard.start.hint_started": "看板已后台启动，请把 url 告知用户（可在浏览器打开查看任务进度）。",
+  "tool.dashboard.start.hint_already_running": "看板已在运行，直接把 url 告知用户即可。",
+  "tool.dashboard.start.failed": "看板启动失败: {msg}",
+  "tool.dashboard.stop.description": "停止运行中的任务看板进程（按 PID 精确终止并清理端口记录）。旧版本启动、无 PID 记录时会返回 hint 指引用 install.js --stop-dashboard 停止。",
+  "tool.dashboard.stop.failed": "看板停止失败: {msg}",
+  "tool.dashboard.status.description": "查询看板运行状态（running / url / 端口 / PID / 日志路径）。需要判断看板是否已启动时用本工具。",
+  "tool.dashboard.status.failed": "看板状态查询失败: {msg}",
+"tool.update.check.description": "检查 GitHub Releases 是否有新版本。默认走本地缓存（TTL 内不重复请求 GitHub）；传 force=true 强制重新请求。无网络时静默返回 network_error，不抛错。有新版本时需手动执行更新：在项目根目录运行 node ~/.config/ai-delivery/delivery-mcp-server/install.js --release。",
   "tool.update.check.force": "强制重新请求 GitHub（忽略 TTL 缓存）",
   "tool.update.check.failed": "检查更新失败: {msg}",
 

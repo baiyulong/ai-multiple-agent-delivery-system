@@ -209,6 +209,8 @@ rm -rf /tmp/ai-delivery-system
 
 > **Note**: the dashboard is a long-running service; **it does not auto-start with the install by default** (to avoid being killed by command-line tools with timeouts). Start it on demand after installation:
 >
+> **Fastest way (recommended)**: just tell the AI to start the dashboard — it calls the MCP tool `dashboard.start` to launch it in the background and returns the URL (`dashboard.stop` to stop, `dashboard.status` to check), no manual commands needed.
+>
 > - Background start (recommended, separate process + log + port check): run `node ~/.config/ai-delivery/delivery-mcp-server/install.js --dashboard` in the project root (the script injects `DELIVERY_ROOT` automatically)
 > - Foreground start: `cd ~/.config/ai-delivery/delivery-mcp-server && npm run dashboard` (**you must set `DELIVERY_ROOT` to the project data root first**, e.g. PowerShell: `$env:DELIVERY_ROOT="C:\path\to\proj\.delivery"`)
 > - Stop: `node ~/.config/ai-delivery/delivery-mcp-server/install.js --stop-dashboard` or `cd ~/.config/ai-delivery/delivery-mcp-server && npm run dashboard:stop`
@@ -405,6 +407,25 @@ The script automatically: queries and downloads the latest Release prebuilt zip 
 - **Manual update**: use `update.check` to view version status (optional `force` to force re-check), then run `node ~/.config/ai-delivery/delivery-mcp-server/install.js --release` in the project root to update.
 
 After updating, **restart OpenCode** for changes to take effect. Set `DELIVERY_UPDATE_CHECK=0` to disable the auto-check.
+### Upgrade Cleanup: Leftover Files to Delete When Upgrading (AI Must Read)
+
+Upgrade-over-install **only adds, never deletes** — obsolete files from historical versions linger and keep being loaded ("ghost roles"). When upgrading from the latest stable (<= v0.2.26) to the current version, the AI MUST check and clean up each item below:
+
+| Leftover file | Location | Reason | Impact |
+|---|---|---|---|
+| `delivery-devops.md` | `~/.config/opencode/agents/` | DevOps role removed (<= v0.2.26) | OpenCode keeps loading this "ghost role"; it may be mistakenly assigned tasks |
+| `delivery-domain-architect.md` | `~/.config/opencode/agents/` | Domain Architect renamed to Architect (<= v0.2.27-rc.2) | Same as above; coexists with the new `delivery-architect.md`, duplicating the role |
+| `delivery-*.md` (all) | `<project>/.opencode/agent/` | legacy per-project agent model | Project-level files take priority over global ones, shielding the new role protocols from this upgrade |
+| `delivery-mcp-server/` | `<project>/` | legacy per-project server install | Coexists with the global install, wastes space and causes confusion (task data `.delivery/` is unaffected) |
+
+**AI execution protocol (mandatory)**:
+
+1. After the upgrade, check whether the files above exist (install.js also auto-prints detection warnings during the run — relay them to the user verbatim);
+2. **Before deleting ANY file, you MUST present the complete list to the user with the reason for each, and wait for explicit user confirmation — silent deletion is strictly forbidden**;
+3. After confirmation, recommend the user run `node ~/.config/ai-delivery/delivery-mcp-server/install.js --prune-project-agents` in the project root to clean up automatically (it removes both obsolete global agents and leftover project-level agents); or delete manually per the list;
+4. Restart OpenCode after cleanup for changes to take effect.
+
+> Check whether the user needs anything preserved: if project-level `delivery-*.md` files contain project background or domain knowledge, guide the user to record it first (say "please record the project background" in the chat — the AI calls `context.set_project_background`) before deleting.
 
 ---
 

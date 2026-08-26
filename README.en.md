@@ -49,7 +49,7 @@ In one sentence: **turn "AI team delivery" from "hoping prompts work" into an en
 
 | Component | Path | Description |
 |---|---|---|
-| **MCP Server** | `delivery-mcp-server/` | 18 tools: task/stage/artifact/gate/context/question |
+| **MCP Server** | `delivery-mcp-server/` | 31 tools: task/stage/artifact/gate/context/question/team/email/update/dashboard |
 | **Flow templates** | `delivery-mcp-server/config/flows/` | crud (6 stages) / lightweight-ddd (6 stages) / full-ddd (7 stages) |
 | **Gate rules** | `delivery-mcp-server/config/gates/` | Check rules for 17 artifact types |
 | **Artifact templates** | `delivery-mcp-server/templates/` | Shared context + 17 artifact templates |

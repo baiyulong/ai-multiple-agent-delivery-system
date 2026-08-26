@@ -65,6 +65,7 @@ jobs:
           cp -r delivery-mcp-server/config "${STAGE}/delivery-mcp-server/"
           cp -r delivery-mcp-server/templates "${STAGE}/delivery-mcp-server/"
           cp delivery-mcp-server/package.json delivery-mcp-server/package-lock.json "${STAGE}/delivery-mcp-server/"
+          cp delivery-mcp-server/README.md "${STAGE}/delivery-mcp-server/"
           cp delivery-mcp-server/install.js delivery-mcp-server/uninstall.js "${STAGE}/delivery-mcp-server/"
           cp .opencode/agent/delivery-*.md "${STAGE}/.opencode/agent/" 2>/dev/null || true
           cd "${STAGE}"

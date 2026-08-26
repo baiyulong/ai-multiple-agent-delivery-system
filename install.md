@@ -209,6 +209,8 @@ rm -rf /tmp/ai-delivery-system
 
 > **注意**：dashboard 是长期运行的服务，**默认不随安装自动启动**（避免被有超时的命令行工具误杀）。安装完成后按需启动：
 >
+> **最快方式（推荐）**：直接对 AI 说「启动看板」，AI 会调用 MCP 工具 `dashboard.start` 后台启动并返回地址（`dashboard.stop` 停止、`dashboard.status` 查状态），无需手工执行任何命令。
+>
 > - 后台启动（推荐，独立进程 + 日志 + 端口探测确认）：在项目根目录执行 `node ~/.config/ai-delivery/delivery-mcp-server/install.js --dashboard`（脚本自动注入 `DELIVERY_ROOT`）
 > - 前台启动：`cd ~/.config/ai-delivery/delivery-mcp-server && npm run dashboard`（**必须先设置 `DELIVERY_ROOT` 指向项目数据根**，如 PowerShell：`$env:DELIVERY_ROOT="C:\path\to\proj\.delivery"`）
 > - 停止：`node ~/.config/ai-delivery/delivery-mcp-server/install.js --stop-dashboard` 或 `cd ~/.config/ai-delivery/delivery-mcp-server && npm run dashboard:stop`
@@ -405,6 +407,25 @@ node ~/.config/ai-delivery/delivery-mcp-server/install.js --release
 - **手动更新**：用 `update.check` 查看版本状态（可选 `force` 强制重新检测），然后在项目根目录运行 `node ~/.config/ai-delivery/delivery-mcp-server/install.js --release` 完成更新。
 
 更新后需**重启 OpenCode** 生效。可用环境变量 `DELIVERY_UPDATE_CHECK=0` 关闭自动检测。
+### 升级清理：从旧版本升级需删除的遗留文件（AI 必读）
+
+升级覆盖安装**只增不删**，历史版本的废弃文件会残留并被继续加载（"幽灵角色"）。从 latest 稳定版（≤ v0.2.26）升级到当前版本时，AI 必须按下表逐项检查并清理：
+
+| 遗留文件 | 位置 | 原因 | 影响 |
+|---|---|---|---|
+| `delivery-devops.md` | `~/.config/opencode/agents/` | DevOps 角色已删除（≤ v0.2.26） | OpenCode 继续加载该"幽灵角色"，可能被误指派任务 |
+| `delivery-domain-architect.md` | `~/.config/opencode/agents/` | 领域架构师更名为架构师（≤ v0.2.27-rc.2） | 同上；新 `delivery-architect.md` 与之并存，角色重复 |
+| `delivery-*.md`（全部） | `<项目>/.opencode/agent/` | 旧模型按项目安装 agent | 项目级文件优先于全局，屏蔽本次升级的新角色协议 |
+| `delivery-mcp-server/` | `<项目>/` | 旧模型按项目安装工具本体 | 与全局安装并存，占用空间易混淆（任务数据 `.delivery/` 不受影响） |
+
+**AI 执行协议（强制）**：
+
+1. 升级完成后，检查上表文件是否存在（install.js 运行时也会自动打印检测警告，AI 应原样转述给用户）；
+2. **删除任何文件前，必须先向用户列出完整清单并逐一说明原因，等用户明确确认后才能删除**——严禁静默删除；
+3. 用户确认后，推荐让用户在项目根目录执行 `node ~/.config/ai-delivery/delivery-mcp-server/install.js --prune-project-agents` 自动清理（该命令同时清理全局废弃 agent 与项目级遗留 agent）；或按清单手动删除；
+4. 清理完成后重启 OpenCode 生效。
+
+> 检查用户是否需要保留：项目级 `delivery-*.md` 里若写有项目背景/领域知识，先引导用户录入（对话中说"请录入项目背景"，AI 调用 `context.set_project_background`）再删除。
 
 ---
 

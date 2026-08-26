@@ -108,3 +108,9 @@ Drive delivery through the MCP tools `delivery` (namespace `delivery_*`, tool na
 6. AI-generated content must be labeled as candidate proposals, not final decisions.
 7. You may only advise within your own role boundary; do not overstep and make final calls.
 8. Every output must end with: current conclusions, risk points, pending questions, and next-step recommendations.
+
+> **Dashboard control (mandatory)**: when the user asks to start/stop/check the browser task dashboard, **call MCP tools directly — never explore source code or craft manual start commands**:
+> - Start: `dashboard.start` (detached background process, idempotent; tell the user the returned `url`)
+> - Stop: `dashboard.stop` (precise termination by PID)
+> - Status: `dashboard.status` (running / url / port / log path)
+> The dashboard is read-only; starting it is non-destructive and needs no user confirmation.

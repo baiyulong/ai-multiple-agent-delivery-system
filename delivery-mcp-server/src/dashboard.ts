@@ -715,11 +715,14 @@ function listenWithFallback(port: number): Promise<number> {
 }
 
 const PORT_FILE = join(root, 'dashboard.port');
+const PID_FILE = join(root, 'dashboard.pid');
 
 listenWithFallback(CONFIGURED_PORT)
   .then(async (port) => {
     // 持久化实际端口，供 dashboardUrl() 生成正确地址
     await writeFile(PORT_FILE, String(port), 'utf-8');
+    // 持久化进程 PID，供 dashboard.stop 工具精确终止
+    await writeFile(PID_FILE, String(process.pid), 'utf-8');
     console.log(`AI 交付任务看板已启动: http://localhost:${port}`);
     console.log(`数据根目录: ${root}`);
     if (port !== CONFIGURED_PORT) {
@@ -731,9 +734,9 @@ listenWithFallback(CONFIGURED_PORT)
     process.exit(1);
   });
 
-// 退出时清理端口文件，避免残留误导 dashboardUrl()
+// 退出时清理端口/PID 文件，避免残留误导 dashboardUrl()
 for (const sig of ['SIGINT', 'SIGTERM'] as const) {
   process.on(sig, () => {
-    rm(PORT_FILE, { force: true }).finally(() => process.exit(0));
+    Promise.all([rm(PORT_FILE, { force: true }), rm(PID_FILE, { force: true })]).finally(() => process.exit(0));
   });
 }

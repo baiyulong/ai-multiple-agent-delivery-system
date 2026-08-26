@@ -49,7 +49,7 @@
 
 | 组成 | 路径 | 说明 |
 |---|---|---|
-| **MCP Server** | `delivery-mcp-server/` | 18 个工具：任务/阶段/交付物/门禁/上下文/问题 |
+| **MCP Server** | `delivery-mcp-server/` | 31 个工具：任务/阶段/交付物/门禁/上下文/问题/团队/邮件/更新/看板 |
 | **流程模板** | `delivery-mcp-server/config/flows/` | crud（6 阶段）/ lightweight-ddd（6 阶段）/ full-ddd（7 阶段） |
 | **门禁规则** | `delivery-mcp-server/config/gates/` | 17 个交付物类型的检查规则 |
 | **交付物模板** | `delivery-mcp-server/templates/` | 共享上下文 + 17 个交付物模板 |
