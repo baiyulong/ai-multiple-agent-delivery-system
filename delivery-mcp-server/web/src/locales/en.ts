@@ -40,7 +40,7 @@ export default {
   // ── Role names ──
   'role.product-manager': 'Product Manager',
   'role.ux-designer': 'UX Designer',
-  'role.domain-architect': 'Domain Architect',
+  'role.architect': 'Architect',
   'role.engineer': 'Engineer',
   'role.developer': 'Developer',
   'role.data-engineer': 'Data Engineer',

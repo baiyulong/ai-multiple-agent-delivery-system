@@ -10,7 +10,7 @@
 
 ## 1. What This Is
 
-A **MCP-based** multi-role Agent delivery orchestration system. It breaks project delivery into a **multi-role relay workflow** (Product Manager → UI/UX → Domain Architecture → Engineering → Developer → QA, with a Data Engineer joining on demand), and enforces **stage gates** so every artifact must pass before the next stage begins. Task state is stored as plain-text files in a local `.delivery` directory — no database required.
+A **MCP-based** multi-role Agent delivery orchestration system. It breaks project delivery into a **multi-role relay workflow** (Product Manager → UI/UX → Architecture → Engineering → Developer → QA, with a Data Engineer joining on demand), and enforces **stage gates** so every artifact must pass before the next stage begins. Task state is stored as plain-text files in a local `.delivery` directory — no database required.
 
 Works with **OpenCode** and other MCP-capable AI coding tools.
 
@@ -276,7 +276,7 @@ Call the MCP tool `team.set`:
 | domain-expert | delivery-domain-expert.md |
 | product-manager | delivery-product-manager.md |
 | ux-designer | delivery-ux-designer.md |
-| domain-architect | delivery-domain-architect.md |
+| architect | delivery-architect.md |
 | engineer | delivery-engineer.md |
 | developer | delivery-developer.md |
 | data-engineer | delivery-data-engineer.md |
@@ -285,6 +285,10 @@ Call the MCP tool `team.set`:
 > All role Agents are prefixed `delivery-` to avoid conflicts with same-named agents already in the target project (e.g. `engineer.md`). **The role key (roles value in team.json) and the Agent file name are two different concepts**: role keys never change; Agent file names carry the prefix.
 
 > **Role assignee mechanism**: a role **can be held by multiple team members** (just register them with the same role via team.set), but **each role has exactly one assignee per task**. Whenever a stage completes, the system returns the candidate members for the next stage's role; the user picks one and it is fixed onto the task via `task.assign`. An assignee can be changed anytime via `task.assign` (overwrite semantics); use `task.role_candidates` to list candidates before changing.
+
+> **Project background mechanism (decoupling agent upgrades from project customization)**: never write a project's domain background (business domain, industry glossary, expert experience) into agent files (a project-level `.opencode/agent/delivery-*.md` masks the global agent and blocks upgrades). Instead, say "please record the project background" in chat — the AI calls `context.set_project_background`, storing it at `.delivery/context/project-background.md` (project-level, shared across tasks); every role Agent reads it via `context.get_project_background` before starting work. System upgrades only overwrite global agent templates; the project background lives in `.delivery` data — neither affects the other.
+
+> **Upgrading from old versions**: if the old version copied agents into the project-level `.opencode/agent/`, the installer will **prominently remind you to delete** those files on upgrade (keeping them masks the new global agents — "the upgrade never takes effect"). After confirming the project background is recorded, re-run the install command with `--prune-project-agents` to delete them automatically, or manually remove all `delivery-*.md` under `.opencode/agent/`.
 
 ### 3. Configure email notifications (optional, current-user personal level)
 

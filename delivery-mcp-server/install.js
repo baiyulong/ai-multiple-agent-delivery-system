@@ -21,6 +21,8 @@
  *   node install.js --lang en                            # 指定安装语言 zh/en（默认 zh；更新时自动沿用原语言）
  *   node install.js --dry-run                            # 只打印将要执行的操作，不改动文件
  *   node install.js --force                              # 目标目录不是 git 仓库时也继续
+ *   node install.js --prune-project-agents               # 同时删除项目级 .opencode/agent/delivery-*.md（旧版本升级遗留，
+ *                                                          # 会屏蔽全局 agent 更新；项目背景应存 context.set_project_background）
  *
  * 安全性：
  *   - 拒绝把本仓库自身当作安装目标
@@ -77,6 +79,7 @@ const FLAG_PRERELEASE = args.includes('--prerelease'); // 安装最新 prereleas
 const FLAG_DASH = args.includes('--dashboard'); // 显式开启才后台启动看板（默认不自动启动）
 const FLAG_STOP_DASH = args.includes('--stop-dashboard'); // 仅停止看板进程，不执行安装
 const FLAG_SKIP_BUILD = args.includes('--skip-build'); // 跳过 npm run build（仅源码安装模式有意义；--release 预构建包无构建步骤）
+const FLAG_PRUNE_PROJECT_AGENTS = args.includes('--prune-project-agents'); // 删除项目级 .opencode/agent/delivery-*.md（它们会屏蔽全局 agent 升级；项目背景应存 context.set_project_background）
 
 // 预构建安装模式（--release/--prerelease 下载 或 --prebuilt 本地目录）：保留 dist/web-dist、只装运行期依赖、agent 覆盖更新
 const IS_PREBUILT_INSTALL = FLAG_RELEASE || FLAG_PRERELEASE || !!FLAG_PREBUILT;
@@ -965,6 +968,47 @@ if (existsSync(srcAgents)) {
   warn(`仓库路径下未找到 .opencode/agent（${srcAgents}）`);
 }
 
+// 项目级 .opencode/agent/delivery-*.md 会屏蔽全局 agent 更新（OpenCode 同名覆盖机制）。
+// 新模型：项目背景应存 .delivery/context/project-background.md（context.set_project_background），
+// 项目级不放 delivery-*.md，升级即可无感覆盖全局模板。检测到存量项目级文件时重点提醒删除。
+const projAgentsDir = join(targetReal, '.opencode', 'agent');
+let staleProjectAgents = [];
+if (existsSync(projAgentsDir)) {
+  staleProjectAgents = (await readdir(projAgentsDir)).filter((f) => f.startsWith(AGENT_PREFIX) && f.endsWith('.md'));
+}
+if (staleProjectAgents.length > 0) {
+  console.log('');
+  warn('================================================================');
+  warn(`⚠ 重要：检测到 ${staleProjectAgents.length} 个项目级 agent 文件，会屏蔽本次升级！`);
+  warn('================================================================');
+  for (const f of staleProjectAgents.slice(0, 8)) warn(`  ${join('.opencode', 'agent', f)}`);
+  if (staleProjectAgents.length > 8) warn(`  … 共 ${staleProjectAgents.length} 个`);
+  warn('项目级 delivery-*.md 优先于全局 agent（OpenCode 同名覆盖机制），不删除则新版本角色协议');
+  warn('（如"角色负责人固化""项目背景读取"）不会生效，升级等于没升。');
+  warn('');
+  warn('处理步骤：');
+  warn('  1. 若文件里有项目背景/领域知识：先在对话中说"请录入项目背景"（AI 调用 context.set_project_background 保存）');
+  warn('  2. 删除项目级 delivery-*.md（二选一）：');
+  warn('     a. 重跑安装命令并加 --prune-project-agents，自动删除');
+  warn('     b. 手动删除：删除 .opencode/agent/ 下所有 delivery-*.md');
+  if (FLAG_PRUNE_PROJECT_AGENTS) {
+    if (FLAG_DRY) {
+      ok(`（dry-run）将自动删除上述 ${staleProjectAgents.length} 个项目级 delivery-*.md`);
+    } else {
+      let pruned = 0;
+      for (const f of staleProjectAgents) {
+        await rm(join(projAgentsDir, f), { force: true });
+        pruned++;
+      }
+      ok(`已自动删除 ${pruned} 个项目级 delivery-*.md（--prune-project-agents），全局 agent 更新已生效`);
+      staleProjectAgents = []; // 已清理，不再于结尾重复提醒
+    }
+  } else {
+    warn('  （本次未删除——安装完成后请务必处理，见结尾提醒）');
+  }
+  console.log('');
+}
+
 // ---------- 4. 合并 opencode.json（注册 MCP：绝对路径 + DELIVERY_ROOT） ----------
 log(`\n[3/6] 注册 MCP 到 opencode.json（绝对路径 + DELIVERY_ROOT 环境变量）`);
 const opencodeFile = join(targetReal, 'opencode.json');
@@ -1071,8 +1115,11 @@ if (!FLAG_DRY) {
 }
 
 // ---------- 后续指引 ----------
+const staleReminder = staleProjectAgents.length > 0
+  ? `\n⚠⚠⚠ 未处理提醒：仍有 ${staleProjectAgents.length} 个项目级 agent 文件未删除（.opencode/agent/delivery-*.md），\n它们会屏蔽刚安装的全局 agent 新版本（升级等于没升）！\n   处理：确认项目背景已录入（context.set_project_background）后删除这些文件，\n   或重跑本命令并加 --prune-project-agents 自动删除。\n`
+  : '';
 log(`
-安装完成。接下来：
+${staleReminder}安装完成。接下来：
 ${IS_PREBUILT_INSTALL ? '0. 本次为预构建包更新（--release / --prebuilt）：旧 MCP server 进程已停止，新版本需重启 OpenCode 后才会以新代码启动（不会自动重启，请务必重启 OpenCode）\n' : ''}1. 重启 OpenCode（加载新 agent 与 MCP 配置，MCP server 会随之启动）
 2. 配置当前人：   user.set  { "name": "你的姓名", "email": "your@email.com" }
 3. 配置团队名册： team.set  { "name": "你的姓名", "email": "your@email.com", "roles": ["..."] }

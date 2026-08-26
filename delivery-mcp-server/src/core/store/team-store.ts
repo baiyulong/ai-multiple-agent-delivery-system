@@ -16,7 +16,7 @@ export const TEAM_ROLES = [
   'domain-expert',
   'product-manager',
   'ux-designer',
-  'domain-architect',
+  'architect',
   'engineer',
   'developer',
   'data-engineer',
@@ -42,7 +42,9 @@ export const TEAM_ROLE_LABELS: Record<string, string> = {
   'domain-expert': '业务专家',
   'product-manager': '产品经理',
   'ux-designer': 'UI/UX 设计',
-  'domain-architect': '领域架构师',
+  'architect': '架构师',
+  // 兼容旧角色 key（normalizeRoleKey 归一化前的存量数据展示）
+  'domain-architect': '架构师',
   engineer: '工程实现',
   developer: '程序员',
   'data-engineer': '数据工程师',
@@ -58,7 +60,7 @@ export const ROLE_AGENT_MAP: Record<string, string> = {
   'domain-expert': 'delivery-domain-expert',
   'product-manager': 'delivery-product-manager',
   'ux-designer': 'delivery-ux-designer',
-  'domain-architect': 'delivery-domain-architect',
+  'architect': 'delivery-architect',
   engineer: 'delivery-engineer',
   developer: 'delivery-developer',
   'data-engineer': 'delivery-data-engineer',
@@ -75,7 +77,9 @@ export function agentNameForRole(role: string): string {
  * 归一化到 `devops`。devops 角色已移除，此处仅做兼容映射（视为已废弃角色）。
  */
 export function normalizeRoleKey(role: string): string {
-  return role === 'platform-devops' ? 'devops' : role;
+  if (role === 'platform-devops') return 'devops';
+  if (role === 'domain-architect') return 'architect';
+  return role;
 }
 
 function teamConfigFile(root: string): string {

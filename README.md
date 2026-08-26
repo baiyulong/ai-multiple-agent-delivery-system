@@ -49,7 +49,7 @@
 
 | 组成 | 路径 | 说明 |
 |---|---|---|
-| **MCP Server** | `delivery-mcp-server/` | 17 个工具：任务/阶段/交付物/门禁/上下文/问题 |
+| **MCP Server** | `delivery-mcp-server/` | 18 个工具：任务/阶段/交付物/门禁/上下文/问题 |
 | **流程模板** | `delivery-mcp-server/config/flows/` | crud（6 阶段）/ lightweight-ddd（6 阶段）/ full-ddd（7 阶段） |
 | **门禁规则** | `delivery-mcp-server/config/gates/` | 17 个交付物类型的检查规则 |
 | **交付物模板** | `delivery-mcp-server/templates/` | 共享上下文 + 17 个交付物模板 |
@@ -164,7 +164,7 @@ node delivery-mcp-server/install.js --release
 总控 Agent 会依次：
 1. `task.create` 创建任务（自动识别类型为 crud / lightweight_ddd / full_ddd / analysis / bug_fix）
 2. 查看 `stage.get` 确定当前阶段与指派角色
-3. 调用对应角色 Agent（`delivery-product-manager` / `delivery-ux-designer` / `delivery-domain-architect` / `delivery-engineer` / `delivery-developer` / `delivery-qa`，需要查数据时 `delivery-data-engineer`）生成交付物
+3. 调用对应角色 Agent（`delivery-product-manager` / `delivery-ux-designer` / `delivery-architect` / `delivery-engineer` / `delivery-developer` / `delivery-qa`，需要查数据时 `delivery-data-engineer`）生成交付物
 4. `artifact.submit` 提交 → `gate.check` 门禁 → `stage.complete` 推进
 5. 全部完成后 `task.export_delivery_package` 导出交付包
 
@@ -205,7 +205,7 @@ node delivery-mcp-server/install.js --release
 | domain-expert | 业务专家 | delivery-domain-expert.md |
 | product-manager | 产品经理 | delivery-product-manager.md |
 | ux-designer | UI/UX 设计 | delivery-ux-designer.md |
-| domain-architect | 领域架构师 | delivery-domain-architect.md |
+| architect | 架构师 | delivery-architect.md |
 | engineer | 工程实现（工程计划） | delivery-engineer.md |
 | developer | 程序员（编码实施） | delivery-developer.md |
 | data-engineer | 数据工程师（按需协作，无固定阶段） | delivery-data-engineer.md |
@@ -256,6 +256,7 @@ npm run dashboard
 | `task.create` | 创建任务，自动识别类型并初始化流程；可指定 assignees（预固化各角色唯一负责人）、skip_stages（跳过不需要的阶段） |
 | `task.assign` | 为任务设置/改派某角色负责人（role -> 成员邮箱，每角色在本任务只有一个负责人，覆盖式修改） |
 | `task.role_candidates` | 查询某角色的候选负责人（团队中承担该角色的成员）与当前固化负责人 |
+| `context.get/set_project_background` | 项目背景读写（项目级跨任务共享：领域/术语/专家经验，各角色开工前必读，与 agent 模板解耦） |
 | `task.get` | 获取任务详情（任务/阶段/交付物/待确认问题） |
 | `task.detect_type` | 仅做类型识别 |
 | `task.get_flow` | 查看任务类型对应的流程模板 |
@@ -284,7 +285,7 @@ crud_spec_card → ux_interaction_card → ddd_applicability_review + ubiquitous
 |---|---|---|---|
 | product_requirement | product-manager | crud_spec_card / product_requirement_card | 14 章节必填、含删除规则、验收标准 ≥3 条 |
 | ux_design | ux-designer | ux_interaction_card | 17 章节、状态与按钮矩阵 |
-| domain_review | domain-architect | ddd_applicability_review + ubiquitous_language_code_map + technical_architecture | DDD 适用性判断 + 术语-代码映射 + 技术架构章节 |
+| domain_review | architect | ddd_applicability_review + ubiquitous_language_code_map + technical_architecture | DDD 适用性判断 + 术语-代码映射 + 技术架构章节 |
 | engineering_design | engineer | engineering_plan | 12 章节、API/数据模型/测试建议 |
 | qa_validation | qa | qa_test_plan | 测试策略、功能用例 ≥3 条 |
 

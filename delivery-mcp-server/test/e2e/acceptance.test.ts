@@ -279,7 +279,7 @@ describe('架构师新增交付物：业务统一语言·代码映射 + 技术�
       const submit = await h.call('artifact.submit', {
         task_id: taskId,
         stage: 'domain_review',
-        role: 'domain-architect',
+        role: 'architect',
         artifact_type: a.type,
         content: a.content,
       });
@@ -308,7 +308,7 @@ describe('PRD 7.9 / 8.8：问题阻塞与解除', () => {
 
     const q = await h.call('question.create', {
       task_id: taskId,
-      raised_by: 'domain-architect',
+      raised_by: 'architect',
       assigned_to_role: 'product-manager',
       question: '已被供应商引用的分类是否允许删除？',
       blocks_stage: 'product_requirement',
@@ -529,6 +529,41 @@ describe('角色负责人固化：一个角色多人承担，任务中只固化�
     expect(complete.next_role_assignee).toEqual({ name: '小美', email: 'ux1@example.com' });
     expect(complete.next_role_candidates).toBeNull();
 
+    await h.cleanup();
+  });
+});
+
+describe('项目背景（项目级，跨任务共享，与 agent 模板解耦）', () => {
+  it('未录入 → 提示补录；录入后可读取（全文覆盖）', async () => {
+    const h = await createHarness();
+
+    const before = await h.call('context.get_project_background', {});
+    expect(before.exists).toBe(false);
+    expect(before.content).toBeNull();
+    expect(before.hint).toContain('context.set_project_background');
+
+    const bg = '# 项目背景\n\n## 领域概述\n零售供应链，多级经销商体系……\n\n## 术语表\n- 经销商返利：……';
+    const set1 = await h.call('context.set_project_background', { content: bg, updated_by: 'domain-expert' });
+    expect(set1.updated_by).toBe('domain-expert');
+    expect(set1.bytes).toBeGreaterThan(0);
+
+    const after = await h.call('context.get_project_background', {});
+    expect(after.exists).toBe(true);
+    expect(after.content).toBe(bg);
+    expect(after.hint).not.toContain('尚未录入');
+
+    // 全文覆盖
+    const bg2 = '# 项目背景（v2）';
+    await h.call('context.set_project_background', { content: bg2 });
+    const after2 = await h.call('context.get_project_background', {});
+    expect(after2.content).toBe(bg2);
+
+    await h.cleanup();
+  });
+
+  it('空内容被 schema 拒绝', async () => {
+    const h = await createHarness();
+    await expect(h.call('context.set_project_background', { content: '' })).rejects.toThrow();
     await h.cleanup();
   });
 });

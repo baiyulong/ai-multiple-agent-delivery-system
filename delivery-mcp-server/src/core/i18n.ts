@@ -61,7 +61,7 @@ export function roleLabels(): Record<string, string> {
     'domain-expert': roleLabel('domain-expert'),
     'product-manager': roleLabel('product-manager'),
     'ux-designer': roleLabel('ux-designer'),
-    'domain-architect': roleLabel('domain-architect'),
+    'architect': roleLabel('architect'),
     engineer: roleLabel('engineer'),
     developer: roleLabel('developer'),
     'data-engineer': roleLabel('data-engineer'),

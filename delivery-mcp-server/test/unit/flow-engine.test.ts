@@ -37,7 +37,7 @@ describe('flow-engine', () => {
     void flow;
     const stage: StageRecord = {
       stage: 'domain_design',
-      role: 'domain-architect',
+      role: 'architect',
       required_artifact_type: 'bounded_context',
       required_artifact_types: ['bounded_context', 'aggregate_design', 'domain_events', 'api_contract'],
       status: 'not_started',

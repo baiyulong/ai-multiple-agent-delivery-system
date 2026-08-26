@@ -125,7 +125,7 @@ export type TeamRole =
   | 'domain-expert'
   | 'product-manager'
   | 'ux-designer'
-  | 'domain-architect'
+  | 'architect'
   | 'engineer'
   | 'developer'
   | 'data-engineer'

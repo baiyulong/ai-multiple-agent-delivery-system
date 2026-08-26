@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { normalizeRoleKey } from '../../src/core/store/team-store.js';
 import { createHarness } from './helpers.js';
 
 const ALL_ROLES = [
@@ -6,7 +7,7 @@ const ALL_ROLES = [
   'domain-expert',
   'product-manager',
   'ux-designer',
-  'domain-architect',
+  'architect',
   'engineer',
   'developer',
   'data-engineer',
@@ -52,5 +53,15 @@ describe('team.set 9 角色覆盖校验', () => {
     for (const m of get.members as Array<{ roles: string[] }>) for (const r of m.roles) allRoles.add(r);
     for (const r of ALL_ROLES) expect(allRoles.has(r)).toBe(true);
     await h.cleanup();
+  });
+});
+
+describe('角色 key 归一化（旧 key 兼容）', () => {
+  it('domain-architect（领域架构师旧 key）归一化为 architect', () => {
+    expect(normalizeRoleKey('domain-architect')).toBe('architect');
+    expect(normalizeRoleKey('architect')).toBe('architect');
+    // 其他旧 key 兼容不受影响
+    expect(normalizeRoleKey('platform-devops')).toBe('devops');
+    expect(normalizeRoleKey('qa')).toBe('qa');
   });
 });

@@ -276,7 +276,7 @@ grep -qxF '.delivery/' .gitignore 2>/dev/null || echo '.delivery/' >> .gitignore
 | domain-expert | 业务专家 | delivery-domain-expert.md |
 | product-manager | 产品经理 | delivery-product-manager.md |
 | ux-designer | UI/UX 设计 | delivery-ux-designer.md |
-| domain-architect | 领域架构师 | delivery-domain-architect.md |
+| architect | 架构师 | delivery-architect.md |
 | engineer | 工程实现（工程计划） | delivery-engineer.md |
 | developer | 程序员（编码实施） | delivery-developer.md |
 | data-engineer | 数据工程师（按需协作，无固定阶段） | delivery-data-engineer.md |
@@ -285,6 +285,10 @@ grep -qxF '.delivery/' .gitignore 2>/dev/null || echo '.delivery/' >> .gitignore
 > 所有角色 Agent 均以 `delivery-` 前缀命名，避免与目标项目已有的同名 agent（如 `engineer.md`）冲突。**角色 key（team.json 中的 roles 值）与 Agent 文件名是两个概念**：角色 key 不变，Agent 文件名带前缀。
 
 > **角色负责人机制**：团队中**一个角色可由多名成员承担**（多人在 team.set 中登记同一角色即可），但**一个任务中每个角色只有一个负责人**。任务创建后每个阶段完成时，系统会返回下一阶段角色的候选成员，由用户选择后调用 `task.assign` 固化到任务上；之后可随时用 `task.assign` 单独修改某角色的负责人（覆盖式），修改前可用 `task.role_candidates` 查看候选。
+
+> **项目背景机制（agent 升级与项目定制解耦）**：每个项目的领域背景（业务领域、行业术语、专家经验等）**不要写进 agent 文件**（项目级 `.opencode/agent/delivery-*.md` 会屏蔽全局 agent，导致升级失效）。正确做法：对话中说"请录入项目背景"，AI 调用 `context.set_project_background` 存入 `.delivery/context/project-background.md`（项目级跨任务共享）；所有角色 Agent 开工前自动用 `context.get_project_background` 读取作为领域判断依据。系统升级只覆盖全局 agent 模板，项目背景随 `.delivery` 数据保留，两者互不影响。
+
+> **从旧版本升级**：若旧版本曾把 agent 拷到项目级 `.opencode/agent/`，升级安装时会**重点提醒删除**这些文件（不删除会屏蔽全局 agent 新版本，"升级等于没升"）。确认项目背景已录入后，重跑安装命令并加 `--prune-project-agents` 自动删除，或手动删除 `.opencode/agent/` 下所有 `delivery-*.md`。
 
 ### 3. 配置邮件通知（可选，当前用户个人级）
 

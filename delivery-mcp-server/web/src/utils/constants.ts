@@ -47,7 +47,7 @@ export const STAGE_NAME_MAP: Record<string, string> = {
 export const ROLE_NAME_MAP: Record<string, string> = {
   'product-manager': t('role.product-manager'),
   'ux-designer': t('role.ux-designer'),
-  'domain-architect': t('role.domain-architect'),
+  'architect': t('role.architect'),
   engineer: t('role.engineer'),
   developer: t('role.developer'),
   'data-engineer': t('role.data-engineer'),

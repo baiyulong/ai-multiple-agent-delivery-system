@@ -40,7 +40,7 @@ export default {
   // ── 角色名称 ──
   'role.product-manager': '产品经理',
   'role.ux-designer': 'UX 设计师',
-  'role.domain-architect': '领域架构师',
+  'role.architect': '架构师',
   'role.engineer': '工程师',
   'role.developer': '程序员',
   'role.data-engineer': '数据工程师',

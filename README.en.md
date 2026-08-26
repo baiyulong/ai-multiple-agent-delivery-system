@@ -2,7 +2,7 @@
 
 > **Language / 语言**: [English](README.en.md) · [中文](README.md)
 
-A **multi-role Agent delivery orchestration system** built on **MCP (Model Context Protocol)**. It breaks project delivery into a **multi-role relay workflow** (Product Manager → UI/UX → Domain Architecture → Engineering → Developer → QA, with a Data Engineer joining on demand), enforces **stage gates** so every artifact must pass before the next stage begins, and stores all task state as plain-text files in a local `.delivery` directory — no database required.
+A **multi-role Agent delivery orchestration system** built on **MCP (Model Context Protocol)**. It breaks project delivery into a **multi-role relay workflow** (Product Manager → UI/UX → Architecture → Engineering → Developer → QA, with a Data Engineer joining on demand), enforces **stage gates** so every artifact must pass before the next stage begins, and stores all task state as plain-text files in a local `.delivery` directory — no database required.
 
 Works with MCP-capable AI coding tools such as **OpenCode**.
 
@@ -49,7 +49,7 @@ In one sentence: **turn "AI team delivery" from "hoping prompts work" into an en
 
 | Component | Path | Description |
 |---|---|---|
-| **MCP Server** | `delivery-mcp-server/` | 17 tools: task/stage/artifact/gate/context/question |
+| **MCP Server** | `delivery-mcp-server/` | 18 tools: task/stage/artifact/gate/context/question |
 | **Flow templates** | `delivery-mcp-server/config/flows/` | crud (6 stages) / lightweight-ddd (6 stages) / full-ddd (7 stages) |
 | **Gate rules** | `delivery-mcp-server/config/gates/` | Check rules for 17 artifact types |
 | **Artifact templates** | `delivery-mcp-server/templates/` | Shared context + 17 artifact templates |
@@ -164,7 +164,7 @@ Open OpenCode, select the **delivery-orchestrator** Agent, and describe your req
 The orchestrator will, in order:
 1. `task.create` create the task (auto-detect type: crud / lightweight_ddd / full_ddd / analysis / bug_fix)
 2. Check `stage.get` to determine the current stage and assigned role
-3. Call the corresponding role Agent (`delivery-product-manager` / `delivery-ux-designer` / `delivery-domain-architect` / `delivery-engineer` / `delivery-developer` / `delivery-qa`; `delivery-data-engineer` when data lookups are needed) to produce artifacts
+3. Call the corresponding role Agent (`delivery-product-manager` / `delivery-ux-designer` / `delivery-architect` / `delivery-engineer` / `delivery-developer` / `delivery-qa`; `delivery-data-engineer` when data lookups are needed) to produce artifacts
 4. `artifact.submit` → `gate.check` gate → `stage.complete` advance
 5. When everything is done, `task.export_delivery_package` exports the delivery package
 
@@ -205,7 +205,7 @@ All role Agent files are prefixed with `delivery-` to avoid conflicts with same-
 | domain-expert | delivery-domain-expert.md |
 | product-manager | delivery-product-manager.md |
 | ux-designer | delivery-ux-designer.md |
-| domain-architect | delivery-domain-architect.md |
+| architect | delivery-architect.md |
 | engineer | delivery-engineer.md |
 | qa | delivery-qa.md |
 | developer | delivery-developer.md |
@@ -256,6 +256,7 @@ Configuration:
 | `task.create` | Creates a task, auto-detects type and initializes the flow; can specify assignees (pre-fixed single assignee per role) and skip_stages |
 | `task.assign` | Sets/reassigns a role's owner for a task (role -> member email; exactly one assignee per role per task; overwrites on repeat) |
 | `task.role_candidates` | Queries candidate assignees for a role (team members holding it) and the current fixed assignee |
+| `context.get/set_project_background` | Project background read/write (project-level, shared across tasks: domain/glossary/expert experience; read by every role before starting; decoupled from agent templates) |
 | `task.get` | Gets task details (task/stages/artifacts/pending questions) |
 | `task.detect_type` | Type detection only |
 | `task.get_flow` | Views the flow template for a task type |
@@ -284,7 +285,7 @@ crud_spec_card → ux_interaction_card → ddd_applicability_review + ubiquitous
 |---|---|---|---|
 | product_requirement | product-manager | crud_spec_card / product_requirement_card | 14 required sections, includes deletion rules, acceptance criteria ≥3 |
 | ux_design | ux-designer | ux_interaction_card | 17 sections, state-action matrix |
-| domain_review | domain-architect | ddd_applicability_review + ubiquitous_language_code_map + technical_architecture | DDD applicability judgment + term-code mapping + architecture sections |
+| domain_review | architect | ddd_applicability_review + ubiquitous_language_code_map + technical_architecture | DDD applicability judgment + term-code mapping + architecture sections |
 | engineering_design | engineer | engineering_plan | 12 sections, API/data model/test suggestions |
 | qa_validation | qa | qa_test_plan | Test strategy, functional cases ≥3 |
 
