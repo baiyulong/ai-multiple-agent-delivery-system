@@ -11,6 +11,16 @@ describe('gate-engine', () => {
     expect(normalizeSectionName('## 10. 删除/停用规则')).toBe('删除/停用规则');
   });
 
+  it('normalizeSectionName 去掉中文数字序号前缀（一、/（一）等形式）', () => {
+    expect(normalizeSectionName('## 一、需求背景')).toBe('需求背景');
+    expect(normalizeSectionName('## 二、非功能需求')).toBe('非功能需求');
+    expect(normalizeSectionName('## 十一、权限规则')).toBe('权限规则');
+    expect(normalizeSectionName('## （一）需求背景')).toBe('需求背景');
+    expect(normalizeSectionName('## (三) 验收标准')).toBe('验收标准');
+    // 非编号场景不受影响：章节名本身以中文数字开头且无顿号/点分隔
+    expect(normalizeSectionName('## 一体化设计方案')).toBe('一体化设计方案');
+  });
+
   it('parseSections 正确切分章节', () => {
     const md = '# 标题\n\n## 1. 功能名称\n内容A\n\n## 2. 维护对象\n内容B\n';
     const sections = parseSections(md);

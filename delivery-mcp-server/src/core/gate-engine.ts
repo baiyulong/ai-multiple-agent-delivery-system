@@ -49,12 +49,15 @@ export interface GateOutcome {
   issues: string[];
 }
 
-/** 归一化章节名：去掉 # 前缀与序号前缀（"## 11. 权限规则" -> "权限规则"）与空白 */
+/** 归一化章节名：去掉 # 前缀与序号前缀（阿拉伯数字"## 11. 权限规则"、
+ *  中文数字"## 一、需求背景"、"## （一）需求背景" -> "权限规则"/"需求背景"）与空白 */
 export function normalizeSectionName(name: string): string {
   return name
     .trim()
     .replace(/^#{1,6}\s*/, '')
     .replace(/^\d+(\.\d+)*[.\、)）]\s*/, '')
+    .replace(/^[一二三四五六七八九十]+[、.．]\s*/, '')
+    .replace(/^[（(][一二三四五六七八九十]+[)）]\s*/, '')
     .replace(/\s+/g, ' ')
     .trim();
 }
