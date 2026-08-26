@@ -9,7 +9,6 @@ import {
   stageDisplayName,
   roleName,
   stageAssignees,
-  currentUserOwnsRole,
 } from '@/utils/helpers';
 import { STAGE_STATUS_MAP } from '@/utils/constants';
 import { t } from '@/utils/i18n';
@@ -43,21 +42,12 @@ const steps = computed<StepInfo[]>(() =>
     const statusLabel = STAGE_STATUS_MAP[s.status] || s.status;
     const icon = s.status === 'completed' ? '✓' : String(idx + 1);
 
-    // 负责人渲染逻辑（本任务固化的唯一负责人；未固化显示"未指派"）
+    // 负责人渲染逻辑（本任务固化的唯一负责人；未固化显示"未指派"，
+    // 不再按"当前用户拥有该角色"回退，避免未指派阶段全部显示为当前用户）
     const assignees = stageAssignees(s.role, props.team, props.taskAssignees);
     let assigneesHtml = '';
     if (assignees.length === 0) {
-      if (
-        currentUserOwnsRole(s.role, props.user) &&
-        props.user &&
-        props.user.configured &&
-        props.user.user
-      ) {
-        const me = props.user.user;
-        assigneesHtml = `stage-assignee-me|${t('stage.me')}|${me.name || me.email}`;
-      } else {
-        assigneesHtml = `empty|${t('stage.unassigned')}`;
-      }
+      assigneesHtml = `empty|${t('stage.unassigned')}`;
     } else {
       const currentUserEmail =
         props.user && props.user.configured && props.user.user

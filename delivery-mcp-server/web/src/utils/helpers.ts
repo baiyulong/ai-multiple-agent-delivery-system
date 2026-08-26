@@ -6,7 +6,7 @@ import {
   ROLE_NAME_MAP,
   STAGE_NAME_MAP,
 } from './constants';
-import type { TeamResponse, UserResponse, TeamMember } from '@/api/types';
+import type { TeamResponse, TeamMember } from '@/api/types';
 
 /** 格式化 ISO 时间为友好显示 */
 export function formatTime(iso: string | null | undefined): string {
@@ -74,12 +74,4 @@ export function stageAssignees(
     (m) => m.email.toLowerCase() === email.toLowerCase(),
   );
   return member ? [member] : [{ name: email, email, roles: [] }];
-}
-
-/** 当前操作人是否负责该角色 */
-export function currentUserOwnsRole(
-  role: string,
-  user: UserResponse | null,
-): boolean {
-  return !!(user && user.configured && (user.roles || []).includes(role));
 }
