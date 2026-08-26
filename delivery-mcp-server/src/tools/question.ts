@@ -62,9 +62,13 @@ export function registerQuestionTools(server: McpServer, ctx: () => ToolContext)
         }
 
         // 通知负责确认的角色（best-effort，不影响主逻辑）
-        // 合并该任务下指派给同一角色的全部 open 问题为一封邮件，避免一个问题一封
+        // 去重合并：只把“尚未通知过”的问题合并成一封邮件（每个问题只随汇总邮件发一次，
+        // 避免第 N 个问题时把已通知过的旧问题合并重发）
         const openForRole = questions.filter(
-          (x) => x.assigned_to_role === args.assigned_to_role && (x.status === 'open' || x.status === 'answered'),
+          (x) =>
+            x.assigned_to_role === args.assigned_to_role &&
+            (x.status === 'open' || x.status === 'answered') &&
+            !x.notified,
         );
         const lines = [
           t('email.line.task', { title: task.title }),
@@ -89,13 +93,24 @@ export function registerQuestionTools(server: McpServer, ctx: () => ToolContext)
             ? t('email.doc_hint', { paths: documents.rel_paths.join('\n          ') })
             : '';
 
-        const email = await notifyRole(
-          root,
-          args.assigned_to_role,
-          t('email.subject.question_pending', { title: task.title, count: openForRole.length }),
-          `${lines.join('\n')}${docHint}${nextStepsFooter(args.task_id)}`,
-          { assignees: normalizeAssignee(task.assignees?.[args.assigned_to_role]) ? [normalizeAssignee(task.assignees?.[args.assigned_to_role])!] : [] },
-        );
+        // 无新问题需通知（本轮问题均已随之前的汇总邮件发过）→ 不再发邮件
+        let email: Awaited<ReturnType<typeof notifyRole>> | undefined;
+        if (openForRole.length > 0) {
+          email = await notifyRole(
+            root,
+            args.assigned_to_role,
+            t('email.subject.question_pending', { title: task.title, count: openForRole.length }),
+            `${lines.join('\n')}${docHint}${nextStepsFooter(args.task_id)}`,
+            { assignees: normalizeAssignee(task.assignees?.[args.assigned_to_role]) ? [normalizeAssignee(task.assignees?.[args.assigned_to_role])!] : [] },
+          );
+          // 发送成功才落 notified 标记（发送失败下次可重发）
+          if (email.sent) {
+            for (const x of openForRole) x.notified = true;
+            await saveQuestions(root, args.task_id, questions);
+          }
+        } else {
+          email = { sent: false, to: [], reason: 'all_questions_already_notified' };
+        }
 
         return ok({
           question_id: question.question_id,

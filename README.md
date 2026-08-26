@@ -253,7 +253,7 @@ npm run dashboard
 
 | 工具 | 说明 |
 |---|---|
-| `task.create` | 创建任务，自动识别类型并初始化流程；可指定 assignees（预固化各角色唯一负责人）、skip_stages（跳过不需要的阶段） |
+| `task.create` | 创建任务，自动识别类型并初始化流程；创建时不要求全量指派（返回当前阶段角色与候选成员供用户选择固化），skip_stages（跳过不需要的阶段） |
 | `task.assign` | 为任务设置/改派某角色负责人（role -> 成员邮箱，每角色在本任务只有一个负责人，覆盖式修改） |
 | `task.role_candidates` | 查询某角色的候选负责人（团队中承担该角色的成员）与当前固化负责人 |
 | `context.get/set_project_background` | 项目背景读写（项目级跨任务共享：领域/术语/专家经验，各角色开工前必读，与 agent 模板解耦） |

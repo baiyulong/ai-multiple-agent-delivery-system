@@ -68,6 +68,38 @@ describe('角色 key 归一化（旧 key 兼容）', () => {
   });
 });
 
+describe('任务创建时的首角色询问（创建时不要求全量指派）', () => {
+  it('不带 assignees 创建 → 返回 current_role_assignment_required + 候选成员', async () => {
+    const h = await createHarness();
+    const res = await h.call('task.create', {
+      title: 'ask first role',
+      description: '新增一个分类管理 CRUD 功能',
+    });
+    // 首阶段角色未固化：返回询问信息与候选（harness 预置 Test User 担任 product-manager/engineer）
+    expect(res.current_stage_role).toBe('product-manager');
+    expect(res.current_role_assignee).toBeNull();
+    expect(res.current_role_assignment_required).toBe(true);
+    expect(res.current_role_candidates).toEqual([{ name: 'Test User', email: 'test@example.com' }]);
+    expect(res.current_role_assignment_hint).toContain('product-manager');
+    await h.cleanup();
+  });
+
+  it('创建后 task.assign 固化首角色 → 再次创建同任务类型不重复询问（已固化时 required=false）', async () => {
+    const h = await createHarness();
+    const res = await h.call('task.create', {
+      title: 'pre-assigned first role',
+      description: '新增一个标签管理 CRUD 功能',
+      assignees: { 'product-manager': 'test@example.com' },
+    });
+    // 创建时直接指派当前首阶段角色 → 不再要求询问
+    expect(res.current_stage_role).toBe('product-manager');
+    expect(res.current_role_assignment_required).toBe(false);
+    expect(res.current_role_candidates).toBeNull();
+    expect(res.current_role_assignee).toMatchObject({ email: 'test@example.com' });
+    await h.cleanup();
+  });
+});
+
 describe('团队名册旧 key 存量数据兼容（读取/写入侧归一化）', () => {
   it('team.json 含旧 key domain-architect → 读取侧归一化为 architect，task.create 指派成功', async () => {
     const h = await createHarness();

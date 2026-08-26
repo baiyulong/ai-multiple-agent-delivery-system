@@ -253,7 +253,7 @@ Configuration:
 
 | Tool | Description |
 |---|---|
-| `task.create` | Creates a task, auto-detects type and initializes the flow; can specify assignees (pre-fixed single assignee per role) and skip_stages |
+| `task.create` | Creates a task, auto-detects type and initializes the flow; full assignment is not required at creation (returns the current stage role and candidate members for the user to pick and fix), plus skip_stages |
 | `task.assign` | Sets/reassigns a role's owner for a task (role -> member email; exactly one assignee per role per task; overwrites on repeat) |
 | `task.role_candidates` | Queries candidate assignees for a role (team members holding it) and the current fixed assignee |
 | `context.get/set_project_background` | Project background read/write (project-level, shared across tasks: domain/glossary/expert experience; read by every role before starting; decoupled from agent templates) |

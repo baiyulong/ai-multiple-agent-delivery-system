@@ -74,8 +74,11 @@ permission:
 
 通过 MCP 工具 `delivery`（命名空间 `delivery_*`，工具名如 `task.create`、`task.assign`、`stage.get`、`artifact.submit`、`gate.check`、`stage.complete`）驱动交付：
 
-1. `task.create` 创建任务，自动识别类型并初始化流程；可用可选参数 `assignees`（如 `{ engineer: "alice@x.com" }`，role -> 单个负责人邮箱）预先固化本任务各角色负责人，也可不指定（后续由用户在阶段推进时选择固化）；可用可选参数 `skip_stages`（如 `skip_stages: ['domain_review', 'engineering_design']`）跳过本任务不需要的阶段。
-2. **角色负责人固化协议（强制）**：一个角色可由团队多名成员承担，但**一个任务中每个角色只能有一个负责人**。`stage.complete` 返回 `next_role_assignment_required: true` 时，必须把 `next_role_candidates`（候选成员：姓名 + 邮箱）以编号选项呈现给用户，由用户选择下一个角色由谁负责；用户选定后立即调用 `task.assign(task_id, role, email)` 固化到任务上。已固化（`next_role_assignment_required: false`）则直接进入下一步，不再重复询问。
+1. `task.create` 创建任务，自动识别类型并初始化流程。**创建时不预先指定所有角色负责人**——正常情况下任务创建时后续角色由谁负责并不确定，只有当前需要谁处理是确定的。可用可选参数 `skip_stages`（如 `skip_stages: ['domain_review', 'engineering_design']`）跳过本任务不需要的阶段；`assignees` 参数保留为兼容但**不推荐**在创建时传入多角色。
+2. **角色负责人固化协议（强制）**：一个角色可由团队多名成员承担，但**一个任务中每个角色只能有一个负责人**。
+   - **任务创建后**：`task.create` 返回 `current_role_assignment_required: true` 时，必须把 `current_role_candidates`（候选成员：姓名 + 邮箱）以编号选项呈现给用户，由用户选择当前阶段角色由谁负责；用户选定后立即调用 `task.assign(task_id, role, email)` 固化到任务上，然后才开始该阶段工作。
+   - **阶段推进时**：`stage.complete` 返回 `next_role_assignment_required: true` 时，同样把 `next_role_candidates` 以编号选项呈现给用户，用户选定后调用 `task.assign` 固化。
+   - 已固化（`assignment_required: false`）则直接进入下一步，不再重复询问；**禁止自行替用户决定负责人**。
 3. `task.assign` 也可随时单独修改某角色的负责人（覆盖语义：新调用直接替换旧负责人）；修改前可用 `task.role_candidates(task_id, role)` 列出候选成员供用户参考。
 4. `stage.get` 查看当前阶段、就绪度、缺失上游与指派 Agent；返回的 `assignee` 表示该阶段角色在本任务固化的负责人（未固化时为 null，同时返回 `candidates` 候选成员与 `assignment_required: true`），调用对应角色 Agent 时以该负责人身份推进。
 5. 指派对应角色 Agent 生成交付物，用 `artifact.submit` 提交。
@@ -94,7 +97,7 @@ permission:
 
 > 任务是否需要某角色，取决于其类型与范围；不需要的角色对应阶段应通过 `skip_stages` 显式跳过（如 `product_requirement`、`ux_design`、`domain_review`、`engineering_design`、`implementation`、`qa_validation`、`analysis_requirement`、`analysis_report`、`bug_report`、`bug_fix`）。被跳过阶段标记为 skipped、不产生交付物、不参与门禁，下游阶段将其视为已满足，避免被误判为缺失。
 
-> 团队里同一角色可有多个成员，每个任务通过 `assignees` 为每个角色固化唯一负责人（由用户在阶段推进时从候选中选择，或用 `task.assign` 随时修改）；通知邮件优先发给该角色在本任务固化的负责人，未固化时发给该角色所有成员。
+> 团队里同一角色可有多个成员，但一个任务中每个角色只有唯一负责人：任务创建后与每次阶段推进时，由用户从候选成员中选择并用 `task.assign` 固化（可随时改派）；通知邮件优先发给该角色在本任务固化的负责人，未固化时发给该角色所有成员。
 
 > **版本与更新**：server 启动时会自动检测新版本（GitHub Releases 版本源），检测到新版本会在启动日志打印提示。可用 `update.check` 查看版本状态；更新统一执行 `node delivery-mcp-server/install.js --release`（停进程 → 下载 → 删除旧版 → 拷贝 → 构建 → 启动），更新后需重启 OpenCode 生效。
 > **看板启停（强制）**：用户要求启动/停止/查看浏览器任务看板时，**直接调用 MCP 工具，禁止查找源码或手工构造启动命令**：

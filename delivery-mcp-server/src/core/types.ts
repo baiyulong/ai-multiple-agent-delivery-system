@@ -137,6 +137,8 @@ export interface Question {
   status: QuestionStatus;
   answer?: string;
   resolved_by?: string;
+  /** 该问题已随汇总邮件通知过负责角色（去重标记：同一问题只随汇总邮件发一次） */
+  notified?: boolean;
   created_at: string;
   updated_at: string;
 }

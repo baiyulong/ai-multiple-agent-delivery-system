@@ -2,7 +2,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { rm } from 'node:fs/promises';
 import { detectTaskType } from '../core/type-detector.js';
-import { buildStagesFromFlow, loadFlowTemplate } from '../core/flow-engine.js';
+import { buildStagesFromFlow, loadFlowTemplate, nextIncompleteStage } from '../core/flow-engine.js';
 import { exportDeliveryPackage, exportTaskDocuments } from '../core/exporter.js';
 import { getQuestions, getStages, getTask } from '../core/store/task-store.js';
 import { listArtifacts } from '../core/store/artifact-store.js';
@@ -105,6 +105,16 @@ export function registerTaskTools(server: McpServer, ctx: () => ToolContext) {
         // 自动生成任务文档快照（md + html，best-effort），返回完整路径便于查看/传阅
         const documents = await exportTaskDocuments(root, task.task_id).catch(() => null);
 
+        // 当前首个待处理阶段的角色负责人：未固化时返回候选成员，
+        // 供 AI 立即询问用户选择后调用 task.assign 固化（后续角色在各自阶段完成时再询问）
+        const firstStage = flow ? await nextIncompleteStage(root, task.task_id, flow) : null;
+        const firstRole = firstStage?.role ?? null;
+        const firstAssignee = firstRole ? await resolveAssignee(root, task.assignees, firstRole) : null;
+        const firstAssignmentRequired = Boolean(firstRole && !firstAssignee);
+        const firstCandidates = firstAssignmentRequired
+          ? (await findMembersByRole(root, firstRole!)).map((m) => ({ name: m.name, email: m.email }))
+          : null;
+
         return ok({
           task_id: task.task_id,
           status: task.status,
@@ -115,6 +125,17 @@ export function registerTaskTools(server: McpServer, ctx: () => ToolContext) {
           skipped_stages: skippedStages,
           documents,
           document_hint: documents?.hint ?? null,
+          current_stage_role: firstRole,
+          current_role_assignee: firstAssignee,
+          current_role_assignment_required: firstAssignmentRequired,
+          current_role_candidates: firstCandidates,
+          current_role_assignment_hint: firstAssignmentRequired
+            ? t('tool.task.create.assignment_hint', {
+                stage: firstStage!.stage,
+                role: firstRole!,
+                candidates: firstCandidates!.map((m) => `${m.name}(${m.email})`).join('、'),
+              })
+            : null,
           dashboard_url: dashboardUrl(),
           view_hint: t('tool.task.create.view_hint', { url: dashboardUrl() }),
           dashboard_hint: t('tool.dashboard.hint.commands'),
