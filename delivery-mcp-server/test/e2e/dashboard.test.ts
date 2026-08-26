@@ -29,9 +29,9 @@ describe('dashboard 看板管理工具', () => {
     const pid = parseInt(await readFile(join(h.root, 'dashboard.pid'), 'utf-8'), 10);
     expect(pid).toBeGreaterThan(0);
 
-    // HTTP 真实可达
+    // HTTP 真实可达（CI 测试阶段 web-dist 未构建，根路径可能 404——服务有响应即在线，与 probeDashboard 语义一致）
     const res = await fetch(start.url, { signal: AbortSignal.timeout(3000) });
-    expect(res.status).toBe(200);
+    expect(res.status).toBeLessThan(500);
 
     // 3. 幂等：再次 start 返回 already_running
     const start2 = await h.call('dashboard.start', {});
