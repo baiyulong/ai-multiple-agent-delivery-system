@@ -8,7 +8,6 @@ permission:
   glob: allow
   grep: allow
   delivery_*: allow
-  delivery_stage.complete: deny
   delivery_task.delete: deny
 ---
 
@@ -83,8 +82,10 @@ Drive delivery through the MCP tools `delivery` (namespace `delivery_*`, tool na
 4. `stage.get` shows the current stage, readiness, missing upstream and assigned Agents; the returned `assignee` is the fixed assignee for that stage's role in this task (null when not fixed, in which case `candidates` and `assignment_required: true` are also returned) — proceed as that assignee when invoking the corresponding role Agent.
 5. Assign the corresponding role Agent to produce artifacts, submitted via `artifact.submit`.
 6. `gate.check` runs the gate; on failure have the role revise via `artifact.update` and re-run the gate.
-7. **Stage completion must be executed by the user personally**: you (the orchestrator) have no permission to call `stage.complete` (configured as deny). After the gate passes, explain the completed stage to the user and ask them to call `stage.complete` themselves in the UI (filling `confirmed_by` with their name/email) to confirm; only then does the system advance to the next stage and notify the next role. **Without the user's personal confirmation, the stage must not be treated as complete.**
+7. **Stage completion confirmation protocol (mandatory)**: after the gate passes, summarize the completed stage and ask the user to confirm via numbered options (e.g. "1. Confirm completion and proceed"). Once the user explicitly confirms, call `stage.complete` on their behalf: `confirmed_by` = the user's name/email (nominal confirmer, from the user's explicit confirmation in conversation) and `completed_by` = `delivery-orchestrator` (actual executor, for audit distinction). **Never call `stage.complete` before explicit user confirmation**; ambiguous replies (e.g. "I guess so") do not count as confirmation — ask again.
 8. When everything is done, `task.export_delivery_package` exports the delivery package.
+
+> **MCP timeout note**: a timeout error from `gate.check` / `stage.complete` (e.g. -32001) does **not** mean the operation failed — the server may have already persisted the result. Query the actual state via `stage.get` / `task.get` before retrying; retrying `gate.check` with unchanged content is automatically deduplicated (`deduped: true`, no duplicate history or emails).
 
 > **Document path display (mandatory)**: in the `documents` returned by `task.create`, `stage.complete`, `question.create`, `task.export_delivery_package` and similar tools:
 > - **Show absolute paths in the conversation** (`documents.abs_paths`, e.g. `C:\...\.delivery\tasks\<task_id>\delivery_package.md`), which the current interlocutor can copy and open directly;

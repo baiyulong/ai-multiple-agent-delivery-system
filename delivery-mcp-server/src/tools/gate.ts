@@ -1,9 +1,10 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import { createHash } from 'node:crypto';
 import { loadGateRule, runGate } from '../core/gate-engine.js';
 import { getArtifact, setArtifactStatus } from '../core/store/artifact-store.js';
 import { getStages, getTask } from '../core/store/task-store.js';
-import { appendGateRecord } from '../core/store/gate-store.js';
+import { appendGateRecord, getLatestGateRecord } from '../core/store/gate-store.js';
 import { setStageStatus } from '../core/store/stage-store.js';
 import { generateGateId } from '../core/ids.js';
 import { resolveDeliveryRoot } from '../core/paths.js';
@@ -42,6 +43,22 @@ export function registerGateTools(server: McpServer, ctx: () => ToolContext) {
           return fail('artifact_stage_mismatch', t('tool.gate.check.artifact_stage_mismatch', { id: args.artifact_id, stage: args.stage }));
         }
 
+        // 幂等去重：交付物内容未变时复用上次结果（超时重试不会追加重复历史/重发邮件）
+        const contentHash = createHash('sha256').update(got.content).digest('hex');
+        const latest = await getLatestGateRecord(root, args.task_id, args.stage, args.artifact_id);
+        if (latest?.content_hash === contentHash) {
+          return ok({
+            gate_id: latest.gate_id,
+            result: latest.result,
+            score: latest.score,
+            missing_sections: latest.missing_sections,
+            issues: latest.issues,
+            deduped: true,
+            dedupe_hint: t('tool.gate.check.deduped', { gate_id: latest.gate_id }),
+            email: { sent: false, to: [], reason: 'deduplicated' },
+          });
+        }
+
         const rule = await loadGateRule(root, got.metadata.artifact_type);
         if (!rule) {
           // 无门禁规则：需要人工审核
@@ -56,6 +73,7 @@ export function registerGateTools(server: McpServer, ctx: () => ToolContext) {
             score: 0,
             missing_sections: [],
             issues: [issue],
+            content_hash: contentHash,
             checked_at: new Date().toISOString(),
           });
           // 通知阶段角色（best-effort，不影响主逻辑）
@@ -93,6 +111,7 @@ export function registerGateTools(server: McpServer, ctx: () => ToolContext) {
           score: outcome.score,
           missing_sections: outcome.missing_sections,
           issues: outcome.issues,
+          content_hash: contentHash,
           checked_at: new Date().toISOString(),
         });
 

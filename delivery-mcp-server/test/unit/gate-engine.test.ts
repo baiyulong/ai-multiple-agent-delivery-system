@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { loadGateRule, normalizeSectionName, parseSections, runGate } from '../../src/core/gate-engine.js';
+import { findSection, loadGateRule, normalizeSectionName, parseSections, runGate } from '../../src/core/gate-engine.js';
 
 describe('gate-engine', () => {
   it('normalizeSectionName 去掉序号前缀', () => {
@@ -28,6 +28,25 @@ describe('gate-engine', () => {
     expect(sections[0]?.name).toBe('功能名称');
     expect(sections[0]?.content).toContain('内容A');
     expect(sections[1]?.name).toBe('维护对象');
+  });
+
+  it('findSection 前缀匹配：带编号/后缀的自然标题命中必需章节', () => {
+    const sections = parseSections(
+      '# 需求卡\n\n## 一、需求背景\n背景内容\n\n## 2. 用户故事与优先级\n故事内容\n\n## 6. 验收标准（Given / When / Then）\n- 标准1\n',
+    );
+    // 后缀：文档「用户故事与优先级」命中规则要求的「用户故事」
+    const us = findSection(sections, '用户故事');
+    expect(us.found).toBe(true);
+    expect(us.content).toContain('故事内容');
+    // 括号后缀：文档「验收标准（Given / When / Then）」命中「验收标准」
+    const ac = findSection(sections, '验收标准');
+    expect(ac.found).toBe(true);
+    expect(ac.content).toContain('标准1');
+    // 中文数字编号 + 精确名
+    const bg = findSection(sections, '需求背景');
+    expect(bg.found).toBe(true);
+    // 不存在的章节仍不命中
+    expect(findSection(sections, '非功能需求').found).toBe(false);
   });
 
   it('PRD 16.3：缺权限规则和验收标准 → failed 且 missing_sections 正确', async () => {

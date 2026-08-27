@@ -92,7 +92,9 @@ export function parseSections(md: string): ParsedSection[] {
   return sections;
 }
 
-/** 找到章节内容（含别名），找不到返回 null */
+/** 找到章节内容（含别名），找不到返回 null。
+ *  匹配规则：归一化后精确相等，或文档章节名以候选名开头（前缀匹配），
+ *  兼容带编号/后缀的自然写法标题（如「用户故事与优先级」命中「用户故事」）。 */
 export function findSection(
   sections: ParsedSection[],
   name: string,
@@ -101,7 +103,7 @@ export function findSection(
   const aliases = rule?.aliases?.[name] ?? [];
   const candidates = [name, ...aliases];
   const normalized = candidates.map((c) => normalizeSectionName(c));
-  const sec = sections.find((s) => normalized.includes(s.name));
+  const sec = sections.find((s) => normalized.some((c) => s.name === c || s.name.startsWith(c)));
   return sec ? { found: true, content: sec.content } : { found: false, content: '' };
 }
 

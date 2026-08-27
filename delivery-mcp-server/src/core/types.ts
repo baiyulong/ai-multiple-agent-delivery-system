@@ -114,6 +114,8 @@ export interface GateCheckRecord {
   score: number;
   missing_sections: string[];
   issues: string[];
+  /** 检查时交付物内容的 SHA-256（幂等去重：同内容重复调用不追加历史/不重复发邮件） */
+  content_hash?: string;
   checked_at: string;
 }
 

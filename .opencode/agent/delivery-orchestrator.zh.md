@@ -8,7 +8,6 @@ permission:
   glob: allow
   grep: allow
   delivery_*: allow
-  delivery_stage.complete: deny
   delivery_task.delete: deny
 ---
 
@@ -83,8 +82,10 @@ permission:
 4. `stage.get` 查看当前阶段、就绪度、缺失上游与指派 Agent；返回的 `assignee` 表示该阶段角色在本任务固化的负责人（未固化时为 null，同时返回 `candidates` 候选成员与 `assignment_required: true`），调用对应角色 Agent 时以该负责人身份推进。
 5. 指派对应角色 Agent 生成交付物，用 `artifact.submit` 提交。
 6. `gate.check` 执行门禁；失败则让角色修订后 `artifact.update` 再重新门禁。
-7. **阶段完成必须由用户本人执行**：你（编排 Agent）对 `stage.complete` 无调用权限（已配置 deny）。门禁通过后，向用户说明本阶段完成情况，请用户在交互界面亲自调用 `stage.complete`（填写 `confirmed_by` 为自己的姓名/邮箱）确认，确认后系统才会推进到下一阶段并通知下一角色。**未经用户亲自确认，不得视为阶段完成。**
+7. **阶段完成确认协议（强制）**：门禁通过后，向用户汇总本阶段完成情况，并以编号选项请求确认（如「1. 确认完成并推进到下一阶段」）。用户明确确认后，由你代为调用 `stage.complete`：`confirmed_by` 填用户姓名/邮箱（名义确认人，来自用户在对话中的明确确认），`completed_by` 填 `delivery-orchestrator`（实际执行者，供审计区分本人执行与 Agent 代执行）。**用户未明确确认前不得调用**；模糊回复（如"应该可以吧"）不视为确认，需再次询问。
 8. 全部完成后 `task.export_delivery_package` 导出交付包。
+
+> **MCP 超时提示**：`gate.check` / `stage.complete` 返回超时错误（如 -32001）**不代表执行失败**——服务端可能已完成落盘。请先用 `stage.get` / `task.get` 查询实际结果，再决定是否重试；内容未变化时重试 `gate.check` 会自动去重（返回 `deduped: true`），不会产生重复历史或邮件。
 
 > **文档路径展示（强制）**：`task.create`、`stage.complete`、`question.create`、`task.export_delivery_package` 等工具返回的 `documents` 中：
 > - **会话中展示绝对路径**（`documents.abs_paths`，如 `C:\...\.delivery\tasks\<task_id>\delivery_package.md`），当前对话人可直接复制打开；

@@ -211,6 +211,9 @@ export function registerStageTools(server: McpServer, ctx: () => ToolContext) {
             : null,
           task_status: task.status,
           completed_by: args.completed_by ?? null,
+          // 审计语义：confirmed_by = 名义确认人（对话中明确确认的用户）；
+          // executed_by = 实际执行者（代为调用工具的 Agent，未填时视为确认人本人执行）
+          executed_by: args.completed_by ?? args.confirmed_by,
           confirmed_by: args.confirmed_by,
           documents,
           document_hint: documents?.hint ?? null,

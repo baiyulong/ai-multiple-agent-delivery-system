@@ -5,6 +5,7 @@ import {
   loadFlowTemplate,
   requiredTypes,
 } from '../core/flow-engine.js';
+import { loadGateRule } from '../core/gate-engine.js';
 import {
   findArtifactByType,
   getArtifact,
@@ -104,11 +105,20 @@ export function registerArtifactTools(server: McpServer, ctx: () => ToolContext)
         await setStageStatus(root, args.task_id, args.stage, 'submitted', stages);
         await setStageArtifactId(root, args.task_id, args.stage, meta.artifact_id, stages);
 
+        // 前置告知门禁必需章节清单，避免 Agent 按自然习惯写标题而首轮门禁失败
+        const rule = await loadGateRule(root, args.artifact_type);
+
         return ok({
           artifact_id: meta.artifact_id,
           status: meta.status,
           version: meta.version,
           path: meta.path,
+          required_sections: rule?.required_sections ?? [],
+          gate_hint: rule
+            ? t('tool.artifact.submit.gate_hint', {
+                sections: rule.required_sections.join('、'),
+              })
+            : null,
         });
       } catch (e) {
         return fail('submit_failed', t('tool.artifact.submit.failed', { msg: (e as Error).message }));
