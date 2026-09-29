@@ -44,7 +44,7 @@
  */
 import { cp, mkdir, readFile, realpath, writeFile, rm, readdir, readlink } from 'node:fs/promises';
 import { existsSync, createWriteStream } from 'node:fs';
-import { spawn } from 'node:child_process';
+import { spawn, execSync } from 'node:child_process';
 import { dirname, join, sep } from 'node:path';
 import { homedir, tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -1046,18 +1046,48 @@ if (staleProjectAgents.length > 0) {
   console.log('');
 }
 
+/**
+ * 解析当前 node 可执行文件的绝对路径。
+ * 背景：fnm/nvm/nodenv/volta 等版本管理器只在交互式 shell 中向 PATH 注入 node，
+ * 而 OpenCode spawn MCP 子进程时不继承该 PATH，导致 "node" 字符串命令找不到，
+ * server 进程无法启动（Connection closed）。安装脚本自身由 node 运行，
+ * 此刻 node 必在 PATH 上，解析其绝对路径写入 opencode.json 即可彻底规避。
+ * 解析失败时回退为 "node"，保持旧行为不退化。
+ */
+function resolveNodeBin() {
+  try {
+    const cmd = process.platform === 'win32' ? 'where node' : 'which node';
+    const out = execSync(cmd, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    // where/which 可能输出多行（如 Windows 的 node 与 node.cmd shim），取第一个 .exe/可执行项
+    const lines = out.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+    if (lines.length === 0) return 'node';
+    // Windows：优先取 .exe 结尾的真实可执行文件（跳过 .cmd/.ps1 shim，shim 在非 shell 子进程中可能也无法启动）
+    if (process.platform === 'win32') {
+      const exe = lines.find((l) => l.toLowerCase().endsWith('.node.exe') || l.toLowerCase().endsWith('.exe'));
+      return exe ?? lines[0];
+    }
+    return lines[0];
+  } catch {
+    // node 不在 PATH（理论上不会发生，脚本自身就是 node 运行的）
+    return 'node';
+  }
+}
+
 // ---------- 4. 合并 opencode.json（注册 MCP：绝对路径 + DELIVERY_ROOT） ----------
 log(`\n[3/6] 注册 MCP 到 opencode.json（绝对路径 + DELIVERY_ROOT 环境变量）`);
 const opencodeFile = join(targetReal, 'opencode.json');
 const opencodeConfig = (await readJsonSafe(opencodeFile)) ?? {};
 const serverEntry = join(dstServer, 'dist', 'server.js');
+const nodeBin = resolveNodeBin();
 const delivery = {
   type: 'local',
-  command: ['node', serverEntry],
+  command: [nodeBin, serverEntry],
   environment: { DELIVERY_ROOT: join(targetReal, '.delivery') },
   enabled: true,
 };
 const existingDelivery = opencodeConfig.mcp && opencodeConfig.mcp.delivery;
+// 路径一致判定：command[1]（server.js 入口）相同即视为已是本脚本注册的全局路径，
+// command[0]（node 可执行路径）可能因版本管理器解析结果不同而变化，不作为强制更新条件
 if (existingDelivery && Array.isArray(existingDelivery.command) && existingDelivery.command[1] === serverEntry) {
   skip('opencode.json 中 mcp.delivery 已指向全局安装（路径一致）');
 } else {
@@ -1071,7 +1101,7 @@ if (existingDelivery && Array.isArray(existingDelivery.command) && existingDeliv
     opencodeConfig.mcp.delivery = delivery;
     if (!opencodeConfig.$schema) opencodeConfig.$schema = 'https://opencode.ai/config.json';
     await writeFile(opencodeFile, JSON.stringify(opencodeConfig, null, 2) + '\n', 'utf-8');
-    ok('mcp.delivery 已合并写入 opencode.json');
+    ok(`mcp.delivery 已合并写入 opencode.json（node: ${nodeBin}）`);
   }
 }
 
