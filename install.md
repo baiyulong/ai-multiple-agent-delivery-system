@@ -63,9 +63,9 @@ node delivery-mcp-server/install.js --repo /tmp/ai-delivery-system /path/to/proj
 4. **安装工具本体到全局目录** `~/.config/ai-delivery/delivery-mcp-server/`（已存在时：`--release` / `--force-update` / **本地版本低于源码版本** 三种情况会删除旧版并拷贝新版，否则跳过）
 5. **应用安装语言**：写入 `config/lang/active.json`，删除另一语言的内置资源（config/gates、config/architectures、templates、lang json、`web-dist/`）
 6. **拷贝角色 Agent 到全局目录** `~/.config/opencode/agents/`（`delivery-*.md`，去掉语言后缀；源码安装只新增不覆盖已有，`--release` 更新模式覆盖）
-7. **合并 `opencode.json`**：保留目标项目已有的全部字段，只写 `mcp.delivery` = `{ "type": "local", "command": ["node", "<全局>/delivery-mcp-server/dist/server.js"], "environment": { "DELIVERY_ROOT": "<项目>/.delivery" }, "enabled": true }`（已存在且路径一致则跳过，已存在旧路径则更新）
-8. **追加 `.gitignore`**：`.delivery/`（幂等）。邮件配置属当前用户个人（`email.set` 写入用户主目录 `~/.config/ai-delivery/user.json`），不会写入项目
-9. **安装依赖**：`--release` 预构建包只执行 `npm install --omit=dev`（**不构建**，dist 已就绪）；源码安装执行 `npm install` + `npm run build`（`VITE_LANG` 注入 web 构建，产出所选语言的 `web-dist/`）
+7. **安装依赖**：`--release` 预构建包只执行 `npm install --omit=dev`（**不构建**，dist 已就绪）；源码安装执行 `npm install` + `npm run build`（`VITE_LANG` 注入 web 构建，产出所选语言的 `web-dist/`）
+8. **合并 `opencode.json`**：**必须在依赖安装完成后才写入**——依赖（`node_modules`）未就绪时写入，会让运行中的 OpenCode 立刻拉起尚未构建好的 MCP server，导致 `Connection closed`；写入前会校验全局目录 `node_modules` 已就绪。保留目标项目已有的全部字段，只写 `mcp.delivery` = `{ "type": "local", "command": ["node", "<全局>/delivery-mcp-server/dist/server.js"], "environment": { "DELIVERY_ROOT": "<项目>/.delivery" }, "enabled": true }`（已存在且路径一致则跳过，已存在旧路径则更新）
+9. **追加 `.gitignore`**：`.delivery/`（幂等）。邮件配置属当前用户个人（`email.set` 写入用户主目录 `~/.config/ai-delivery/user.json`），不会写入项目
 10. 若项目内存在旧版按项目安装的 `delivery-mcp-server/`，打印**迁移提示**（任务数据 `.delivery` 原地保留，旧目录可手动删除）
 11. 默认**不**自动启动看板（加 `--dashboard` 后台启动；避免被有超时的命令行误杀）
 12. 打印后续配置指引（user.set / team.set / email.set）与本机全局路径信息
@@ -449,8 +449,14 @@ A：从全局目录启动 dashboard 时**必须**设置 `DELIVERY_ROOT` 指向�
 **Q：想换存储位置？**
 A：设置环境变量 `DELIVERY_ROOT` 指向目标目录。
 
-**Q：升级了版本但 OpenCode 还在用旧代码？**
-A：更新后 MCP server 进程会被停止，需**重启 OpenCode** 才会以新代码启动。
+**Q：升级了版本但 OpenCode 还在用旧代码 / MCP 没重连？**
+A：更新后 MCP server 进程会被停止，需**重启 OpenCode** 才会以新代码启动。OpenCode v2 下对 MCP 而言，「重启 OpenCode 生效」指的是重启后台服务，不必整机重启：
+- 重启后台服务：`opencode service restart`
+- 只想重连单个 MCP、不停服务：`opencode api experimental.mcp.connect --param server=delivery --param 'location[directory]=<项目绝对路径>'`
+- 查看各 MCP 实时状态：`opencode mcp list`
+
+**Q：为什么安装脚本在装完依赖后才写 `opencode.json`？**
+A：这是刻意的顺序。依赖（`node_modules`）就绪前就写入 `mcp.delivery`，运行中的 OpenCode 会立即尝试拉起 MCP server，而此时依赖尚未装完，导致 `Connection closed`。因此脚本先安装/构建依赖、校验 `node_modules` 就绪，最后才合并 `opencode.json`。
 
 **Q：企业代理环境下 `--release` / `--prerelease` 下载失败（fetch failed）？**
 A：Node 内置 fetch 不读取 `https_proxy` 等代理环境变量，脚本已内置回退：fetch 网络层失败时自动改用系统 curl 下载（curl 原生遵循代理）。排查顺序：① 确认 `https_proxy` 指向可达代理（错误信息会区分"连接超时 / 连接被拒绝 / DNS 失败 / SSL 握手失败"，SSL 失败常见于代理证书不受信，可设 `CURL_CA_BUNDLE`）；② 超时可设 `DELIVERY_DOWNLOAD_TIMEOUT_MS`（毫秒，默认 300000）；③ 可用 `DELIVERY_DOWNLOAD_TOOL=fetch|curl|auto` 强制指定下载方式（默认 auto，fetch 优先失败回退 curl）；④ 仍失败可手动下载 Release zip 解压后用 `--prebuilt <目录>` 离线安装。

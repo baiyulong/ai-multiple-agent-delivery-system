@@ -1073,8 +1073,48 @@ function resolveNodeBin() {
   }
 }
 
-// ---------- 4. 合并 opencode.json（注册 MCP：绝对路径 + DELIVERY_ROOT） ----------
-log(`\n[3/6] 注册 MCP 到 opencode.json（绝对路径 + DELIVERY_ROOT 环境变量）`);
+// ---------- 4. 依赖安装（必须先于 opencode.json 注册，避免 MCP 竞态） ----------
+if (IS_PREBUILT_INSTALL) {
+  // 预构建包：只装运行期依赖（--omit=dev），不构建
+  log(`\n[3/6] 安装运行期依赖（预构建包，npm install --omit=dev）`);
+  if (!FLAG_DRY && existsSync(dstServer)) {
+    try {
+      log('  - npm install --omit=dev（通常 10–30 秒，请勿中断）...');
+      await run('install --omit=dev', dstServer);
+      ok('运行期依赖安装完成（预构建 dist 已就绪，无需构建）');
+    } catch (e) {
+      warn(`依赖安装失败：${e.message}。可稍后在 ${dstServer} 手动执行 npm install --omit=dev。`);
+    }
+  } else if (FLAG_DRY) {
+    log('  - 将执行 npm install --omit=dev（delivery-mcp-server 目录）');
+  }
+} else {
+  // 源码安装：npm install + build
+  log(`\n[3/6] 安装依赖并构建（npm install && npm run build）`);
+  if (!FLAG_DRY && existsSync(dstServer)) {
+    try {
+      log('  - npm install（依赖安装通常需 1–3 分钟，请勿中断）...');
+      await run('install', dstServer);
+      if (FLAG_SKIP_BUILD) {
+        log('  - 已跳过构建（--skip-build）。请稍后手动执行 npm run build，或再次运行 install.js 完成构建。');
+      } else {
+        log('  - npm run build（首次构建可能需 1–2 分钟，请勿中断）...');
+        // VITE_LANG 注入 web 构建：构建期单语言（web 端 import.meta.env.VITE_LANG）
+        await run('run build', dstServer, { VITE_LANG: installLang });
+        ok('构建完成：delivery-mcp-server/dist/server.js');
+      }
+    } catch (e) {
+      warn(`依赖安装/构建失败：${e.message}。可稍后在 ${dstServer} 手动执行 npm install && npm run build。`);
+    }
+  } else if (FLAG_DRY) {
+    log('  - 将执行 npm install && npm run build（delivery-mcp-server 目录）');
+  }
+}
+
+// ---------- 5. 合并 opencode.json（注册 MCP：绝对路径 + DELIVERY_ROOT） ----------
+// 顺序关键：依赖安装（上一步）完成后再写 opencode.json。若先写配置，运行中的 OpenCode
+// 可能在 node_modules 尚未写完时就拉起 MCP server，导致 "Connection closed"（安装期竞态）。
+log(`\n[4/6] 注册 MCP 到 opencode.json（依赖就绪后写入，绝对路径 + DELIVERY_ROOT 环境变量）`);
 const opencodeFile = join(targetReal, 'opencode.json');
 const opencodeConfig = (await readJsonSafe(opencodeFile)) ?? {};
 const serverEntry = join(dstServer, 'dist', 'server.js');
@@ -1095,8 +1135,15 @@ if (existingDelivery && Array.isArray(existingDelivery.command) && existingDeliv
     log(`  - 更新已有 mcp.delivery（旧命令 ${JSON.stringify(existingDelivery.command)} → 全局路径）`);
   }
   if (FLAG_DRY) {
+    log('  - 校验 node_modules 就绪后再写入（避免 MCP 竞态）');
     log('  - 将写入 mcp.delivery = ' + JSON.stringify(delivery));
   } else {
+    // 竞态防护：确认依赖已就绪（node_modules 存在）再注册；缺失时仍写入注册（避免遗漏），
+    // 但明确警告 MCP 现在无法启动，需先安装依赖。
+    if (!existsSync(join(dstServer, 'node_modules'))) {
+      warn(`依赖尚未就绪（${join(dstServer, 'node_modules')} 不存在）：MCP server 现在无法启动。`);
+      warn('  请在该目录执行 npm install（源码安装还需 npm run build）后重启 OpenCode；本次仍写入注册以避免遗漏。');
+    }
     opencodeConfig.mcp = opencodeConfig.mcp ?? {};
     opencodeConfig.mcp.delivery = delivery;
     if (!opencodeConfig.$schema) opencodeConfig.$schema = 'https://opencode.ai/config.json';
@@ -1105,49 +1152,11 @@ if (existingDelivery && Array.isArray(existingDelivery.command) && existingDeliv
   }
 }
 
-// ---------- 5. .gitignore（忽略任务数据根 .delivery/） ----------
-log(`\n[4/6] 追加 .gitignore（忽略任务数据根 .delivery/）`);
+// ---------- 6. .gitignore（忽略任务数据根 .delivery/） ----------
+log(`\n[5/6] 追加 .gitignore（忽略任务数据根 .delivery/）`);
 const gitignoreFile = join(targetReal, '.gitignore');
 await gitIgnoreAdd(gitignoreFile, ['.delivery/']);
 ok('.gitignore 已处理（若此前无条目）');
-
-// ---------- 6. 依赖安装 ----------
-if (IS_PREBUILT_INSTALL) {
-  // 预构建包：只装运行期依赖（--omit=dev），不构建
-  log(`\n[5/6] 安装运行期依赖（预构建包，npm install --omit=dev）`);
-  if (!FLAG_DRY && existsSync(dstServer)) {
-    try {
-      log('  - npm install --omit=dev（通常 10–30 秒，请勿中断）...');
-      await run('install --omit=dev', dstServer);
-      ok('运行期依赖安装完成（预构建 dist 已就绪，无需构建）');
-    } catch (e) {
-      warn(`依赖安装失败：${e.message}。可稍后在 ${dstServer} 手动执行 npm install --omit=dev。`);
-    }
-  } else if (FLAG_DRY) {
-    log('  - 将执行 npm install --omit=dev（delivery-mcp-server 目录）');
-  }
-} else {
-  // 源码安装：npm install + build
-  log(`\n[5/6] 安装依赖并构建（npm install && npm run build）`);
-  if (!FLAG_DRY && existsSync(dstServer)) {
-    try {
-      log('  - npm install（依赖安装通常需 1–3 分钟，请勿中断）...');
-      await run('install', dstServer);
-      if (FLAG_SKIP_BUILD) {
-        log('  - 已跳过构建（--skip-build）。请稍后手动执行 npm run build，或再次运行 install.js 完成构建。');
-      } else {
-        log('  - npm run build（首次构建可能需 1–2 分钟，请勿中断）...');
-        // VITE_LANG 注入 web 构建：构建期单语言（web 端 import.meta.env.VITE_LANG）
-        await run('run build', dstServer, { VITE_LANG: installLang });
-        ok('构建完成：delivery-mcp-server/dist/server.js');
-      }
-    } catch (e) {
-      warn(`依赖安装/构建失败：${e.message}。可稍后在 ${dstServer} 手动执行 npm install && npm run build。`);
-    }
-  } else if (FLAG_DRY) {
-    log('  - 将执行 npm install && npm run build（delivery-mcp-server 目录）');
-  }
-}
 
 // ---------- 7. 旧模型迁移提示 ----------
 if (existsSync(join(targetReal, 'delivery-mcp-server'))) {

@@ -436,3 +436,9 @@ A：设置环境变量 `DELIVERY_ROOT` 指向目标目录。
 
 **Q：OpenCode 里工具找不到？**
 A：确认全局 `~/.config/ai-delivery/delivery-mcp-server/dist/server.js` 已构建，且 `opencode.json` 的 `command` 用的是**绝对路径**，重启 OpenCode。
+
+**Q：更新后要「重启 OpenCode 生效」，具体怎么做？**
+A：OpenCode v2 下对 MCP 而言指的是重启后台服务，不必整机重启：
+- 重启后台服务：`opencode service restart`
+- 只想重连单个 MCP、不停服务：`opencode api experimental.mcp.connect --param server=delivery --param 'location[directory]=<项目绝对路径>'`
+- 查看各 MCP 实时状态：`opencode mcp list`

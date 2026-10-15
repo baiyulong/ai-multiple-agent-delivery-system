@@ -63,9 +63,9 @@ The script automatically:
 4. **Installs the tool into the global directory** `~/.config/ai-delivery/delivery-mcp-server/` (if it exists: `--release` / `--force-update` / **local version lower than source version** delete the old copy and install the new one; otherwise it is skipped)
 5. **Applies the install language**: writes `config/lang/active.json`, deletes the other language's built-in resources (config/gates, config/architectures, templates, lang json, `web-dist/`)
 6. **Copies the role Agents to the global directory** `~/.config/opencode/agents/` (`delivery-*.md`, language suffix stripped; source install only adds, never overwrites existing; `--release` update mode overwrites)
-7. **Merges `opencode.json`**: preserves all existing fields of the target project, only writes `mcp.delivery` = `{ "type": "local", "command": ["node", "<global>/delivery-mcp-server/dist/server.js"], "environment": { "DELIVERY_ROOT": "<project>/.delivery" }, "enabled": true }` (skips if already present with the same path; updates if an old path exists)
-8. **Appends `.gitignore`**: `.delivery/` (idempotent). **Email config belongs to the current user personally** (`email.set` writes to the user home `~/.config/ai-delivery/user.json`), never written into the project
-9. **Installs dependencies**: for `--release` prebuilt packages only runs `npm install --omit=dev` (**no build** — dist is included); for source installs runs `npm install` + `npm run build` (`VITE_LANG` injected into the web build, producing `web-dist/` in the selected language)
+7. **Installs dependencies**: for `--release` prebuilt packages only runs `npm install --omit=dev` (**no build** — dist is included); for source installs runs `npm install` + `npm run build` (`VITE_LANG` injected into the web build, producing `web-dist/` in the selected language)
+8. **Merges `opencode.json`**: written **only after** dependencies are installed — writing `mcp.delivery` before `node_modules` is ready makes a running OpenCode immediately launch an MCP server that isn't built yet, causing `Connection closed`; the script verifies the global `node_modules` is ready before writing. Preserves all existing fields of the target project and only writes `mcp.delivery` = `{ "type": "local", "command": ["node", "<global>/delivery-mcp-server/dist/server.js"], "environment": { "DELIVERY_ROOT": "<project>/.delivery" }, "enabled": true }` (skips if already present with the same path; updates if an old path exists)
+9. **Appends `.gitignore`**: `.delivery/` (idempotent). **Email config belongs to the current user personally** (`email.set` writes to the user home `~/.config/ai-delivery/user.json`), never written into the project
 10. If the project contains an old per-project `delivery-mcp-server/`, prints a **migration hint** (task data `.delivery` is preserved in place; the old directory can be deleted manually)
 11. By default does **not** auto-start the dashboard (add `--dashboard` to start in the background; avoids being killed by command-line tools with timeouts)
 12. Prints follow-up configuration guidance (user.set / team.set / email.set) and local global-path info
@@ -449,8 +449,14 @@ A: When starting the dashboard from the global directory you **must** set `DELIV
 **Q: Want to change the storage location?**
 A: Set the env var `DELIVERY_ROOT` to the target directory.
 
-**Q: Updated the version but OpenCode still runs the old code?**
-A: The MCP server process is stopped on update; **restart OpenCode** for it to start with the new code.
+**Q: Updated the version but OpenCode still runs the old code / the MCP didn't reconnect?**
+A: The MCP server process is stopped on update; **restart OpenCode** for it to start with the new code. In OpenCode v2, "restart OpenCode for changes to take effect" means restarting the backend service for MCP — a full machine restart isn't required:
+- Restart the backend service: `opencode service restart`
+- Reconnect a single MCP without restarting the service: `opencode api experimental.mcp.connect --param server=delivery --param 'location[directory]=<absolute project path>'`
+- See each MCP's live status: `opencode mcp list`
+
+**Q: Why does the install script write `opencode.json` only after installing dependencies?**
+A: This ordering is deliberate. If `mcp.delivery` is written before `node_modules` is ready, a running OpenCode immediately tries to launch the MCP server while dependencies are still being installed, causing `Connection closed`. So the script installs/builds dependencies, verifies `node_modules` is ready, and only then merges `opencode.json`.
 
 **Q: `--release` / `--prerelease` download fails (fetch failed) behind a corporate proxy?**
 A: Node's built-in fetch ignores `https_proxy`-style proxy variables; the script has a built-in fallback: on fetch network errors it automatically retries with the system curl (curl honors proxy env vars natively). Troubleshooting order: ① make sure `https_proxy` points to a reachable proxy (error messages distinguish "connect timeout / connection refused / DNS failure / SSL handshake failure"; SSL failures often mean an untrusted MITM proxy cert — set `CURL_CA_BUNDLE`); ② for slow links set `DELIVERY_DOWNLOAD_TIMEOUT_MS` (ms, default 300000); ③ force a download tool with `DELIVERY_DOWNLOAD_TOOL=fetch|curl|auto` (default auto: fetch first, curl fallback); ④ as a last resort, download the Release zip manually and install offline with `--prebuilt <dir>`.

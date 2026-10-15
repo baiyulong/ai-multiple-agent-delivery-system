@@ -402,3 +402,9 @@ A: Set the env var `DELIVERY_ROOT` to the target directory.
 
 **Q: Tools not found in OpenCode?**
 A: Make sure the global `~/.config/ai-delivery/delivery-mcp-server/dist/server.js` is built and the `command` in `opencode.json` uses an **absolute path**, then restart OpenCode.
+
+**Q: After an update, how exactly do I "restart OpenCode" for changes to take effect?**
+A: In OpenCode v2, for MCP this means restarting the backend service — a full machine restart isn't required:
+- Restart the backend service: `opencode service restart`
+- Reconnect a single MCP without restarting the service: `opencode api experimental.mcp.connect --param server=delivery --param 'location[directory]=<absolute project path>'`
+- See each MCP's live status: `opencode mcp list`
